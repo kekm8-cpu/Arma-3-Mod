@@ -1,0 +1,8 @@
+class CfgFunctions {
+    class MY_MOD { // Your custom tag
+        class StrategicLayer {
+            class generateBattle { file = "STRAT_fnc_moveArmyAlongPath.sqf"; };
+			class generateBattle { file = "STRAT_fnc_calculateRoadPath.sqf"; };
+        };
+    };
+};
