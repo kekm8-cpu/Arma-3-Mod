@@ -1,0 +1,13 @@
+# Arma 3 Editor backups and auto-saves
+*.bak
+*.log
+*.p3d.bid
+*.rtm.bid
+
+# Windows thumbnail caches
+Thumbs.db
+ehthumbs.db
+
+# VS Code or local editor settings
+.vscode/
+.idea/
