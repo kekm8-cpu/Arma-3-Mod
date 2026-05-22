@@ -49,3 +49,5 @@ while {count _waypointPositions > 0} do {
 };
 
 _army set ["isMoving", false];
+
+//This mod will be awesome!
