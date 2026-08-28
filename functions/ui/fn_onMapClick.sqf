@@ -6,6 +6,10 @@
 		selected a click issues a movement order, otherwise a click on an army
 		marker selects it.
 
+		Clicks only do anything during the planning phase. An order does not
+		move anything - it is queued to the army's "pendingOrder" and takes
+		effect when the block is committed.
+
 	Parameters:
 		0: ARRAY  - units selected on the map
 		1: ARRAY  - world position that was clicked
@@ -14,6 +18,11 @@
 */
 
 params ["_selectedUnits", "_pos", "_shift", "_alt"];
+
+// Commitment is absolute: no order revision once the block is resolving.
+if (STRAT_turnPhase != "planning") exitWith {
+	hintSilent "The block is resolving. Orders stand until it ends.";
+};
 
 // 1. RESOLVE INTERACTIVE MAP CANVAS POINTERS
 // Display 12 is the engine's main overworld map; Control 51 is the interactive canvas.
@@ -24,32 +33,23 @@ private _mapControl = _mapDisplay displayCtrl 51;
 private _mouseOverData = ctrlMapMouseOver _mapControl;
 
 // --------------------------------------------------------------------- //
-// STATE A: AN ARMY IS CURRENTLY SELECTED -> REGISTER MOVEMENT ORDER
+// STATE A: AN ARMY IS CURRENTLY SELECTED -> QUEUE MOVEMENT ORDER
 // --------------------------------------------------------------------- //
 if (!isNil "STRAT_selectedArmy" && {STRAT_selectedArmy isEqualType createHashMap}) then {
-    
+
     // Extract the map marker belonging to the currently active selection
     private _selectedMarker = STRAT_selectedArmy get "marker";
 
-    // Calculate the optimal path from current army coordinates to the clicked destination vector
-    // STRAT_fnc_calculateRoadPath intelligently handles type conversion internally now
-    private _calculatedPath = [STRAT_selectedArmy get "location", _pos] call STRAT_fnc_calculateRoadPath;
+    // Write the order to pendingOrder. Nothing marches until commit.
+    private _accepted = [STRAT_selectedArmy, _pos] call STRAT_fnc_issueOrder;
 
-    if (count _calculatedPath > 0) then {
-        // Assign the calculated route directly to the army's internal data keys
-        STRAT_selectedArmy set ["path", _calculatedPath];
-
-        // Fire the movement loop handler over to the background scheduler
-        [STRAT_selectedArmy] spawn STRAT_fnc_moveArmyAlongPath;
-
+    if (_accepted) then {
         // VISUAL CLEANUP & DESELECTION: Restore full opacity (1.0) and wipe selection reference
         _selectedMarker setMarkerAlpha 1.0;
         STRAT_selectedArmy = nil;
-        
-        //hint "Strategic movement orders issued. Column is on the march.";
-    } else {
-        hint "Invalid movement command. Target area lacks accessible road connectivity.";
     };
+    // A rejected order keeps the army selected so the player can pick another
+    // destination without reselecting it.
 
 } else {
     // ----------------------------------------------------------------- //
@@ -70,7 +70,14 @@ if (!isNil "STRAT_selectedArmy" && {STRAT_selectedArmy isEqualType createHashMap
                 // Reduce the marker's visual alpha opacity by 50% to confirm active selection
                 _currentArmyMarker setMarkerAlpha 0.5;
 
-                hint format ["Selected Force: %1\nAwaiting destination orders...", _x get "name"];
+                private _order = _x getOrDefault ["pendingOrder", createHashMap];
+                private _standing = if (count _order > 0 && {(_order getOrDefault ["status", ""]) != "complete"}) then {
+                    format ["\nStanding order: %1, issued block %2.", _order getOrDefault ["type", "move"], _order getOrDefault ["issuedBlock", 0]]
+                } else {
+                    ""
+                };
+
+                hint format ["Selected Force: %1\nAwaiting destination orders...%2", _x get "name", _standing];
             };
         } forEach activeArmies;
     };

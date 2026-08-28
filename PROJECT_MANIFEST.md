@@ -88,8 +88,9 @@ mission.sqm                  Player start
 functions/
   army/                      fn_generateArmy, fn_addMan, fn_addVehicle
   movement/                  fn_calculateRoadPath, fn_moveArmyAlongPath
-  turn/                      (planned) fn_beginPlanning, fn_resolveTurn,
-                             fn_advanceClock, fn_applyUpkeep
+  turn/                      fn_beginPlanning, fn_issueOrder,
+                             fn_projectArrival, fn_commitTurn, fn_resolveTurn,
+                             fn_applyUpkeep, fn_advanceClock
   ui/                        fn_onMapClick
   battle/                    fn_initiateBattle, fn_deployMen, fn_deployVehicles,
                              fn_drawBoundary, fn_battleDetectionLoop
@@ -559,16 +560,26 @@ after the initial exchange.
 - Vehicle deployment with damage/hitbox restoration; infantry deployment with
   round-robin vehicle mounting and leader placement.
 - Map battle boundary rendering.
+- Turn skeleton: planning → commit → resolve → advance, movement only.
+  `STRAT_fnc_beginPlanning` opens the phase and retires finished orders;
+  `STRAT_fnc_issueOrder` queues to `pendingOrder` with an arrival projection;
+  `STRAT_fnc_commitTurn` closes planning and hands the block to
+  `STRAT_fnc_resolveTurn`, which advances every army concurrently against the
+  same elapsed block time in compressed real time; `STRAT_fnc_applyUpkeep` and
+  `STRAT_fnc_advanceClock` close the block and reopen planning. Unfinished
+  orders stand and carry into the next block.
 
 **Needs conversion to turn-based**
-- `fn_moveArmyAlongPath` is a realtime `spawn` loop with a per-tick distance
-  budget. The budget maths carries over; the loop becomes a bounded resolution
-  pass over one block's elapsed time.
 - `fn_battleDetectionLoop` is a `while {true}` background thread. It becomes a
   post-movement resolution step, which also eliminates its mutation-during-
-  iteration bug.
-- `fn_onMapClick` issues orders immediately. It should queue to `pendingOrder`.
-- `isMoving` guard is obsolete under committed orders.
+  iteration bug. It is no longer spawned from `init.sqf` — a realtime loop
+  cannot honour block commitment — so no battle currently initiates. The hook
+  point is marked in `fn_resolveTurn`.
+
+*Converted:* `fn_moveArmyAlongPath` is now a bounded, non-sleeping resolution
+pass over a slice of block time; `fn_onMapClick` queues to `pendingOrder`
+instead of marching; `isMoving` is gone from the army record, which now carries
+`id`, `pendingOrder`, `inBattle`, and `prisoners`.
 
 **Needs restructuring for the battle type model**
 - `fn_initiateBattle` hardcodes midpoint deployment, symmetric roles, and
@@ -589,15 +600,17 @@ after the initial exchange.
   mechanic, so it must be enforced and its crossing direction classified.
 
 **Not started**
-- Turn loop: planning phase, commit, concurrent resolution, clock advance.
 - Battle conclusion detection, outcome classification, and sync-back.
-- Block time accounting and the real-minute exchange rate.
+- Block time accounting inside battles. The exchange rate constant
+  (`STRAT_realSecondsPerBlockHour`) and the block clock exist and drive the
+  execution phase; `blockTimeRemaining` on the engagement record does not.
 - Post-battle march with remaining block time.
 - Auto-resolution for unattended battles.
 - Location and garrison records; set-piece battles; the capture point.
 - Prisoner records and holding.
 - Ambush order type and deployment.
-- Fatigue accumulation and its effects.
+- Fatigue accumulation and its effects. `fn_applyUpkeep` holds the per-block
+  and per-day hook points it attaches to.
 - Stronghold definition and frontier gating.
 - Route exposure and interception.
 - CSAT Favor and NATO Aggression tracking, accrual triggers, and spend menu.

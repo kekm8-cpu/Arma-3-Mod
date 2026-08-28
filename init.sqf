@@ -17,6 +17,33 @@ opfor setFriend [independent, 0];
 activeArmies = [];
 
 // ------------------------------------------------------------------------- //
+// TURN MODEL STATE                                                           //
+// ------------------------------------------------------------------------- //
+// WEGO with fixed blocks: both sides plan, both commit, the block resolves
+// simultaneously and is watched in compressed time.
+
+STRAT_blockLengthHours = 4;   // Block length in game hours
+STRAT_blocksPerDay     = 6;   // Six blocks per day
+
+// Exchange rate between the watched execution phase and block time. At 30 real
+// seconds per block hour a full block is two minutes of watching. This is the
+// number that also sets the length of every battle once battles run against
+// the block clock, and it needs playtesting rather than deriving.
+STRAT_realSecondsPerBlockHour = 30;
+
+// End the watch early once every army is idle. The rest of the block still
+// passes on the clock; there is simply nothing left to watch.
+STRAT_skipIdleResolution = true;
+
+STRAT_blockIndex        = 0;           // Blocks elapsed since campaign start
+STRAT_turnPhase         = "planning";  // "planning" or "resolving"
+STRAT_resolutionRunning = false;       // Guards against a double commit
+
+// The world clock moves in block steps, not in real time, so it is pinned as
+// slow as the engine allows and advanced explicitly by STRAT_fnc_advanceClock.
+setTimeMultiplier 0.1;
+
+// ------------------------------------------------------------------------- //
 // 1. INITIALIZE BLUE ARMY (BLUFOR / PLAYER'S MERCENARIES)                    //
 // ------------------------------------------------------------------------- //
 private _blueSpawnPos = [7774.82, 8842.66, 0];
@@ -64,5 +91,26 @@ STRAT_selectedArmy = nil;
 
 onMapSingleClick { _this call STRAT_fnc_onMapClick };
 
-// Asynchronous Battle Detection Thread
-[] spawn TACT_fnc_battleDetectionLoop;
+// SPACE commits the block. Planning closes on this key and there is no input
+// again until resolution ends.
+(findDisplay 46) displayAddEventHandler ["KeyDown", {
+    params ["_display", "_key"];
+
+    // DIK 57 = Space
+    if (_key == 57 && {STRAT_turnPhase == "planning"}) then {
+        call STRAT_fnc_commitTurn;
+        true    // Consume the key so it does not also reach the player unit
+    } else {
+        false
+    };
+}];
+
+// TACT_fnc_battleDetectionLoop is deliberately not spawned. A realtime
+// while-loop cannot honour block commitment, and it mutates activeArmies while
+// iterating it. Its proximity maths is converted into the contact-detection
+// step inside STRAT_fnc_resolveTurn when the battle loop is closed.
+
+// ------------------------------------------------------------------------- //
+// OPEN THE FIRST PLANNING PHASE                                              //
+// ------------------------------------------------------------------------- //
+call STRAT_fnc_beginPlanning;
