@@ -8,9 +8,14 @@ It is now specified as turn-based (WEGO). Sections 5, 7, and 12 reflect that
 decision; parts of the existing codebase still assume realtime and are flagged
 in section 12.
 
-**This revision** adds section 10, the battle type model, and closes two open
-decisions (execution presentation, boundary enforcement) that the battle model
-forced.
+**Previous revision** added section 10, the battle type model, and closed two
+open decisions (execution presentation, boundary enforcement) that the battle
+model forced.
+
+**This revision** replaces the flat milestone list with a three-phase build
+plan (section 14): a strategic minimum, a battle-layer deep dive, then a return
+to the strategic layer and story progression. Sections 12 and 13 are annotated
+with the phase each item belongs to.
 
 ---
 
@@ -680,8 +685,12 @@ the enforced one cannot drift apart.
   and per-day hook points it attaches to.
 - Stronghold definition and frontier gating.
 - Route exposure and interception.
-- CSAT Favor and NATO Aggression tracking, accrual triggers, and spend menu.
+- CSAT Favor and NATO Aggression. The balances and the
+  `STRAT_fnc_addAggression` / `STRAT_fnc_spendFavor` hooks are phase 1 work;
+  accrual triggers, decay, display, and the spend menu are phase 3.
 - Money, manpower, recruitment, wages.
+- Battle test harness — spawn a named engagement with fixed rosters, bypassing
+  the turn. Phase 1.
 - Location capture, ownership, and per-location benefits.
 - Naval and air movement (mandatory on an archipelago — road pathfinding cannot
   leave the island it starts on).
@@ -711,6 +720,9 @@ the enforced one cannot drift apart.
 3. **Auto-resolve fidelity.** Pure math, or a fast headless simulation? Math is
    cheaper and more predictable; players tolerate it if the projection is
    legible. Must handle all three battle types, including the capture point.
+   Deferred to phase 3 deliberately: whichever approach is chosen has to be
+   calibrated against the outcome distribution real battles actually produce,
+   which is not known until phase 2 has been played.
 4. **Clock rates.** Two tunables in `init.sqf`, both wanting playtesting, and
    nothing else may hardcode either:
    - `STRAT_realSecondsPerBlockHour` (30) — compression of the watched march.
@@ -726,10 +738,16 @@ the enforced one cannot drift apart.
    whether 40 minutes of block time is enough of a price for a battle.
 5. **Fatigue curve and thresholds.** Needs playtesting once movement resolution
    exists. The threshold must be tuned against the 4-hour block, not chosen
-   independently of it.
+   independently of it. Tuned in phase 2, where its effects are visible; only
+   the derived army-level value is needed in phase 1.
 6. **Save format.** HashMaps need flattening to `profileNamespace` or a
-   serialized string. Block boundaries make this tractable — lock the schema
-   before the data model grows further.
+   serialized string. Block boundaries make this tractable. Previously flagged
+   as urgent on the grounds that the schema should be locked before the data
+   model grows; on inspection the phase 2 growth is mostly *transient* —
+   engagement records are never saved, since no battle spans a block boundary —
+   and the persistent additions (soldier fields, prisoners) are additive rather
+   than structural. Deferred to phase 3 on that basis. Revisit if phase 2
+   introduces persistent state that is not a field on an existing record.
 7. **Pathfinding cost ceiling.** Unbounded Dijkstra over Tanoa's full road graph
    can stall. Consider A* with a distance cap and a fallback to direct movement.
 8. **Prisoner disposition.** Ransom, recruitment, release, execution, or some
@@ -750,37 +768,136 @@ the enforced one cannot drift apart.
 
 ---
 
-## 14. Suggested Milestone Order
+## 14. Build Plan
 
-1. **Turn skeleton.** Planning → commit → resolve → advance, with movement only.
-   Everything downstream assumes this exists.
-2. **Close the battle loop.** Conclusion → outcome classification → sync-back →
-   return to strategic map. Nothing else matters until an army can fight, lose
-   people, and march on.
-3. **Block time accounting.** Battle clock, exchange rate, remaining-time
-   carry-over into the post-battle march. This is what makes open field battles
-   work at all.
-4. **Engagement record and deployment split.** Restructure `fn_initiateBattle`
-   before adding a second battle type, not after. Includes edge-deployment
-   geometry and destination bearing.
-5. **Fix side allocation and detection hostility.** Correct the faction→side map
-   and the iteration bug during conversion.
-6. **Auto-resolve.** Unattended battles resolve mathematically.
-7. **Save/load.** Lock the serialization schema early.
-8. **Locations and garrisons.** Records, ownership, benefits. Moved ahead of
-   fatigue because set-piece battles are blocked on it.
-9. **Set-piece battles.** Capture point, tug-of-war contest, surrender,
-   prisoner logging. Both role directions.
-10. **Fatigue.** Soldier-level fields, per-block accumulation, effects at
-    deployment, projection at planning time.
-11. **Strongholds and frontier gating.** The primary movement constraint.
-12. **Favor and aggression.** Accrual triggers, display, and one spendable asset
-    end to end.
-13. **Water and air movement.** Unlocks the rest of Tanoa.
-14. **Economy.** Money, manpower, recruitment, wages.
-15. **Ambushes.** Order type, preparation block, concealed deployment.
-16. **Prisoner disposition.** Whatever the answer to open decision 8 turns out
-    to be.
-17. **Sleep cycles.** Full 24-hour model replacing interim fatigue.
-18. **Progression.** Soldier names, ranks, loadouts.
-19. **Drop-in and spectate.**
+Three phases. Phase one brings the strategic layer to the minimum that gives the
+battle layer real context. Phase two is the battle deep dive. Phase three
+returns to the strategic layer and story progression.
+
+The ordering principle: anything that would be **expensive to retrofit into
+battle code** goes in phase one, even if its full implementation does not.
+Anything that only needs battles to *exist* goes in phase three. Everything else
+follows the dependency chain.
+
+### Phase 1 — Strategic minimum
+
+**Already complete.** Turn skeleton (planning → commit → resolve → advance),
+closed battle loop (contact → engagement → battle → conclusion → sync-back →
+return), and block time accounting. This is the bulk of what phase one was
+supposed to deliver; what remains is short.
+
+**Remaining, in order:**
+
+1.1 **Fix side allocation.** `fn_deployMen` assigns `drugLords` to OPFOR, which
+collides with CSAT. Correct the faction→side map per section 8. Small, but every
+battle built and tested during phase two would otherwise sit on a wrong
+hostility map.
+
+1.2 **Locations and garrisons, minimally.** `id`, `type`, `position`, `owner`,
+`garrison`, `flagPos`. Defer `opinion` and per-location benefits. This is the
+real gate on phase two: set-piece battles are a hard dependency on location
+records, and set-piece is the type worth deep-diving. Without it the deep dive
+can only cover open field — the cheapest type — and would have to be reopened
+for the expensive one.
+
+1.3 **Favor and aggression accrual hooks.** Balances plus
+`STRAT_fnc_addAggression` and `STRAT_fnc_spendFavor`. **Not** the economy, not
+the spend menu, not the accrual triggers themselves. Aggression accrues from
+tactical conduct and favor assets are called in *during* battles, so a battle
+layer built with nothing to report to means retrofitting every
+explosive-ordnance and support-call path. Same staging pattern as fatigue:
+skeleton early, implementation deferred.
+
+1.4 **Derived army fatigue value.** One function over the soldier records,
+returning an army-level number. No accumulation yet. Deployment (lifecycle
+stage 7) applies fatigue as skill and morale modifiers and needs something to
+read.
+
+1.5 **Battle test harness.** Spawn a named engagement directly with fixed
+rosters, no turn required. Roughly an hour of work, used several hundred times
+during phase two.
+
+**Explicitly deferred out of phase 1:**
+
+| Deferred | Why it can wait |
+|---|---|
+| Auto-resolve | Better calibrated against real played outcomes. See phase 3.1 |
+| Save/load | Battle-layer state is mostly transient. See open decision 6 |
+| Naval and air movement | The home island is enough ground to test every battle type |
+| Strongholds, route exposure | Neither is read by battle code |
+| Economy, recruitment, wages | Only the accrual hooks are needed, not the economy |
+
+### Phase 2 — Battle deep dive
+
+2.1 **Engagement record and deployment split.** Restructure `fn_initiateBattle`
+before adding a second battle type, not after. Includes edge-deployment
+geometry and destination bearing.
+
+2.2 **Infantry-only deployment.** `fn_deployMen` currently requires at least one
+vehicle. Fix before set-piece, where dismounted garrisons are the normal case.
+
+2.3 **Set-piece battles.** Capture point, tug-of-war contest, surrender,
+prisoner logging. Both role directions.
+
+2.4 **Morale and rout.** The missing victory condition. Army-level `morale`,
+derived where possible, and the rout classification in `fn_resolveVictory`.
+
+2.5 **Post-battle march for a repulsed army.** Reversing along the route. The
+only remaining hole in lifecycle stage 11.
+
+2.6 **Fatigue.** Per-block accumulation, effects at deployment, projection at
+planning time. Promoted into phase two because its whole visible effect is on
+the battlefield, and the visibility invariant means tuning it requires seeing
+what it does to a fight.
+
+2.7 **Ambushes.** One order type and one deployment plan. Cheap once 2.1 lands.
+Optional at the end of phase two — the order type is strategic-side work, so it
+may fall more naturally into phase three. Decide once set-piece is done.
+
+Boundary radius, the battle clock cap, and the capture contest formula are all
+tuned here, against played battles rather than in the abstract.
+
+### Phase 3 — Strategic layer and story
+
+3.1 **Auto-resolve.** Not a finishing touch and not battle work — it is the gate
+on everything else in this phase. Nothing that makes the cartel a live opponent
+(independent operations, multiple simultaneous fronts, the underdog-expanding-
+outward shape) functions until unattended battles resolve. Placing it here
+rather than in phase one is deliberate: after a phase of played battles the real
+outcome distribution is known and the math can be calibrated against it instead
+of guessed.
+
+3.2 **Save/load.** Lock the serialization schema.
+
+3.3 **Strongholds and frontier gating.** The primary movement constraint.
+
+3.4 **Water and air movement.** Unlocks the rest of Tanoa and the island
+progression.
+
+3.5 **Route exposure and interception.** Surfaced at planning time.
+
+3.6 **Economy.** Money, manpower, recruitment, wages.
+
+3.7 **Favor and aggression, in full.** Accrual triggers, decay, display, spend
+menu, one spendable asset end to end. The hooks already exist from 1.3.
+
+3.8 **Locations, in full.** Per-location benefits, ownership transfer, local
+opinion and its diffusion.
+
+3.9 **Prisoner disposition.** Whatever the answer to open decision 8 turns out
+to be.
+
+3.10 **Sleep cycles.** Full 24-hour model replacing interim fatigue.
+
+3.11 **Progression.** Soldier names, ranks, loadouts.
+
+3.12 **Drop-in and spectate.**
+
+3.13 **Story progression.** Contract structure and the fixed geographic
+campaign arc.
+
+**Battle-layer work during phase 3** is limited to tuning and finishing touches
+— numbers, not structure. If phase three turns up a need to restructure the
+battle lifecycle, that is a signal phase two ended early, not a normal phase
+three activity. Auto-resolve is the one exception, and it is listed first
+precisely because it is not a tweak.
