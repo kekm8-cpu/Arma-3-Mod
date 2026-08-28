@@ -2,7 +2,9 @@ class CfgFunctions {
     class STRAT {
         class Army {
             file = "functions\army";
-            class createArmy {};
+            class generateArmy {};
+            class addMan {};
+            class addVehicle {};
         };
         class Movement {
             file = "functions\movement";
@@ -12,6 +14,16 @@ class CfgFunctions {
         class UI {
             file = "functions\ui";
             class onMapClick {};
+        };
+    };
+    class TACT {
+        class Battle {
+            file = "functions\battle";
+            class deployVehicles {};
+            class deployMen {};
+            class drawBoundary {};
+            class initiateBattle {};
+            class battleDetectionLoop {};
         };
     };
 };
