@@ -2,56 +2,107 @@
 	Function: TACT_fnc_initiateBattle
 
 	Description:
-		Transitions two colliding strategic armies into a tactical engagement:
-		pulls them out of the overworld loop, finds the midpoint between them,
-		deploys both rosters and orders them to converge.
+		Opens a battle from an engagement record (section 9, stage 7): places
+		both rosters, gives each group its marching orders, and draws the
+		boundary.
+
+		The armies stay in `activeArmies` and are flagged `inBattle` instead of
+		being pulled out of it. Strategic resolution skips them while the flag
+		is up, and the return to the strategic map is then just clearing it -
+		nothing has to remember to put them back.
+
+		Deployment still converges both groups on the anchor. Placing each army
+		at its own boundary edge facing its destination bearing is part of the
+		deployment split and is not done here yet.
 
 	Parameters:
-		0: HASHMAP - the BLUFOR side army
-		1: HASHMAP - the OPFOR side army
+		0: HASHMAP - engagement record (see TACT_fnc_buildEngagement)
 
 	Returns:
-		BOOL - true.
+		BOOL - true if both sides put units on the ground, false if deployment
+		       failed and the engagement must be abandoned.
 */
 
 params [
-	["_blueArmy", createHashMap, [createHashMap]],
-	["_redArmy", createHashMap, [createHashMap]]
+	["_engagement", createHashMap, [createHashMap]]
 ];
 
-// 1. Core State Management: Remove the armies from the global overworld tracking loop
-activeArmies = activeArmies - [_blueArmy, _redArmy];
+private _attacker = _engagement get "attacker";
+private _defender = _engagement get "defender";
+private _anchor   = _engagement get "boundaryAnchor";
+private _radius   = _engagement get "boundaryRadius";
 
-// 2. Geometric Calculations: Establish the conflict line of scrimmage
-private _bluePos = _blueArmy get "location";
-private _redPos  = _redArmy get "location";
-private _midpoint = [
-    ((_bluePos select 0) + (_redPos select 0)) / 2,
-    ((_bluePos select 1) + (_redPos select 1)) / 2,
-    0
+// 1. Suppress strategic resolution for both armies for the duration.
+_attacker set ["inBattle", true];
+_defender set ["inBattle", true];
+
+// 2. Approach roads into the anchor, used to line the vehicles up.
+private _attackerRoad = [_attacker get "location", _anchor] call STRAT_fnc_calculateRoadPath;
+private _defenderRoad = [_defender get "location", _anchor] call STRAT_fnc_calculateRoadPath;
+
+// 3. Physical deployment: vehicles first, then infantry mounted into them.
+[_attacker, _attackerRoad] call TACT_fnc_deployVehicles;
+[_defender, _defenderRoad] call TACT_fnc_deployVehicles;
+
+private _attackerGroup = [_attacker] call TACT_fnc_deployMen;
+private _defenderGroup = [_defender] call TACT_fnc_deployMen;
+
+_engagement set ["attackerGroup", _attackerGroup];
+_engagement set ["defenderGroup", _defenderGroup];
+
+// 4. Deployment can legitimately produce nothing - fn_deployMen needs at least
+// one vehicle, so an infantry-only army lands no units. A side that cannot
+// field anybody must not be counted as annihilated, so the engagement is
+// abandoned and both rosters are put back untouched.
+if (count (units _attackerGroup) == 0 || {count (units _defenderGroup) == 0}) exitWith {
+	diag_log format [
+		"TACT Battle: deployment failed (%1: %2 units, %3: %4 units), engagement abandoned.",
+		_attacker get "name", count (units _attackerGroup),
+		_defender get "name", count (units _defenderGroup)
+	];
+
+	[_attacker] call TACT_fnc_syncBack;
+	[_defender] call TACT_fnc_syncBack;
+
+	if (!isNull _attackerGroup) then { deleteGroup _attackerGroup };
+	if (!isNull _defenderGroup) then { deleteGroup _defenderGroup };
+
+	_attacker set ["inBattle", false];
+	_defender set ["inBattle", false];
+
+	false
+};
+
+// 5. Marching orders. Each group is sent toward its own strategic destination,
+// not at the enemy: the reason to advance is that there is somewhere to be, and
+// the block clock is what makes standing still expensive. An army with no
+// standing order has nowhere to be and holds at the anchor.
+{
+	_x params ["_army", "_group"];
+
+	private _order = _army getOrDefault ["pendingOrder", createHashMap];
+	private _destination = if (count _order > 0) then {
+		_order getOrDefault ["destination", _anchor]
+	} else {
+		_anchor
+	};
+
+	_group setFormation "COLUMN";
+	_group setBehaviour "AWARE";
+	_group setCombatMode "RED";
+	_group move _destination;
+} forEach [[_attacker, _attackerGroup], [_defender, _defenderGroup]];
+
+// 6. Draw the boundary the engagement actually enforces.
+[_anchor, true, _radius] call TACT_fnc_drawBoundary;
+
+// The turn loop owns the hint during resolution and refreshes it twice a
+// second, so the report is handed to it rather than hinted over the top of it.
+TACT_lastBattleReport = format [
+	"CONTACT - %1 has engaged %2.",
+	_attacker get "name",
+	_defender get "name"
 ];
+systemChat TACT_lastBattleReport;
 
-// 3. Path Generation to the Conflict Point
-private _blueStartRoad = [_bluePos, _midpoint] call STRAT_fnc_calculateRoadPath;
-private _redStartRoad  = [_redPos, _midpoint] call STRAT_fnc_calculateRoadPath;
-
-// 4. Physical Vehicle Deployment Phase
-[_blueArmy, _blueStartRoad] call TACT_fnc_deployVehicles;
-[_redArmy, _redStartRoad] call TACT_fnc_deployVehicles;
-
-// 5. Tactical Infantry Spawning and Vehicle Mounting Phase
-private _blueGroup = [_blueArmy] call TACT_fnc_deployMen;
-private _redGroup  = [_redArmy] call TACT_fnc_deployMen;
-
-// 6. Formational Layout Configuration
-_blueGroup setFormation "COLUMN";
-_redGroup setFormation "COLUMN";
-
-_blueGroup move _midpoint;
-_redGroup move _midpoint;
-
-// 7. Draw battle boundaries
-[_midpoint, true] call TACT_fnc_drawBoundary;
-
-// Return true to indicate successful deployment transition handling
 true

@@ -56,7 +56,7 @@ private _day        = floor (STRAT_blockIndex / STRAT_blocksPerDay) + 1;
 private _blockOfDay = (STRAT_blockIndex % STRAT_blocksPerDay) + 1;
 
 private _report = format [
-	"PLANNING - Day %1, Block %2 of %3\n%4\n\nIssue orders, then press SPACE to commit.",
+	"PLANNING - Day %1, Block %2 of %3\n%4%5\n\nIssue orders, then press SPACE to commit.",
 	_day,
 	_blockOfDay,
 	STRAT_blocksPerDay,
@@ -64,7 +64,9 @@ private _report = format [
 		"All detachments have standing orders."
 	} else {
 		format ["Awaiting orders: %1", _awaitingOrders joinString ", "]
-	}
+	},
+	// What the block just did, carried into the phase where it can be acted on.
+	if (TACT_lastBattleReport == "") then {""} else {format ["\n\n%1", TACT_lastBattleReport]}
 ];
 
 hint _report;

@@ -11,9 +11,14 @@
 		watching. The exchange rate between real seconds and block hours is
 		STRAT_realSecondsPerBlockHour.
 
-		Movement only. Contact detection, engagement construction, and the
-		battle lifecycle hang off the marked hook below and are not
-		implemented yet.
+		Each tick applies a slice of block time to movement, then evaluates any
+		battle running inside the block, then looks for new contact. Order
+		matters: a battle that ends on this tick releases its armies before the
+		next slice, and detection runs on positions that have already moved.
+
+		No battle may span a block boundary, so anything still being fought when
+		the block runs out is concluded here as a mutual disengage. That is what
+		keeps a block boundary free of in-flight state.
 
 		Must be spawned - this function sleeps.
 
@@ -28,6 +33,10 @@ if (STRAT_resolutionRunning) exitWith {
 	diag_log "STRAT Turn: resolution already running, second call ignored.";
 };
 STRAT_resolutionRunning = true;
+
+// A pair fights at most once per block. Cleared here, added to as battles
+// conclude.
+TACT_resolvedPairsThisBlock = [];
 
 private _blockSecondsTotal = STRAT_blockLengthHours * 3600;
 private _tickReal = 0.5;
@@ -64,26 +73,78 @@ while {_blockElapsed < _blockSecondsTotal} do {
 
 	_blockElapsed = _blockElapsed + _step;
 
+	private _blockHoursLeft = (_blockSecondsTotal - _blockElapsed) / 3600;
+
 	// ------------------------------------------------------------------ //
-	// STAGE 4: CONTACT DETECTION - NOT IMPLEMENTED                        //
+	// STAGE 9: CONCLUSION AND CLASSIFICATION                              //
 	// ------------------------------------------------------------------ //
-	// Hostile proximity, ambush zones, and location boundaries are evaluated
-	// here, after movement has been applied for this slice. Pairs are to be
-	// collected during the sweep and acted on after it closes, never by
-	// mutating activeArmies mid-iteration. Stages 5-11 (engagement record,
-	// battle decision, deployment, conclusion, sync-back, post-battle march)
-	// follow from it. TACT_fnc_battleDetectionLoop holds the proximity maths
-	// that gets converted into this step; it is no longer run as a realtime
-	// thread because it cannot honour block commitment.
+	// Live battles are evaluated before new ones are opened, so an engagement
+	// that ends on this tick frees its armies immediately.
+	private _concluded = [];
+	{
+		private _engagement = _x;
+		private _outcome = [_engagement] call TACT_fnc_resolveVictory;
+
+		if (count _outcome > 0) then {
+			[_engagement, _outcome] call TACT_fnc_concludeBattle;
+			_concluded pushBack _engagement;
+		};
+	} forEach TACT_activeEngagements;
+
+	// Removed by id. Array subtraction compares HashMaps by content, which
+	// would drop the wrong record whenever two happened to match.
+	if (count _concluded > 0) then {
+		private _concludedIds = _concluded apply {_x get "id"};
+		TACT_activeEngagements = TACT_activeEngagements select {!((_x get "id") in _concludedIds)};
+	};
+
+	// ------------------------------------------------------------------ //
+	// STAGE 4: CONTACT DETECTION                                          //
+	// ------------------------------------------------------------------ //
+	// Evaluated after movement has been applied for this slice. Detection
+	// collects pairs and returns them; battles are opened out here, once
+	// iteration over activeArmies has closed.
+	//
+	// Ambush zones and location boundaries are the other two contact sources.
+	// Neither exists yet, so proximity is the only one evaluated.
+	if (count TACT_activeEngagements < TACT_maxAttendedBattles) then {
+		private _contacts = [] call TACT_fnc_detectContact;
+
+		{
+			_x params ["_armyA", "_armyB"];
+
+			// Every battle is attended and spawned. Auto-resolving the ones the
+			// player is not at is a later milestone, so until it exists the
+			// cap holds the rest back rather than spawning battles nobody can
+			// watch.
+			if (count TACT_activeEngagements < TACT_maxAttendedBattles) then {
+				private _engagement = [_armyA, _armyB, _blockHoursLeft] call TACT_fnc_buildEngagement;
+
+				if ([_engagement] call TACT_fnc_initiateBattle) then {
+					TACT_activeEngagements pushBack _engagement;
+				} else {
+					// Deployment failed. Record the pair as settled so the
+					// same failure is not retried every tick for a whole block.
+					TACT_resolvedPairsThisBlock pushBack [_armyA get "id", _armyB get "id"];
+				};
+			};
+		} forEach _contacts;
+	};
+
+	// A block with a battle running in it is never idle, whatever the marchers
+	// are doing.
+	if (count TACT_activeEngagements > 0) then { _idle = false };
 
 	// Block clock readout. It is a mechanic, not decoration, so it is shown.
-	private _blockHoursLeft = (_blockSecondsTotal - _blockElapsed) / 3600;
+	// The battle report is composed into it rather than hinted separately: this
+	// readout refreshes twice a second and would wipe anything else instantly.
 	hintSilent format [
-		"EXECUTING - Day %1, Block %2 of %3\n%4 h of block time remaining.",
+		"EXECUTING - Day %1, Block %2 of %3\n%4 h of block time remaining.%5",
 		floor (STRAT_blockIndex / STRAT_blocksPerDay) + 1,
 		(STRAT_blockIndex % STRAT_blocksPerDay) + 1,
 		STRAT_blocksPerDay,
-		_blockHoursLeft toFixed 1
+		_blockHoursLeft toFixed 1,
+		if (TACT_lastBattleReport == "") then {""} else {format ["\n\n%1", TACT_lastBattleReport]}
 	];
 
 	// Nothing left to resolve: the rest of the block still passes on the
@@ -92,6 +153,19 @@ while {_blockElapsed < _blockSecondsTotal} do {
 
 	sleep _tickReal;
 };
+
+// ---------------------------------------------------------------------- //
+// BLOCK CLOCK EXPIRY: NO BATTLE MAY SPAN A BLOCK BOUNDARY                 //
+// ---------------------------------------------------------------------- //
+// Anything still fighting when the block runs out ends in mutual disengage.
+// This is what keeps a save point free of a battle in progress.
+{
+	private _engagement = _x;
+	private _outcome = [_engagement, true] call TACT_fnc_resolveVictory;
+	[_engagement, _outcome] call TACT_fnc_concludeBattle;
+} forEach TACT_activeEngagements;
+
+TACT_activeEngagements = [];
 
 // Retire orders whose route has been walked out. An unfinished order stands
 // and carries into the next block.

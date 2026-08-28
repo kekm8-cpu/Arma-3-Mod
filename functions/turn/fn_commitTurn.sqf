@@ -49,6 +49,9 @@ private _marching = 0;
 	};
 } forEach activeArmies;
 
+// Last block's battle report has been read by now; the new block writes its own.
+TACT_lastBattleReport = "";
+
 STRAT_turnPhase = "resolving";
 
 diag_log format ["STRAT Turn: block %1 committed, %2 army(s) marching.", STRAT_blockIndex, _marching];

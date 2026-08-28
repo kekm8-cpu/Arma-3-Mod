@@ -86,16 +86,18 @@ description.ext              CfgFunctions registry
 init.sqf                     World bootstrap, side relations, event hooks
 mission.sqm                  Player start
 functions/
-  army/                      fn_generateArmy, fn_addMan, fn_addVehicle
+  army/                      fn_generateArmy, fn_addMan, fn_addVehicle,
+                             fn_areHostile
   movement/                  fn_calculateRoadPath, fn_moveArmyAlongPath
   turn/                      fn_beginPlanning, fn_issueOrder,
                              fn_projectArrival, fn_commitTurn, fn_resolveTurn,
                              fn_applyUpkeep, fn_advanceClock
   ui/                        fn_onMapClick
-  battle/                    fn_initiateBattle, fn_deployMen, fn_deployVehicles,
-                             fn_drawBoundary, fn_battleDetectionLoop
-                             (planned) fn_buildEngagement, fn_resolveVictory,
-                             fn_syncBack, fn_captureLoop, fn_autoResolve
+  battle/                    fn_detectContact, fn_buildEngagement,
+                             fn_initiateBattle, fn_deployMen, fn_deployVehicles,
+                             fn_drawBoundary, fn_resolveVictory,
+                             fn_concludeBattle, fn_syncBack
+                             (planned) fn_captureLoop, fn_autoResolve
 ```
 
 ---
@@ -568,31 +570,65 @@ after the initial exchange.
   same elapsed block time in compressed real time; `STRAT_fnc_applyUpkeep` and
   `STRAT_fnc_advanceClock` close the block and reopen planning. Unfinished
   orders stand and carry into the next block.
+- Closed battle loop: contact → engagement → battle → conclusion →
+  classification → sync-back → return to the strategic map.
+  `TACT_fnc_detectContact` runs as a post-movement step inside the block and
+  returns hostile pairs; `TACT_fnc_buildEngagement` builds the engagement
+  record; `TACT_fnc_initiateBattle` deploys from it and flags both armies
+  `inBattle`; `TACT_fnc_resolveVictory` classifies annihilation, breakthrough,
+  and repulse each tick, with mutual disengage forced when the block clock
+  expires; `TACT_fnc_concludeBattle` moves each army's strategic position to
+  its survivors, applies the outcome to the standing order, and calls
+  `TACT_fnc_syncBack`, which writes condition into the records, drops the dead,
+  nulls every `obj`, and deletes the entities. Armies rejoin movement
+  resolution for whatever is left of the block.
+- Hostility gating on contact (`STRAT_fnc_areHostile`): two blocs read from
+  `faction`, so converging friendlies are a rendezvous rather than a battle.
 
 **Needs conversion to turn-based**
-- `fn_battleDetectionLoop` is a `while {true}` background thread. It becomes a
-  post-movement resolution step, which also eliminates its mutation-during-
-  iteration bug. It is no longer spawned from `init.sqf` — a realtime loop
-  cannot honour block commitment — so no battle currently initiates. The hook
-  point is marked in `fn_resolveTurn`.
 
 *Converted:* `fn_moveArmyAlongPath` is now a bounded, non-sleeping resolution
 pass over a slice of block time; `fn_onMapClick` queues to `pendingOrder`
 instead of marching; `isMoving` is gone from the army record, which now carries
-`id`, `pendingOrder`, `inBattle`, and `prisoners`.
+`id`, `pendingOrder`, `inBattle`, and `prisoners`. `fn_battleDetectionLoop` is
+gone, replaced by `fn_detectContact` as a step inside the block — which also
+retires its mutation-during-iteration bug, since detection now collects pairs
+and never touches `activeArmies`.
 
 **Needs restructuring for the battle type model**
-- `fn_initiateBattle` hardcodes midpoint deployment, symmetric roles, and
-  implicit victory conditions. Split into engagement construction plus a
-  selected deployment routine.
-- Deployment currently converges both groups on the midpoint. It should place
-  each army at its own boundary edge facing its destination bearing.
-- `fn_drawBoundary` takes a raw midpoint; it should take the engagement's
-  anchor and radius.
+- Deployment still converges both groups on the anchor. It should place each
+  army at its own boundary edge facing its destination bearing. Engagement
+  construction is split out of `fn_initiateBattle` already, but the placement
+  routine is not yet selected by the record's `deployment` key, which currently
+  only names what runs (`"midpointConverge"`).
+- `TACT_fnc_buildEngagement` is open-field only: no `capturePoint`, no
+  `sprung`, and the attacker/defender assignment is arbitrary because the roles
+  are symmetric in a meeting engagement. Set-piece and ambush need it extended,
+  not replaced.
+
+*Restructured:* `fn_initiateBattle` now takes an engagement record instead of
+two armies and reads the anchor, radius, and roles from it; `fn_drawBoundary`
+takes the anchor and radius rather than a raw midpoint, so the drawn circle and
+the enforced one cannot drift apart.
 
 **Partial / needs work**
 - `fn_deployMen` requires at least one vehicle; infantry-only armies deploy
-  nothing.
+  nothing. `fn_initiateBattle` now detects an empty deployment and abandons the
+  engagement rather than letting the side be classified as annihilated, so the
+  limitation costs a battle but never a roster.
+- Only annihilation, breakthrough, repulse, and block-clock expiry are live
+  victory conditions. Rout needs a morale model and surrender needs the
+  set-piece capture point; neither is claimed in the engagement record.
+- A repulsed army stops where it was driven to and its order retires. Marching
+  back toward origin is post-battle march work.
+- One attended battle at a time (`TACT_maxAttendedBattles`). Further contacts in
+  the same block wait, because the alternative — spawning battles the player
+  cannot attend — needs auto-resolution first.
+- Battle length is the block length in real seconds, so at the current exchange
+  rate a battle can run at most two minutes. It is the same tunable as open
+  decision 4 and wants raising once battles are worth watching.
+- The player is not moved to an attended battle; there is no drop-in yet, so
+  "attended" currently means watched from the map.
 - `fn_calculateRoadPath` snaps the start point to the *nearest* road but the end
   point to an arbitrary one; the jink-correction block assumes `_startInput` is
   an array and will error if an object was passed.
@@ -600,11 +636,12 @@ instead of marching; `isMoving` is gone from the army record, which now carries
   mechanic, so it must be enforced and its crossing direction classified.
 
 **Not started**
-- Battle conclusion detection, outcome classification, and sync-back.
-- Block time accounting inside battles. The exchange rate constant
-  (`STRAT_realSecondsPerBlockHour`) and the block clock exist and drive the
-  execution phase; `blockTimeRemaining` on the engagement record does not.
-- Post-battle march with remaining block time.
+- Block time accounting inside battles. `blockTimeRemaining` is recorded on the
+  engagement when it opens but nothing reads it: the battle ends because the
+  block loop ends, and no battle clock is displayed during the fight.
+- Post-battle march with remaining block time. Survivors do rejoin movement
+  resolution for the rest of the block, but a repulsed army does not reverse
+  along its route.
 - Auto-resolution for unattended battles.
 - Location and garrison records; set-piece battles; the capture point.
 - Prisoner records and holding.

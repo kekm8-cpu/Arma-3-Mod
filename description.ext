@@ -5,6 +5,7 @@ class CfgFunctions {
             class generateArmy {};
             class addMan {};
             class addVehicle {};
+            class areHostile {};
         };
         class Movement {
             file = "functions\movement";
@@ -32,8 +33,12 @@ class CfgFunctions {
             class deployVehicles {};
             class deployMen {};
             class drawBoundary {};
+            class detectContact {};
+            class buildEngagement {};
             class initiateBattle {};
-            class battleDetectionLoop {};
+            class resolveVictory {};
+            class syncBack {};
+            class concludeBattle {};
         };
     };
 };

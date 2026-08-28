@@ -44,6 +44,26 @@ STRAT_resolutionRunning = false;       // Guards against a double commit
 setTimeMultiplier 0.1;
 
 // ------------------------------------------------------------------------- //
+// BATTLE STATE                                                               //
+// ------------------------------------------------------------------------- //
+
+// Contact radius must stay below twice the boundary radius. Armies deploy from
+// their own positions toward the midpoint, so at the moment of contact each is
+// half the contact radius from the anchor; if that exceeds the boundary radius
+// they start the battle already outside the boundary and it ends instantly.
+TACT_contactRadius  = 1000;  // Hostile armies inside this distance engage
+TACT_boundaryRadius = 750;   // Battle boundary; leaving it ends the battle
+
+// One attended battle at a time. Every battle currently spawns and is watched,
+// so until unattended battles can be resolved mathematically, further contacts
+// wait rather than opening battles nobody is at.
+TACT_maxAttendedBattles = 1;
+
+TACT_activeEngagements       = [];  // Engagement records currently being fought
+TACT_resolvedPairsThisBlock  = [];  // Army id pairs that have already fought this block
+TACT_lastBattleReport        = "";  // Shown by the block readout and the planning phase
+
+// ------------------------------------------------------------------------- //
 // 1. INITIALIZE BLUE ARMY (BLUFOR / PLAYER'S MERCENARIES)                    //
 // ------------------------------------------------------------------------- //
 private _blueSpawnPos = [7774.82, 8842.66, 0];
@@ -105,10 +125,9 @@ onMapSingleClick { _this call STRAT_fnc_onMapClick };
     };
 }];
 
-// TACT_fnc_battleDetectionLoop is deliberately not spawned. A realtime
-// while-loop cannot honour block commitment, and it mutates activeArmies while
-// iterating it. Its proximity maths is converted into the contact-detection
-// step inside STRAT_fnc_resolveTurn when the battle loop is closed.
+// Contact detection is no longer a background thread. TACT_fnc_detectContact
+// runs as a step inside STRAT_fnc_resolveTurn, after movement has been applied
+// for the slice, and battles open and close inside the block they belong to.
 
 // ------------------------------------------------------------------------- //
 // OPEN THE FIRST PLANNING PHASE                                              //
