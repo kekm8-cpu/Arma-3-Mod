@@ -646,7 +646,10 @@ instead of marching; `isMoving` is gone from the army record, which now carries
    legible. Must handle all three battle types, including the capture point.
 4. **Real minutes per block hour.** The exchange rate between tactical time and
    strategic time. Sets the length of every battle and the weight of the block
-   clock. Needs playtesting.
+   clock. Needs playtesting. Held as a single tunable constant,
+   `STRAT_realSecondsPerBlockHour` in `init.sqf`, currently 30 — a placeholder
+   to dial in during beta, not an answer. Nothing else may hardcode the rate:
+   the execution phase and, later, the battle clock both read it from there.
 5. **Fatigue curve and thresholds.** Needs playtesting once movement resolution
    exists. The threshold must be tuned against the 4-hour block, not chosen
    independently of it.
