@@ -36,6 +36,7 @@ class CfgFunctions {
             class detectContact {};
             class buildEngagement {};
             class initiateBattle {};
+            class runBattle {};
             class resolveVictory {};
             class syncBack {};
             class concludeBattle {};

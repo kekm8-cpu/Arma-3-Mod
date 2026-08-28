@@ -25,20 +25,15 @@ activeArmies = [];
 STRAT_blockLengthHours = 4;   // Block length in game hours
 STRAT_blocksPerDay     = 6;   // Six blocks per day
 
-// Exchange rate between the watched execution phase and block time, in real
-// seconds per hour of block time. This one number sets the length of a battle:
-// a battle consumes the block it happens in, so the longest a battle can run is
-// the whole block. At 600 (ten real minutes per block hour) that is
-// 4 h x 600 s = 40 minutes of fighting before the block clock forces a mutual
-// disengage.
+// Compression of the watched execution phase, in real seconds per hour of
+// block time. This paces marching only: a full block is two minutes of
+// watching, and a 14 km road march at 30 km/h is about 14 seconds of it.
 //
-// It sets the pace of ordinary marching too. A 14 km road march at 30 km/h is
-// 28 minutes of block time, so about 4.5 minutes of watching. Blocks with
-// nothing left to resolve still end early - see STRAT_skipIdleResolution below
-// - so only a block that is fought over runs the full 40 minutes.
+// It does NOT pace battles. The tactical layer runs at 1:1 real time and keeps
+// its own clock - see TACT_battleRealSecondsMax below.
 //
 // Still open, still wants playtesting; this is the only place it is defined.
-STRAT_realSecondsPerBlockHour = 600;
+STRAT_realSecondsPerBlockHour = 30;
 
 // End the watch early once every army is idle. The rest of the block still
 // passes on the clock; there is simply nothing left to watch.
@@ -67,6 +62,20 @@ TACT_boundaryRadius = 750;   // Battle boundary; leaving it ends the battle
 // so until unattended battles can be resolved mathematically, further contacts
 // wait rather than opening battles nobody is at.
 TACT_maxAttendedBattles = 1;
+
+// Battles run at 1:1 real time - the tactical layer is realtime Arma and there
+// is nothing to compress. The battle clock caps a fight at 40 real minutes,
+// after which neither side has broken the other and the engagement ends in
+// mutual disengage.
+TACT_battleRealSecondsMax = 2400;
+
+// What a battle costs the strategic clock. One real second of fighting buys
+// 14400 / 2400 = 6 seconds of block time, so a battle that runs its full length
+// consumes exactly one whole block and a short one leaves time over to march
+// with. The cost is clamped to whatever block time was left when the battle
+// opened: a battle that starts late still gets its full 40 minutes, but from
+// the strategic layer's side it can never outlast the block it began in.
+TACT_blockSecondsPerBattleSecond = (STRAT_blockLengthHours * 3600) / TACT_battleRealSecondsMax;
 
 TACT_activeEngagements       = [];  // Engagement records currently being fought
 TACT_resolvedPairsThisBlock  = [];  // Army id pairs that have already fought this block

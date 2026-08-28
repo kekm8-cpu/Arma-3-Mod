@@ -11,14 +11,16 @@
 		watching. The exchange rate between real seconds and block hours is
 		STRAT_realSecondsPerBlockHour.
 
-		Each tick applies a slice of block time to movement, then evaluates any
-		battle running inside the block, then looks for new contact. Order
-		matters: a battle that ends on this tick releases its armies before the
-		next slice, and detection runs on positions that have already moved.
+		Each tick applies a slice of block time to movement, then looks for
+		contact on the positions that movement just produced.
 
-		No battle may span a block boundary, so anything still being fought when
-		the block runs out is concluded here as a mutual disengage. That is what
-		keeps a block boundary free of in-flight state.
+		The two layers keep different clocks. Marching is compressed at
+		STRAT_realSecondsPerBlockHour; a battle runs at 1:1 real time and the
+		strategic clock holds while it does. When the battle ends, the block
+		clock is charged what the fight cost, everyone who was not in it is
+		advanced by that same amount, and the block carries on with whatever is
+		left. A battle's cost is clamped to the block it opened in, so no block
+		boundary ever holds a battle in progress.
 
 		Must be spawned - this function sleeps.
 
@@ -76,29 +78,6 @@ while {_blockElapsed < _blockSecondsTotal} do {
 	private _blockHoursLeft = (_blockSecondsTotal - _blockElapsed) / 3600;
 
 	// ------------------------------------------------------------------ //
-	// STAGE 9: CONCLUSION AND CLASSIFICATION                              //
-	// ------------------------------------------------------------------ //
-	// Live battles are evaluated before new ones are opened, so an engagement
-	// that ends on this tick frees its armies immediately.
-	private _concluded = [];
-	{
-		private _engagement = _x;
-		private _outcome = [_engagement] call TACT_fnc_resolveVictory;
-
-		if (count _outcome > 0) then {
-			[_engagement, _outcome] call TACT_fnc_concludeBattle;
-			_concluded pushBack _engagement;
-		};
-	} forEach TACT_activeEngagements;
-
-	// Removed by id. Array subtraction compares HashMaps by content, which
-	// would drop the wrong record whenever two happened to match.
-	if (count _concluded > 0) then {
-		private _concludedIds = _concluded apply {_x get "id"};
-		TACT_activeEngagements = TACT_activeEngagements select {!((_x get "id") in _concludedIds)};
-	};
-
-	// ------------------------------------------------------------------ //
 	// STAGE 4: CONTACT DETECTION                                          //
 	// ------------------------------------------------------------------ //
 	// Evaluated after movement has been applied for this slice. Detection
@@ -107,33 +86,71 @@ while {_blockElapsed < _blockSecondsTotal} do {
 	//
 	// Ambush zones and location boundaries are the other two contact sources.
 	// Neither exists yet, so proximity is the only one evaluated.
-	if (count TACT_activeEngagements < TACT_maxAttendedBattles) then {
+	if (_blockHoursLeft > 0) then {
 		private _contacts = [] call TACT_fnc_detectContact;
 
-		{
-			_x params ["_armyA", "_armyB"];
+		// One attended battle at a time. Auto-resolving the ones the player is
+		// not at is a later milestone, so the rest of this tick's contacts wait
+		// and are found again on the next one.
+		if (count _contacts > 0 && {TACT_maxAttendedBattles > 0}) then {
+			(_contacts select 0) params ["_armyA", "_armyB"];
 
-			// Every battle is attended and spawned. Auto-resolving the ones the
-			// player is not at is a later milestone, so until it exists the
-			// cap holds the rest back rather than spawning battles nobody can
-			// watch.
-			if (count TACT_activeEngagements < TACT_maxAttendedBattles) then {
-				private _engagement = [_armyA, _armyB, _blockHoursLeft] call TACT_fnc_buildEngagement;
+			private _engagement = [_armyA, _armyB, _blockHoursLeft] call TACT_fnc_buildEngagement;
 
-				if ([_engagement] call TACT_fnc_initiateBattle) then {
-					TACT_activeEngagements pushBack _engagement;
-				} else {
-					// Deployment failed. Record the pair as settled so the
-					// same failure is not retried every tick for a whole block.
-					TACT_resolvedPairsThisBlock pushBack [_armyA get "id", _armyB get "id"];
+			if ([_engagement] call TACT_fnc_initiateBattle) then {
+				TACT_activeEngagements pushBack _engagement;
+
+				// Ids captured before the battle: conclusion can take a
+				// destroyed army off the map entirely.
+				private _combatantIds = [_armyA get "id", _armyB get "id"];
+
+				// -------------------------------------------------------- //
+				// STAGES 8 AND 9: THE BATTLE, AT 1:1 REAL TIME              //
+				// -------------------------------------------------------- //
+				// The strategic clock holds while this runs. Marching armies
+				// cannot advance in real time - forty minutes of it would be
+				// twenty blocks - so they are held and then advanced by what
+				// the battle cost, below.
+				private _battleRealSeconds = [_engagement] call TACT_fnc_runBattle;
+
+				TACT_activeEngagements = TACT_activeEngagements select {
+					!((_x get "id") == (_engagement get "id"))
 				};
+
+				// What the fight cost the strategic clock, clamped to what was
+				// left of the block when it opened. A battle always gets its
+				// full length; it can never outlast the block it began in.
+				private _battleBlockSeconds =
+					(_battleRealSeconds * TACT_blockSecondsPerBattleSecond)
+					min (_blockSecondsTotal - _blockElapsed);
+
+				// Everyone who was not in it marches through it. Concurrent
+				// resolution is preserved - the player just was not watching.
+				{
+					private _army = _x;
+					if (!((_army get "id") in _combatantIds) && {!(_army getOrDefault ["inBattle", false])}) then {
+						[_army, _battleBlockSeconds] call STRAT_fnc_moveArmyAlongPath;
+					};
+				} forEach activeArmies;
+
+				_blockElapsed = _blockElapsed + _battleBlockSeconds;
+				_idle = false;
+
+				diag_log format [
+					"STRAT Turn: battle ran %1 real seconds and cost %2 h of block time.",
+					_battleRealSeconds,
+					_battleBlockSeconds / 3600
+				];
+			} else {
+				// Deployment failed. Record the pair as settled so the same
+				// failure is not retried every tick for a whole block.
+				TACT_resolvedPairsThisBlock pushBack [_armyA get "id", _armyB get "id"];
 			};
-		} forEach _contacts;
+		};
 	};
 
-	// A block with a battle running in it is never idle, whatever the marchers
-	// are doing.
-	if (count TACT_activeEngagements > 0) then { _idle = false };
+	// Recomputed before the readout: a battle may have just consumed block time.
+	_blockHoursLeft = (_blockSecondsTotal - _blockElapsed) / 3600;
 
 	// Block clock readout. It is a mechanic, not decoration, so it is shown.
 	// The battle report is composed into it rather than hinted separately: this
@@ -154,18 +171,10 @@ while {_blockElapsed < _blockSecondsTotal} do {
 	sleep _tickReal;
 };
 
-// ---------------------------------------------------------------------- //
-// BLOCK CLOCK EXPIRY: NO BATTLE MAY SPAN A BLOCK BOUNDARY                 //
-// ---------------------------------------------------------------------- //
-// Anything still fighting when the block runs out ends in mutual disengage.
-// This is what keeps a save point free of a battle in progress.
-{
-	private _engagement = _x;
-	private _outcome = [_engagement, true] call TACT_fnc_resolveVictory;
-	[_engagement, _outcome] call TACT_fnc_concludeBattle;
-} forEach TACT_activeEngagements;
-
-TACT_activeEngagements = [];
+// No battle can be in flight here: TACT_fnc_runBattle does not return until it
+// has concluded, and its block-time cost is clamped to the block it opened in.
+// A block boundary therefore never holds a battle in progress, which is what
+// makes it a save point.
 
 // Retire orders whose route has been walked out. An unfinished order stands
 // and carries into the next block.

@@ -12,17 +12,17 @@
 		it has been repulsed. That is what makes withdrawal legible without a
 		separate "flee" mechanic.
 
-		Conditions evaluated here: annihilation, breakthrough, repulse. Block
-		clock expiry is not detected here - the turn loop owns the block clock
-		and forces the conclusion when the block runs out, which is what
-		`_forceDisengage` reports.
+		Conditions evaluated here: annihilation, breakthrough, repulse. The
+		battle clock is not read here - TACT_fnc_runBattle owns it and forces
+		the conclusion when a fight reaches its cap without either side
+		breaking, which is what `_forceDisengage` reports.
 
 		Rout and surrender are listed in section 10.1 but need a morale model
 		and a surrender model. Neither exists, so neither is claimed here.
 
 	Parameters:
 		0: HASHMAP - engagement record
-		1: BOOL    - force a mutual disengage: the block clock has expired
+		1: BOOL    - force a mutual disengage: the battle clock has run out
 		             (default false)
 
 	Returns:
@@ -50,7 +50,7 @@ private _sides = [
 ];
 
 // ------------------------------------------------------------------------ //
-// BLOCK CLOCK EXPIRY - MUTUAL DISENGAGE                                     //
+// BATTLE CLOCK EXPIRY - MUTUAL DISENGAGE                                    //
 // ------------------------------------------------------------------------ //
 // Both armies separate, no ground changes hands, standing orders survive.
 if (_forceDisengage) exitWith {
@@ -62,7 +62,7 @@ if (_forceDisengage) exitWith {
 		["outcome", "mutualDisengage"],
 		["byArmy", _byArmy],
 		["summary", format [
-			"MUTUAL DISENGAGE - the block ran out. %1 and %2 separate; no ground changes hands.",
+			"MUTUAL DISENGAGE - neither side broke the other. %1 and %2 separate; no ground changes hands.",
 			_attacker get "name",
 			_defender get "name"
 		]]

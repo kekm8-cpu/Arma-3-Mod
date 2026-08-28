@@ -132,20 +132,40 @@ rejected, for two reasons:
 
 ### Battle time is block time
 
-A tactical battle consumes the block it occurs in. There is a fixed exchange
-rate between real minutes in the tactical layer and hours of block time; when a
-battle concludes, whatever block time remains is spent continuing the strategic
-march.
+A tactical battle consumes the block it occurs in, and when it concludes,
+whatever block time remains is spent continuing the strategic march.
+
+**The two layers keep different clocks.** The strategic execution phase is
+compressed — a whole block is a couple of minutes of watching markers move. The
+tactical layer is realtime Arma and runs at 1:1: a firefight is the thing the
+game is about and there is nothing in it worth compressing.
+
+What connects them is a **conversion, not a shared rate**. A battle is capped at
+40 real minutes by the battle clock, and its cost to the strategic clock is
+proportional to how long it actually ran: a battle that goes the distance
+consumes a whole 4-hour block, one that ends in six minutes consumes about
+36 minutes of block time and leaves the rest to march with.
+
+**A battle always gets its full length, whenever in the block it starts.** Its
+strategic cost is clamped to the block time that was left when it opened, so a
+battle beginning ten block-minutes before the boundary still plays out in full
+but costs ten minutes. The consequence is deliberate and worth knowing: fighting
+late in a block is strategically cheaper than fighting early in one. Truncating a
+real battle at an arbitrary bookkeeping line would be the worse trade.
 
 This is the mechanism that gives open field battles their pressure. Time spent
 hunkered in cover is distance not covered, and it is felt on the strategic map
 rather than enforced by a tactical rule. It follows that:
 
 - The battle clock is a load-bearing mechanic, not UI decoration. It is
-  displayed.
-- A battle cannot span a block boundary. If the block's time is exhausted with
+  displayed, counting down the real time left before the fight breaks off,
+  alongside the block time the fight has burned.
+- A battle cannot span a block boundary. If the battle clock runs out with
   neither side broken, the engagement ends in **mutual disengage** — both armies
   separate, fatigue is applied, no ground changes hands.
+- The strategic clock holds while a battle runs; armies not in it are advanced
+  by the battle's block-time cost once it ends. Concurrent resolution is
+  preserved, but that movement is not watched — the player was fighting.
 
 ### Clock decoupling
 
@@ -357,23 +377,28 @@ types run this same lifecycle — see section 10.
 7. **Deployment** — compute the anchor, place both sides per the engagement's
    deployment plan, spawn and mount infantry, draw the boundary. Fatigue is
    applied here as skill and morale modifiers.
-8. **Battle** — realtime Arma. Player issues orders and fights. Favor assets may
-   be called in. The battle clock runs against `blockTimeRemaining`.
-9. **Conclusion** — a victory condition fires, or the block clock expires into
+8. **Battle** — realtime Arma at 1:1. Player issues orders and fights. Favor
+   assets may be called in. The battle clock counts down the real time left
+   before the fight breaks off; `blockTimeRemaining` is what the fight can
+   charge the strategic clock, and caps that charge.
+9. **Conclusion** — a victory condition fires, or the battle clock runs out into
    mutual disengage. Outcome is classified (breakthrough, repulse, rout,
-   surrender, capture, annihilation, disengage). *(Not yet implemented.)*
+   surrender, capture, annihilation, disengage). *(Rout and surrender are not
+   live: they need a morale model and the set-piece capture point.)*
 10. **Sync-back** — read `damage`, `hitPointDamage`, and alive/dead state off
     every spawned entity into its owning HashMap; move surrendered survivors to
     the victor's `prisoners`; drop dead records; null every `obj` reference;
-    delete entities; clear the boundary. *(Not yet implemented.)*
+    delete entities; clear the boundary. *(Prisoners wait on a surrender
+    condition to move them.)*
 11. **Post-battle march** — surviving armies spend any remaining block time
     continuing or reversing along their route, per the outcome classification.
+    *(Continuing works; reversing after a repulse does not.)*
 12. **Upkeep** — apply per-block ticks (fatigue) and, on day boundaries, wages,
     income, and aggression decay.
 13. **Advance clock** — next planning phase opens.
 
-Stages 9 and 10 remain the highest-priority gap. Without them the persistence
-pillar does not function.
+Stages 9 and 10 are in. The remaining gaps in the lifecycle are auto-resolution
+at stage 6 and the reversing half of stage 11.
 
 ---
 
@@ -575,9 +600,11 @@ after the initial exchange.
   `TACT_fnc_detectContact` runs as a post-movement step inside the block and
   returns hostile pairs; `TACT_fnc_buildEngagement` builds the engagement
   record; `TACT_fnc_initiateBattle` deploys from it and flags both armies
-  `inBattle`; `TACT_fnc_resolveVictory` classifies annihilation, breakthrough,
-  and repulse each tick, with mutual disengage forced when the block clock
-  expires; `TACT_fnc_concludeBattle` moves each army's strategic position to
+  `inBattle`; `TACT_fnc_runBattle` runs the fight at 1:1 real time against the
+  battle clock while the strategic clock holds; `TACT_fnc_resolveVictory`
+  classifies annihilation, breakthrough and repulse each tick, with mutual
+  disengage forced at the cap; `TACT_fnc_concludeBattle` moves each army's
+  strategic position to
   its survivors, applies the outcome to the standing order, and calls
   `TACT_fnc_syncBack`, which writes condition into the records, drops the dead,
   nulls every `obj`, and deletes the entities. Armies rejoin movement
@@ -624,9 +651,9 @@ the enforced one cannot drift apart.
 - One attended battle at a time (`TACT_maxAttendedBattles`). Further contacts in
   the same block wait, because the alternative — spawning battles the player
   cannot attend — needs auto-resolution first.
-- Battle length is the block length in real seconds: 40 minutes at the current
-  exchange rate, which is also the longest a single block can take to watch.
-  Same tunable as open decision 4.
+- A second battle can open in the same block once the first concludes, so a
+  heavily contested block can run past 40 real minutes. Different pairs only —
+  the same two armies never re-fight inside one block.
 - The player is not moved to an attended battle; there is no drop-in yet, so
   "attended" currently means watched from the map.
 - `fn_calculateRoadPath` snaps the start point to the *nearest* road but the end
@@ -636,12 +663,9 @@ the enforced one cannot drift apart.
   mechanic, so it must be enforced and its crossing direction classified.
 
 **Not started**
-- Block time accounting inside battles. `blockTimeRemaining` is recorded on the
-  engagement when it opens but nothing reads it: the battle ends because the
-  block loop ends, and no battle clock is displayed during the fight.
-- Post-battle march with remaining block time. Survivors do rejoin movement
-  resolution for the rest of the block, but a repulsed army does not reverse
-  along its route.
+- Post-battle march for a repulsed army. Survivors of every other outcome
+  rejoin movement resolution for what is left of the block, but a repulsed army
+  stops where it was driven to rather than reversing along its route.
 - Auto-resolution for unattended battles.
 - Location and garrison records; set-piece battles; the capture point.
 - Prisoner records and holding.
@@ -681,15 +705,18 @@ the enforced one cannot drift apart.
 3. **Auto-resolve fidelity.** Pure math, or a fast headless simulation? Math is
    cheaper and more predictable; players tolerate it if the projection is
    legible. Must handle all three battle types, including the capture point.
-4. **Real minutes per block hour.** The exchange rate between tactical time and
-   strategic time. Sets the length of every battle and the weight of the block
-   clock. Needs playtesting. Held as a single tunable constant,
-   `STRAT_realSecondsPerBlockHour` in `init.sqf`, currently 600 — ten real
-   minutes per block hour, which caps a battle at 40 minutes since a battle can
-   consume at most the block it happens in. A value to dial in during beta, not
-   an answer. Nothing else may hardcode the rate: the execution phase and the
-   battle both read it from there, and raising it lengthens the watched march
-   as well as the fight.
+4. **Clock rates.** Two tunables in `init.sqf`, both wanting playtesting, and
+   nothing else may hardcode either:
+   - `STRAT_realSecondsPerBlockHour` (30) — compression of the watched march.
+     A block is two minutes of watching.
+   - `TACT_battleRealSecondsMax` (2400) — the battle clock. Battles run at 1:1
+     real time and break off at 40 minutes.
+
+   `TACT_blockSecondsPerBattleSecond` is derived from the two, not set: it is
+   the block length divided by the battle cap, so a full-length battle costs
+   exactly one block. Changing either constant re-derives it. What still needs
+   playtesting is whether 40 minutes is the right cap and whether a two-minute
+   block reads as too fast to follow.
 5. **Fatigue curve and thresholds.** Needs playtesting once movement resolution
    exists. The threshold must be tuned against the 4-hour block, not chosen
    independently of it.
