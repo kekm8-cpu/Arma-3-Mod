@@ -132,26 +132,31 @@ rejected, for two reasons:
 
 ### Battle time is block time
 
-A tactical battle consumes the block it occurs in, and when it concludes,
-whatever block time remains is spent continuing the strategic march.
+A tactical battle is paid for out of the block it occurs in, and when it
+concludes, whatever block time remains is spent continuing the strategic march.
 
 **The two layers keep different clocks.** The strategic execution phase is
 compressed — a whole block is a couple of minutes of watching markers move. The
 tactical layer is realtime Arma and runs at 1:1: a firefight is the thing the
 game is about and there is nothing in it worth compressing.
 
-What connects them is a **conversion, not a shared rate**. A battle is capped at
-40 real minutes by the battle clock, and its cost to the strategic clock is
-proportional to how long it actually ran: a battle that goes the distance
-consumes a whole 4-hour block, one that ends in six minutes consumes about
-36 minutes of block time and leaves the rest to march with.
+Battle time and block time run **one for one**: a minute of fighting is a minute
+of the block. The battle clock caps a fight at 40 real minutes, so a
+full-length battle spends 40 of a block's 240 minutes and a shorter one costs
+proportionally less. Only marching is compressed; the fight is not.
+
+A sixth of a block understates what that costs. Tanoa's longest road route is
+roughly 12–14 km, about 28 minutes of block time at 30 km/h — so a full-length
+battle burns more block time than crossing the island. Time in cover is
+distance not covered, measured against the marches people actually make rather
+than against the block.
 
 **A battle always gets its full length, whenever in the block it starts.** Its
-strategic cost is clamped to the block time that was left when it opened, so a
-battle beginning ten block-minutes before the boundary still plays out in full
-but costs ten minutes. The consequence is deliberate and worth knowing: fighting
-late in a block is strategically cheaper than fighting early in one. Truncating a
-real battle at an arbitrary bookkeeping line would be the worse trade.
+cost is clamped to the block time that was left when it opened, so a battle
+beginning ten block-minutes before the boundary still plays out in full but
+costs ten minutes. Fighting inside the last 40 minutes of a block is therefore
+cheaper than fighting earlier in one. That is accepted: truncating a real battle
+at a bookkeeping line would be the worse trade.
 
 This is the mechanism that gives open field battles their pressure. Time spent
 hunkered in cover is distance not covered, and it is felt on the strategic map
@@ -551,8 +556,9 @@ after the initial exchange.
   clock backward, no interrupt on player whim. If the player can usefully
   advance in small increments and micromanage, the turn model has collapsed
   back into realtime.
-- **Battle time is block time.** A battle consumes the block it occurs in and
-  never spans a block boundary. Remaining time is spent marching.
+- **Battle time is block time,** one minute for one minute. A battle is paid for
+  out of the block it occurs in and never spans a block boundary. Remaining time
+  is spent marching.
 - **One lifecycle, three parameter sets.** Conclusion, sync-back, and
   post-battle march are written once and shared by every battle type. If a
   battle type needs its own copy of any of them, the engagement record is
@@ -712,11 +718,12 @@ the enforced one cannot drift apart.
    - `TACT_battleRealSecondsMax` (2400) — the battle clock. Battles run at 1:1
      real time and break off at 40 minutes.
 
-   `TACT_blockSecondsPerBattleSecond` is derived from the two, not set: it is
-   the block length divided by the battle cap, so a full-length battle costs
-   exactly one block. Changing either constant re-derives it. What still needs
-   playtesting is whether 40 minutes is the right cap and whether a two-minute
-   block reads as too fast to follow.
+   `TACT_blockSecondsPerBattleSecond` (1) is the third: battle time is block
+   time one for one, so a full-length battle costs 40 of a block's 240 minutes.
+   Raising it above 1 would make fighting cost strategic time faster than it
+   costs real time. What still needs playtesting is whether 40 minutes is the
+   right cap, whether a two-minute block reads as too fast to follow, and
+   whether 40 minutes of block time is enough of a price for a battle.
 5. **Fatigue curve and thresholds.** Needs playtesting once movement resolution
    exists. The threshold must be tuned against the 4-hour block, not chosen
    independently of it.

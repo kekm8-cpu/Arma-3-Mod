@@ -69,13 +69,19 @@ TACT_maxAttendedBattles = 1;
 // mutual disengage.
 TACT_battleRealSecondsMax = 2400;
 
-// What a battle costs the strategic clock. One real second of fighting buys
-// 14400 / 2400 = 6 seconds of block time, so a battle that runs its full length
-// consumes exactly one whole block and a short one leaves time over to march
-// with. The cost is clamped to whatever block time was left when the battle
-// opened: a battle that starts late still gets its full 40 minutes, but from
-// the strategic layer's side it can never outlast the block it began in.
-TACT_blockSecondsPerBattleSecond = (STRAT_blockLengthHours * 3600) / TACT_battleRealSecondsMax;
+// What a battle costs the strategic clock: battle time IS block time, one for
+// one. Forty minutes of fighting is forty minutes of the block, so a
+// full-length battle spends a sixth of a 4-hour block and a short one costs
+// proportionally less.
+//
+// That is a heavier price than the fraction suggests. A 14 km road march - the
+// length of Tanoa - is about 28 minutes of block time at 30 km/h, so a
+// full-length battle costs more block time than crossing the island.
+//
+// The cost is clamped to whatever block time was left when the battle opened:
+// a battle that starts late still gets its full 40 minutes, but from the
+// strategic layer's side it can never outlast the block it began in.
+TACT_blockSecondsPerBattleSecond = 1;
 
 TACT_activeEngagements       = [];  // Engagement records currently being fought
 TACT_resolvedPairsThisBlock  = [];  // Army id pairs that have already fought this block
