@@ -1,5 +1,19 @@
+/*
+	Function: STRAT_fnc_calculateRoadPath
+
+	Description:
+		Dijkstra search across connected road segments.
+
+	Parameters:
+		0: OBJECT - road segment to start from
+		1: OBJECT - road segment to reach
+
+	Returns:
+		ARRAY of road segments from start to end, or nil if unreachable.
+*/
+
 params ["_startNode", "_endNode"];
-    
+	
 private _openSet = [_startNode];
 private _distances = createHashMap;
 private _cameFrom = createHashMap;

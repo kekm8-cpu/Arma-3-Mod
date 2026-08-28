@@ -1,14 +1,25 @@
+/*
+	Function: STRAT_fnc_moveArmyAlongPath
+
+	Description:
+		Walks an army along a road path, advancing its marker every 0.5s at
+		the army's own speed. Sets "isMoving" for the duration and keeps
+		"currentRoad" up to date. Must be spawned, not called.
+
+	Parameters:
+		0: HASHMAP - army object (see STRAT_fnc_createArmy)
+		1: ARRAY   - road segments to traverse, in order
+*/
+
 params ["_army", "_pathPoints"];
 if (count _pathPoints == 0) exitWith { _army set ["isMoving", false]; };
 
 _army set ["isMoving", true];
 
-// Dynamically pull properties from the passed army object
 private _armySpeed = _army get "speed";
 private _armyMarker = _army get "marker";
 private _currentRoad = _army get "currentRoad";
 
-// Speed Calculation based on the army's unique stats
 // Every 0.5 seconds, we calculate the meter budget for this specific army
 private _metersPerStep = (_armySpeed / 3.6) * 0.5; 
 
@@ -42,12 +53,9 @@ while {count _waypointPositions > 0} do {
 		};
 	};
 	
-	// Update this specific army's marker position on the UI map
 	_armyMarker setMarkerPos _currentPos;
 	
 	uiSleep 0.5; 
 };
 
 _army set ["isMoving", false];
-
-//This mod will be awesome!

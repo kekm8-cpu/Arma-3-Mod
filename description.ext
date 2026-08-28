@@ -1,8 +1,17 @@
 class CfgFunctions {
-    class MY_MOD { // Your custom tag
-        class StrategicLayer {
-            class generateBattle { file = "STRAT_fnc_moveArmyAlongPath.sqf"; };
-			class generateBattle { file = "STRAT_fnc_calculateRoadPath.sqf"; };
+    class STRAT {
+        class Army {
+            file = "functions\army";
+            class createArmy {};
+        };
+        class Movement {
+            file = "functions\movement";
+            class calculateRoadPath {};
+            class moveArmyAlongPath {};
+        };
+        class UI {
+            file = "functions\ui";
+            class onMapClick {};
         };
     };
 };
