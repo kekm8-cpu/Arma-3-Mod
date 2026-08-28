@@ -624,9 +624,9 @@ the enforced one cannot drift apart.
 - One attended battle at a time (`TACT_maxAttendedBattles`). Further contacts in
   the same block wait, because the alternative — spawning battles the player
   cannot attend — needs auto-resolution first.
-- Battle length is the block length in real seconds, so at the current exchange
-  rate a battle can run at most two minutes. It is the same tunable as open
-  decision 4 and wants raising once battles are worth watching.
+- Battle length is the block length in real seconds: 40 minutes at the current
+  exchange rate, which is also the longest a single block can take to watch.
+  Same tunable as open decision 4.
 - The player is not moved to an attended battle; there is no drop-in yet, so
   "attended" currently means watched from the map.
 - `fn_calculateRoadPath` snaps the start point to the *nearest* road but the end
@@ -684,9 +684,12 @@ the enforced one cannot drift apart.
 4. **Real minutes per block hour.** The exchange rate between tactical time and
    strategic time. Sets the length of every battle and the weight of the block
    clock. Needs playtesting. Held as a single tunable constant,
-   `STRAT_realSecondsPerBlockHour` in `init.sqf`, currently 30 — a placeholder
-   to dial in during beta, not an answer. Nothing else may hardcode the rate:
-   the execution phase and, later, the battle clock both read it from there.
+   `STRAT_realSecondsPerBlockHour` in `init.sqf`, currently 600 — ten real
+   minutes per block hour, which caps a battle at 40 minutes since a battle can
+   consume at most the block it happens in. A value to dial in during beta, not
+   an answer. Nothing else may hardcode the rate: the execution phase and the
+   battle both read it from there, and raising it lengthens the watched march
+   as well as the fight.
 5. **Fatigue curve and thresholds.** Needs playtesting once movement resolution
    exists. The threshold must be tuned against the 4-hour block, not chosen
    independently of it.

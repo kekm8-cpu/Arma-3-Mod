@@ -25,11 +25,20 @@ activeArmies = [];
 STRAT_blockLengthHours = 4;   // Block length in game hours
 STRAT_blocksPerDay     = 6;   // Six blocks per day
 
-// Exchange rate between the watched execution phase and block time. At 30 real
-// seconds per block hour a full block is two minutes of watching. This is the
-// number that also sets the length of every battle once battles run against
-// the block clock, and it needs playtesting rather than deriving.
-STRAT_realSecondsPerBlockHour = 30;
+// Exchange rate between the watched execution phase and block time, in real
+// seconds per hour of block time. This one number sets the length of a battle:
+// a battle consumes the block it happens in, so the longest a battle can run is
+// the whole block. At 600 (ten real minutes per block hour) that is
+// 4 h x 600 s = 40 minutes of fighting before the block clock forces a mutual
+// disengage.
+//
+// It sets the pace of ordinary marching too. A 14 km road march at 30 km/h is
+// 28 minutes of block time, so about 4.5 minutes of watching. Blocks with
+// nothing left to resolve still end early - see STRAT_skipIdleResolution below
+// - so only a block that is fought over runs the full 40 minutes.
+//
+// Still open, still wants playtesting; this is the only place it is defined.
+STRAT_realSecondsPerBlockHour = 600;
 
 // End the watch early once every army is idle. The rest of the block still
 // passes on the clock; there is simply nothing left to watch.
