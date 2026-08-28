@@ -11,6 +11,16 @@ class CfgFunctions {
             class calculateRoadPath {};
             class moveArmyAlongPath {};
         };
+        class Turn {
+            file = "functions\turn";
+            class beginPlanning {};
+            class issueOrder {};
+            class projectArrival {};
+            class commitTurn {};
+            class resolveTurn {};
+            class applyUpkeep {};
+            class advanceClock {};
+        };
         class UI {
             file = "functions\ui";
             class onMapClick {};

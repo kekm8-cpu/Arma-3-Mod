@@ -2,83 +2,73 @@
 	Function: STRAT_fnc_moveArmyAlongPath
 
 	Description:
-		Marches an army along the route stored in its "path" key, advancing its
-		marker every tick at the army's own speed. Spawns its own loop, so this
-		can be called directly.
+		Advances one army along its remaining "path" by a bounded slice of
+		block time, then returns. This is a single resolution pass, not a loop:
+		it does not sleep, does not spawn, and does not run to completion. The
+		turn loop calls it once per tick for every army so that they advance
+		concurrently.
+
+		The distance budget maths is the same as the old realtime version - a
+		per-slice metre budget consumed node by node, with a linear
+		interpolation along the final partial segment.
 
 	Parameters:
-		0: HASHMAP - army object (see STRAT_fnc_generateArmy)
+		0: HASHMAP - army record
+		1: NUMBER  - slice of block time to resolve, in block seconds
+
+	Returns:
+		NUMBER - block seconds left unspent, greater than zero only when the
+		         army finished its route inside this slice.
 */
 
-params ["_army"];
+params [
+	["_army", createHashMap, [createHashMap]],
+	["_blockSeconds", 0, [0]]
+];
 
-if (isNil "_army" || {!(_army isEqualType createHashMap)} || {_army get "isMoving"}) exitWith {};
+if (count _army == 0 || {_blockSeconds <= 0}) exitWith { 0 };
 
-private _path = {_army get "path"};
-if (count call _path == 0) exitWith { hint "No route found to march along."; };
+private _path = _army get "path";
+if (isNil "_path" || {count _path == 0}) exitWith { _blockSeconds };
 
-private _marker = _army get "marker";
-private _speedKmh = _army get "speed"; 
+private _speedKmh = _army get "speed";
+if (isNil "_speedKmh" || {_speedKmh <= 0}) exitWith { _blockSeconds };
 
-private _tickDuration = 0.5; // Tick rate
-// Budget = Meters allowed to travel per individual loop tick
-private _stepDistanceBudget = ((_speedKmh * 1000) / 3600) * _tickDuration; // (~4.16 meters at 30km/h)
+private _metresPerSecond = (_speedKmh * 1000) / 3600;
 
-[_army, _path, _marker, _stepDistanceBudget, _tickDuration] spawn {
-    params ["_army", "_path", "_marker", "_stepDistanceBudget", "_tickDuration"];
-    
-    //hint format ["%1 has broken camp and begun its march.", _army get "name"];
-	_army set ["isMoving", true];
-	
-    
-    // Track our location vector progressively
-    private _currentVisualPos = _army get "location";
-    private _distanceAccumulator = 0;
-    while {count call _path > 0} do {
-		
-		private _nextRoadNode = call _path select 0;
-        if (isNull _nextRoadNode) exitWith {};
+// Metres this army may cover in the slice of block time it was handed.
+private _budget = _metresPerSecond * _blockSeconds;
 
-        private _nodePos = getPosVisual _nextRoadNode;
-        private _distanceToNextNode = _currentVisualPos distance _nodePos;
+private _currentPos = _army get "location";
 
-        // Add the distance of this map link section to our target progress tracker
-        _distanceAccumulator = _distanceAccumulator + _distanceToNextNode;
+while {_budget > 0 && {count _path > 0}} do {
+	private _nextNode = _path select 0;
 
-        // CONSUME NODE CHAIN ACCORDING TO BUDGET
-        // If the total distance to clear upcoming nodes fits inside our tick travel capacity...
-        if (_distanceAccumulator <= _stepDistanceBudget) then {
-            // Instantly consume the node, jump up to it, and subtract its distance from our budget
-            _currentVisualPos = _nodePos;
-            call _path deleteAt 0;
-            _stepDistanceBudget = _stepDistanceBudget - _distanceToNextNode;
-            _distanceAccumulator = 0;
-        } else {
-            // BUDGET EXHAUSTED: The next node is too far for this tick timeline frame.
-            // Linearly interpolate (LERP) our position down the road link vector
-            private _travelVector = _nodePos vectorDiff _currentVisualPos;
-            private _travelDirection = vectorNormalized _travelVector;
-            
-            // Advance position precisely by our remaining step budget allowance
-            _currentVisualPos = _currentVisualPos vectorAdd (_travelDirection vectorMultiply _stepDistanceBudget);
-            
-            // Clear the budget for this tick to break out to the next simulation frame
-            _stepDistanceBudget = 0;
-        };
+	// A deleted or unresolvable road object is dropped rather than allowed to
+	// stall the march.
+	if (isNull _nextNode) then {
+		_path deleteAt 0;
+	} else {
+		private _nodePos = getPosVisual _nextNode;
+		private _distanceToNode = _currentPos distance2D _nodePos;
 
-        // Sync visual overworld anchors with our calculated progression vectors
-        _marker setMarkerPos _currentVisualPos;
-        _army set ["location", _currentVisualPos];
-
-        // If this tick's travel budget is spent, sleep until the next turn timeline window
-        if (_stepDistanceBudget <= 0) then {
-            sleep _tickDuration;
-            // Replenish full step budget metrics for the upcoming frame turn loop
-            _stepDistanceBudget = (((_army get "speed") * 1000) / 3600) * _tickDuration;
-            _distanceAccumulator = 0;
-        };
-    };
-
-    //hint format ["%1 has arrived at its strategic destination.", _army get "name"];
-	_army set ["isMoving", false];
+		if (_distanceToNode <= _budget) then {
+			// The node is inside the budget: step onto it and carry the rest.
+			_currentPos = _nodePos;
+			_budget = _budget - _distanceToNode;
+			_path deleteAt 0;
+		} else {
+			// Budget exhausted mid-segment: interpolate along it and stop.
+			private _direction = vectorNormalized (_nodePos vectorDiff _currentPos);
+			_currentPos = _currentPos vectorAdd (_direction vectorMultiply _budget);
+			_budget = 0;
+		};
+	};
 };
+
+// The record owns the position; the marker is a view of it.
+_army set ["location", _currentPos];
+(_army get "marker") setMarkerPos _currentPos;
+
+// Unspent budget only survives when the route ran out early.
+if (count _path > 0) then { 0 } else { _budget / _metresPerSecond }
