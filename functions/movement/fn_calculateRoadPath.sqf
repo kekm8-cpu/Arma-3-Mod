@@ -60,7 +60,7 @@ if (isNull _startNode || isNull _endNode) exitWith {
 private _openSet = [_startNode];
 private _distances = createHashMap;
 private _cameFrom = createHashMap;
-private _path = nil;
+private _path = []; // Empty until a route is reconstructed, so an unreachable target returns [] cleanly
 
 _distances set [netId _startNode, 0];
 

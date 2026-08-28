@@ -39,7 +39,7 @@ if (isClass _hitpointsConfigPath) then {
 // 3. Format the structured Custom Vehicle Object
 private _customVehicleObject = createHashMapFromArray [
     ["className", _vehicleClassName],
-    ["generalDamage", 0], 
+    ["health", 1],         // 1.0 = Fully healthy, matching the convention in STRAT_fnc_addMan
     // We use apply to cleanly map each hitbox string to its corresponding 0 damage value index
     ["hitboxes", createHashMapFromArray (_hitboxNames apply { [_x, 0] })],
 	["obj", objNull]
