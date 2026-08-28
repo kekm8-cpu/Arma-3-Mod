@@ -1,0 +1,39 @@
+# Normalize line endings.
+#
+# Arma's Eden editor and most Windows tools rewrite files with CRLF on every
+# save. Marking these types as text makes git store them with LF and normalize
+# on the way in, so a plain re-save no longer shows the whole file as modified.
+# The working copy still gets your platform's native endings on checkout.
+* text=auto
+
+# Mission and config sources
+*.sqf   text
+*.sqm   text
+*.ext   text
+*.hpp   text
+*.h     text
+*.cpp   text
+*.cfg   text
+*.bikb  text
+*.bisurf text
+*.rvmat  text
+*.fsm   text
+*.xml   text
+*.txt   text
+*.md    text
+
+# Binary assets - never touch these
+*.pbo   binary
+*.ebo   binary
+*.paa   binary
+*.pac   binary
+*.p3d   binary
+*.rtm   binary
+*.wss   binary
+*.ogg   binary
+*.wav   binary
+*.jpg   binary
+*.jpeg  binary
+*.png   binary
+*.bikey binary
+*.biprivatekey binary
