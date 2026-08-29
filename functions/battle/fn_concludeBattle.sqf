@@ -69,7 +69,6 @@ private _armiesRemoved = [];
 
 		private _endPos = [_sumX / (count _living), _sumY / (count _living), 0];
 		_army set ["location", _endPos];
-		(_army get "marker") setMarkerPos _endPos;
 	};
 
 	// ------------------------------------------------------------------ //
@@ -119,7 +118,6 @@ if (count _armiesRemoved > 0) then {
 	private _removedIds = _armiesRemoved apply {_x get "id"};
 
 	{
-		deleteMarker (_x get "marker");
 		diag_log format ["TACT Battle: %1 has been removed from the map.", _x get "name"];
 	} forEach _armiesRemoved;
 

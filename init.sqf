@@ -152,6 +152,78 @@ TACT_resolvedPairsThisBlock  = [];  // Army id pairs that have already fought th
 TACT_lastBattleReport        = "";  // Shown by the block readout and the planning phase
 
 // ------------------------------------------------------------------------- //
+// CAMPAIGN DRAW LAYER (section 11)                                           //
+// ------------------------------------------------------------------------- //
+// Armies and locations are drawn, not marked. A marker's rendered extent
+// cannot be queried, so nothing can be aligned to one at arbitrary zoom, so
+// anything that carries adornment - a selection ring, an order arrow that has
+// to start at the icon's edge, and later a vehicle badge or a fatigue pip - is
+// drawn in full by one pass. See STRAT_fnc_buildDrawList.
+//
+// Everything the layer draws is sized and placed in ICON UNITS. One icon unit
+// is resolved to world metres once per draw pass by STRAT_fnc_mapUnitMetres,
+// and every element of every group reads that one figure, so they cannot drift
+// apart at any zoom. The numbers below are all in those units unless they say
+// otherwise.
+
+// One icon unit as a fraction of the screen's width. This is the scaling law:
+// an icon holds a constant size on screen while the player zooms. Making it a
+// fixed number of metres instead would scale icons with zoom the way markers
+// do - a one-line change in STRAT_fnc_mapUnitMetres, because there is only one
+// place the conversion happens.
+//
+// UNTUNED, like the fatigue curve. It wants an eyeball pass in game against a
+// real zoom range, not a decision in the abstract.
+STRAT_drawIconScreenSize = 0.030;
+
+// These four are a set and are chosen against each other. A 1x1 icon reaches
+// 0.5 units to its edge and 0.71 to its corner, so the hit radius sits just
+// outside the edge, the ring just outside the corner, and the label far enough
+// below to clear the ring's bottom rather than being struck through by it.
+STRAT_drawHitUnits         = 0.70;  // Click radius around a group's anchor
+STRAT_drawRingUnits        = 0.85;  // Selection ring radius
+STRAT_drawLabelOffsetUnits = 1.10;  // Label drop below the icon
+STRAT_drawLabelUnits       = 0.30;  // Label text size
+STRAT_drawLocationUnits    = 1.10;  // Location icon, slightly over an army's
+STRAT_drawArrowOriginUnits = 0.55;  // Order arrow starts just off the icon edge
+STRAT_drawArrowHeadUnits   = 0.45;  // Length of each barb of the arrowhead
+STRAT_drawArrowHeadDegrees = 25;    // Sweep of each barb off the shaft
+
+// White, so selection reads as a highlight rather than as another faction.
+STRAT_drawSelectionColour = [1, 1, 1, 0.9];
+
+// A label is a drawIcon call with no icon. Fully transparent rather than an
+// empty string: a procedural colour is the one texture that cannot fail to
+// resolve, whatever the engine does with a blank path.
+STRAT_drawBlankTexture = "#(argb,8,8,3)color(0,0,0,0)";
+
+// Presentation, derived from `faction` at draw time and stored on nothing.
+// `faction` is the source of truth for allegiance and colour is never read
+// back - hostility comes from STRAT_fnc_areHostile, which reads faction
+// strings. These carry over the colours the armies had as markers.
+STRAT_drawFactionColour = createHashMapFromArray [
+    ["player",    [0.25, 0.45, 0.95, 1]],
+    ["csat",      [0.20, 0.70, 0.35, 1]],
+    ["drugLords", [0.90, 0.20, 0.20, 1]],
+    ["nato",      [0.95, 0.55, 0.15, 1]]
+];
+
+// CfgMarkers classes, used for their artwork only. Reading the texture out of
+// the same config the engine draws markers from is what keeps a drawn army and
+// an authoring marker looking like one system.
+STRAT_drawFactionIcon = createHashMapFromArray [
+    ["player",    "b_inf"],
+    ["csat",      "b_inf"],
+    ["drugLords", "o_inf"],
+    ["nato",      "o_inf"]
+];
+
+// One silhouette for every location type, with ownership carried by colour and
+// the type spelled out in the label. Per-type artwork is presentation work for
+// 3.8, when a location first has a mechanic worth distinguishing at a glance.
+STRAT_drawLocationIcon = "b_installation";
+
+// ------------------------------------------------------------------------- //
 // TEST HARNESS (build plan 1.5)                                              //
 // ------------------------------------------------------------------------- //
 // Everything down to the scenario call is harness data, not campaign data:
@@ -290,6 +362,19 @@ STRAT_selectedArmy = nil;
 // simulated overworld loops.
 
 onMapSingleClick { _this call STRAT_fnc_onMapClick };
+
+// ------------------------------------------------------------------------- //
+// CAMPAIGN DRAW LAYER ATTACHMENT (section 11)                                //
+// ------------------------------------------------------------------------- //
+// Display 12 is destroyed when the map closes and rebuilt when it opens, so
+// the Draw handler is attached on map open and never on state change - a
+// handler attached while the map is closed lands on a null control and renders
+// nothing. Because armies are drawn rather than marked, that failure would not
+// be cosmetic: it would be an empty strategic map.
+// One call, and the function owns the lifecycle from here: it waits for the
+// map to be open and its control built, attaches, waits for the close, and
+// goes round again.
+call STRAT_fnc_attachMapLayer;
 
 // SPACE commits the block. Planning closes on this key and there is no input
 // again until resolution ends.

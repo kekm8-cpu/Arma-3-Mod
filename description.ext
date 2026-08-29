@@ -39,6 +39,10 @@ class CfgFunctions {
         class UI {
             file = "functions\ui";
             class onMapClick {};
+            class mapUnitMetres {};
+            class buildDrawList {};
+            class drawCampaignLayer {};
+            class attachMapLayer {};
         };
     };
     // Build plan 1.5. Harness only: named rosters, named starting states, and

@@ -4,7 +4,9 @@
 	Description:
 		Empties the strategic map so a scenario or a spawned engagement starts
 		from a known state. Deletes any entity an army record still points at,
-		deletes its marker, and clears `activeArmies` and the selection.
+		then clears `activeArmies` and the selection. Nothing has to be
+		unmarked: an army is drawn from `activeArmies` every frame, so dropping
+		it from the array is what takes it off the map.
 
 		Records normally hold `objNull` - TACT_fnc_syncBack nulls every `obj`
 		on the way out of a battle - but a harness reset can land mid-battle,
@@ -46,9 +48,6 @@ private _cleared = 0;
 
 		_x set ["obj", objNull];
 	} forEach ((_army getOrDefault ["men", []]) + (_army getOrDefault ["vehicles", []]));
-
-	private _marker = _army getOrDefault ["marker", ""];
-	if (_marker != "") then { deleteMarker _marker };
 
 	_cleared = _cleared + 1;
 } forEach activeArmies;

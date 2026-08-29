@@ -3,8 +3,17 @@
 
 	Description:
 		Map click handler for the strategic layer. Two states: with an army
-		selected a click issues a movement order, otherwise a click on an army
-		marker selects it.
+		selected a click issues a movement order, otherwise a click hit-tests
+		the campaign draw list and selects what it landed on.
+
+		Selection resolves against the same list STRAT_fnc_drawCampaignLayer
+		renders, converted to metres through the same STRAT_fnc_mapUnitMetres
+		call, so what is clickable is what is drawn by construction. It used to
+		go through `ctrlMapMouseOver`, which resolved a marker under the
+		cursor; armies are drawn rather than marked now (section 11), so the
+		engine has nothing to resolve and the hit-test is ours to write. That
+		is the cost section 11 accepts, and it buys the alignment that a marker
+		with an unqueryable extent cannot give.
 
 		Clicks only do anything during the planning phase. An order does not
 		move anything - it is queued to the army's "pendingOrder" and takes
@@ -24,61 +33,99 @@ if (STRAT_turnPhase != "planning") exitWith {
 	hintSilent "The block is resolving. Orders stand until it ends.";
 };
 
-// 1. RESOLVE INTERACTIVE MAP CANVAS POINTERS
-// Display 12 is the engine's main overworld map; Control 51 is the interactive canvas.
-private _mapDisplay = findDisplay 12;
-private _mapControl = _mapDisplay displayCtrl 51;
-
-// Check exactly what engine element is resting beneath the user's cursor
-private _mouseOverData = ctrlMapMouseOver _mapControl;
-
 // --------------------------------------------------------------------- //
 // STATE A: AN ARMY IS CURRENTLY SELECTED -> QUEUE MOVEMENT ORDER
 // --------------------------------------------------------------------- //
-if (!isNil "STRAT_selectedArmy" && {STRAT_selectedArmy isEqualType createHashMap}) then {
-
-    // Extract the map marker belonging to the currently active selection
-    private _selectedMarker = STRAT_selectedArmy get "marker";
+if (!isNil "STRAT_selectedArmy" && {STRAT_selectedArmy isEqualType createHashMap}) exitWith {
 
     // Write the order to pendingOrder. Nothing marches until commit.
     private _accepted = [STRAT_selectedArmy, _pos] call STRAT_fnc_issueOrder;
 
     if (_accepted) then {
-        // VISUAL CLEANUP & DESELECTION: Restore full opacity (1.0) and wipe selection reference
-        _selectedMarker setMarkerAlpha 1.0;
+        // Dropping the variable is the whole of the deselection. The ring is
+        // emitted by the draw list only while it is set, so there is no
+        // presentation state to put back - which is what made the old
+        // half-alpha marker fragile, since every exit path, including the one
+        // a rejected order takes, had to remember to restore it.
         STRAT_selectedArmy = nil;
     };
+
     // A rejected order keeps the army selected so the player can pick another
     // destination without reselecting it.
+};
 
-} else {
-    // ----------------------------------------------------------------- //
-    // STATE B: NO ARMY IS SELECTED -> TRY TO CAPTURE AN ARMY SELECTION
-    // ----------------------------------------------------------------- //
-    // Check if the native UI layer validates that the player clicked a marker asset
-    if (count _mouseOverData > 0 && {(_mouseOverData select 0) == "marker"}) then {
-        private _clickedMarkerName = _mouseOverData select 1;
+// --------------------------------------------------------------------- //
+// STATE B: NOTHING SELECTED -> HIT-TEST THE DRAW LIST
+// --------------------------------------------------------------------- //
+private _map = (findDisplay 12) displayCtrl 51;
+private _metresPerUnit = [_map] call STRAT_fnc_mapUnitMetres;
 
-        // Search through the global registry array to find the matching data structure
-        {
-            private _currentArmyMarker = _x get "marker";
+if (_metresPerUnit <= 0) exitWith {
+	diag_log "STRAT Draw: click could not measure the map scale, selection skipped.";
+};
 
-            if (_currentArmyMarker == _clickedMarkerName) exitWith {
-                // Cache the matching HashMap address to our global pointer variable
-                STRAT_selectedArmy = _x;
+// Hit radii are in icon units like everything else, so the grab area holds a
+// constant size on screen: an army stays as easy to click zoomed out, where
+// its icon covers kilometres, as zoomed in, where it covers metres.
+private _hitItem = createHashMap;
+private _hitDistance = -1;
 
-                // Reduce the marker's visual alpha opacity by 50% to confirm active selection
-                _currentArmyMarker setMarkerAlpha 0.5;
+{
+	private _hitUnits = _x getOrDefault ["hitUnits", 0];
 
-                private _order = _x getOrDefault ["pendingOrder", createHashMap];
-                private _standing = if (count _order > 0 && {(_order getOrDefault ["status", ""]) != "complete"}) then {
-                    format ["\nStanding order: %1, issued block %2.", _order getOrDefault ["type", "move"], _order getOrDefault ["issuedBlock", 0]]
-                } else {
-                    ""
-                };
+	if (_hitUnits > 0) then {
+		private _anchor = _x get "anchor";
+		private _distance = _pos distance2D _anchor;
 
-                hint format ["Selected Force: %1\nAwaiting destination orders...%2", _x get "name", _standing];
-            };
-        } forEach activeArmies;
-    };
+		// Nearest wins, so overlapping groups resolve to the one actually
+		// clicked rather than to whichever was emitted first.
+		if (_distance <= (_hitUnits * _metresPerUnit)
+			&& {_hitDistance < 0 || {_distance < _hitDistance}}) then {
+			_hitDistance = _distance;
+			_hitItem = _x;
+		};
+	};
+} forEach (call STRAT_fnc_buildDrawList);
+
+if (count _hitItem == 0) exitWith {};
+
+private _record = _hitItem get "record";
+
+switch (_hitItem get "kind") do {
+
+	case "army": {
+		STRAT_selectedArmy = _record;
+
+		private _order = _record getOrDefault ["pendingOrder", createHashMap];
+		private _standing = if (count _order > 0 && {(_order getOrDefault ["status", ""]) != "complete"}) then {
+			format ["\nStanding order: %1, issued block %2.", _order getOrDefault ["type", "move"], _order getOrDefault ["issuedBlock", 0]]
+		} else {
+			""
+		};
+
+		hint format [
+			"Selected Force: %1 (%2 men)\nAwaiting destination orders...%3",
+			_record get "name",
+			count (_record getOrDefault ["men", []]),
+			_standing
+		];
+	};
+
+	// A location has no mechanic to click yet - capture, ownership transfer
+	// and local opinion are phase 3.8 - so this reports the record and stops.
+	// It is here because the hit-test resolves whatever the draw list emits,
+	// and a group that draws but cannot be clicked at all would be the same
+	// drift in the other direction.
+	case "location": {
+		private _garrison = _record getOrDefault ["garrison", createHashMap];
+
+		hint format [
+			"%1\nType: %2\nOwner: %3\nGarrison: %4 men, %5 vehicle(s)",
+			_record get "id",
+			_record getOrDefault ["type", "?"],
+			_record getOrDefault ["owner", "?"],
+			count (_garrison getOrDefault ["men", []]),
+			count (_garrison getOrDefault ["vehicles", []])
+		];
+	};
 };

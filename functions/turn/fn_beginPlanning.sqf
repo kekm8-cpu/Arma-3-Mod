@@ -36,11 +36,10 @@ if (!isNil "STRAT_resolutionRunning" && {STRAT_resolutionRunning}) exitWith {
 
 STRAT_turnPhase = "planning";
 
-// Drop the selection carried over from the previous phase so a stale marker
-// never stays dimmed.
-if (!isNil "STRAT_selectedArmy" && {STRAT_selectedArmy isEqualType createHashMap}) then {
-	(STRAT_selectedArmy get "marker") setMarkerAlpha 1.0;
-};
+// Drop the selection carried over from the previous phase. Selection is drawn
+// as a ring by the campaign layer rather than stamped onto the army as reduced
+// marker alpha, so clearing the variable is the whole of it - there is no
+// presentation state left to restore on the way out.
 STRAT_selectedArmy = nil;
 
 // Retire completed orders; a still-running order stands, so an army the player

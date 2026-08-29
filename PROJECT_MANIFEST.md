@@ -110,9 +110,9 @@ functions/
   turn/                      fn_beginPlanning, fn_issueOrder,
                              fn_projectArrival, fn_commitTurn, fn_resolveTurn,
                              fn_applyUpkeep, fn_advanceClock
-  ui/                        fn_onMapClick
-                             (planned) fn_buildDrawList,
-                             fn_drawCampaignLayer, fn_attachMapLayer
+  ui/                        fn_onMapClick, fn_mapUnitMetres,
+                             fn_buildDrawList, fn_drawCampaignLayer,
+                             fn_attachMapLayer
   battle/                    fn_detectContact, fn_buildEngagement,
                              fn_initiateBattle, fn_deployMen, fn_deployVehicles,
                              fn_drawBoundary, fn_resolveVictory,
@@ -301,9 +301,12 @@ Aviation fuel gated behind captured airfields is the strongest version.
 
 `isMoving` is a realtime artifact and is replaced by `pendingOrder`. `marker`
 is gone: armies are drawn, not marked (section 11). `location` was already
-authoritative, so nothing that read the record loses information — only
-`fn_generateArmy`, `fn_moveArmyAlongPath` and `fn_onMapClick` touched the
-marker, and all three are listed in section 13.
+authoritative, so nothing that read the record lost information. The record now
+carries no presentation at all — icon and colour are derived from `faction` by
+`STRAT_fnc_buildDrawList` at draw time and stored nowhere, which is what makes
+the "colour is never read back" invariant structural rather than a rule to
+remember. `STRAT_fnc_generateArmy` correspondingly lost its marker type and
+colour parameters: it now takes `[name, position, speed, faction]`.
 
 The army's **destination** lives on `pendingOrder`, not on the army. Battle
 deployment reads it from there to compute facing (section 10.1), so
@@ -778,6 +781,21 @@ being made, across every force at once.
 - Derived army fatigue: `STRAT_fnc_armyFatigue` curves per-soldier `exertion`
   and averages it into a 0–1 army value, recomputed on demand rather than
   stored. Returns 0 for everything until accumulation lands.
+- Campaign draw layer (section 11). `STRAT_fnc_buildDrawList` derives one list
+  of draw items from `activeArmies` and `STRAT_locations`;
+  `STRAT_fnc_drawCampaignLayer` renders it as the map control's Draw handler;
+  `STRAT_fnc_onMapClick` hit-tests the same list, so what is drawn and what is
+  clickable cannot disagree. `STRAT_fnc_attachMapLayer` owns the attachment
+  lifecycle — one scope that waits for the map to open and its control to
+  exist, attaches, waits for the close, and repeats — and removes by stored
+  handler id so the battle boundary's handler on the same control survives.
+  `STRAT_fnc_mapUnitMetres` is the single conversion from icon units to world
+  metres, called once per draw pass and again by the hit-test, so every element
+  of every group shares one scale factor by construction. Armies emit a group:
+  icon, label with strength, a selection ring while selected, and an order
+  arrow from the icon's edge to the pending destination. Locations emit icon
+  and label. Markers are gone from the army record and from all four call
+  sites.
 - Test harness (`TEST_fnc_*`). Named rosters, named starting states and named
   engagements, all declared as data in `init.sqf`. `TEST_fnc_setupScenario`
   builds what a session boots into; `TEST_fnc_spawnBattle` drops a fixed
@@ -844,14 +862,18 @@ the enforced one cannot drift apart.
   away from the anchor drops the whole circle rather than clipping it. The
   guard should be removed; `drawEllipse` takes world coordinates and clips
   itself.
-- Armies are still on markers, which section 11 removes. Three call sites:
-  `fn_generateArmy` mints `STRAT_Marker_<id>` and stores it on the record;
-  `fn_moveArmyAlongPath` calls `setMarkerPos` as it advances; `fn_onMapClick`
-  resolves selection through `ctrlMapMouseOver` and flags it with
-  `setMarkerAlpha 0.5`. All three go in 1.6. The alpha flag is the worst of
-  them — it reads as the army being faded out rather than picked, and it
-  mutates presentation state that must be restored on every exit path,
-  including the ones a rejected order takes.
+- `fn_drawBoundary` is now the only thing left drawing outside the campaign
+  layer, and it still carries both faults above. Folding it into the draw list
+  as a battle-owned item would fix them together and leave one Draw handler on
+  the map; it was left out of 1.6 to keep the marker removal reviewable.
+- The campaign layer rebuilds its draw list every frame the map is open. That
+  is what guarantees the drawn and the clickable agree, and at a handful of
+  armies it costs a few HashMaps a frame. It is the first thing to look at if
+  the map ever gets heavy, and the fix is a dirty flag on the list, not two
+  lists.
+- `drawIcon`'s text size is fed in world metres like its width and height, so
+  labels scale with the icons. Along with `STRAT_drawIconScreenSize` itself,
+  that number wants an eyeball pass in game against a real zoom range.
 
 **Not started**
 - Post-battle march for a repulsed army. Survivors of every other outcome
@@ -867,13 +889,11 @@ the enforced one cannot drift apart.
   anything that writes `exertion`, the skill and morale modifiers at
   deployment, and the projection at planning time. Curve constants are
   untuned.
-- Campaign draw layer. `fn_drawBoundary` proves the mechanism, but nothing
-  builds a draw list, attaches on map open, or hit-tests drawn items. It is no
-  longer an overlay on top of markers: under section 11 it is how armies and
-  locations are drawn at all, and every planning-time adornment the visibility
-  invariant asks for — order arrows, projected arrival, route exposure, opinion
-  shading, fatigue and tonnage — is a member of the same drawn group as the
-  icon it belongs to. See section 11 and phase 1.6.
+- The rest of the planning-time adornments the visibility invariant asks for:
+  projected arrival, route exposure, opinion shading, fatigue and tonnage. The
+  draw layer they hang off exists and the group shape is proven by the
+  selection ring and the order arrow; each of these is now one more item
+  emitted into an existing group, not new machinery.
 - Stronghold definition and frontier gating.
 - Route exposure and interception.
 - CSAT Favor and NATO Aggression beyond the hooks. The balances and the
@@ -973,12 +993,11 @@ follows the dependency chain.
 
 ### Phase 1 — Strategic minimum
 
-**Already complete.** Turn skeleton (planning → commit → resolve → advance),
-closed battle loop (contact → engagement → battle → conclusion → sync-back →
-return), and block time accounting. This is the bulk of what phase one was
-supposed to deliver; what remains is short.
+**Complete.** Turn skeleton (planning → commit → resolve → advance), closed
+battle loop (contact → engagement → battle → conclusion → sync-back → return),
+block time accounting, and all six numbered items below. Phase two is open.
 
-**Remaining, in order:**
+**The items, in the order they were built:**
 
 ~~1.1 **Fix side allocation.**~~ **Done.** The faction→side map is
 `STRAT_fnc_factionSide`, called by `fn_deployMen`; the matching global
@@ -1039,21 +1058,48 @@ under `TEST_alignPlayerSide`. That belongs in `mission.sqm` eventually — it is
 in the harness because that is where it is currently needed and where it is
 cheap to remove.
 
-1.6 **Campaign draw layer, and armies off markers.** Attachment lifecycle on
-map open, `STRAT_fnc_buildDrawList`, `STRAT_fnc_drawCampaignLayer`, and
-`fn_onMapClick` hit-testing the same list. Armies are drawn as groups —
-icon plus adornment sharing one anchor and one scale factor — and the `marker`
-field, `fn_generateArmy`'s marker minting, `fn_moveArmyAlongPath`'s
-`setMarkerPos`, and the `ctrlMapMouseOver` selection branch all come out.
-Ships with two adornments to prove the group shape: a selection ring replacing
-`setMarkerAlpha`, and an arrow from each army to its pending destination,
-originating at the icon edge.
+~~1.6 **Campaign draw layer, and armies off markers.**~~ **Done.**
+`STRAT_fnc_buildDrawList` derives one list of draw items from campaign state,
+`STRAT_fnc_drawCampaignLayer` renders it, and `fn_onMapClick` hit-tests the
+same list — so what is drawn and what is clickable are one computation, not
+two that agree today. `STRAT_fnc_attachMapLayer` owns attachment: a single
+scope that waits for the map to be open *and* control 51 to exist, attaches,
+waits for the close, and goes round again. It observes the map directly rather
+than trusting an event, because the condition that actually has to hold is that
+the control exists, and that is a frame or more behind the opening. Removal is
+by stored handler id, never `ctrlRemoveAllEventHandlers`, so `fn_drawBoundary`
+keeps its own handler on the same control.
 
-This is not battle-code work and it breaks the phase-one ordering principle on
-purpose. The overlays it exists to carry are phase three, but the conversion is
-cheap now and gets steadily more expensive: every strategic feature added
-before it is another `setMarkerPos` call site to find. The alternative — a
-side panel — is rejected in section 11.
+Armies are drawn as groups. Every item carries its group id and the record's
+own `location` array *by reference*, so a group cannot come apart, and items
+are built through one constructor that demands the group id — an adornment
+that cannot state its group is unconstructable rather than merely a bug.
+Positions and sizes are in **icon units**, converted to metres once per pass by
+`STRAT_fnc_mapUnitMetres`, which measures the map by sampling
+`ctrlMapScreenToWorld` across a fifth of the screen. That sidesteps the
+unqueryable marker extent entirely instead of fitting a constant by eye, and it
+means an adornment pinned at `0.5` units sits on the icon's edge at every zoom.
+The two adornments that prove the shape both ship: a selection ring, and an
+order arrow with a two-barb head running from the icon's edge to the pending
+destination.
+
+`marker` is out of the army record, and with it `fn_generateArmy`'s minting
+(the function lost two parameters), `fn_moveArmyAlongPath`'s `setMarkerPos`,
+`fn_concludeBattle`'s `setMarkerPos` and `deleteMarker`, the `ctrlMapMouseOver`
+selection branch, and the `setMarkerAlpha` flag with the restore calls it
+forced into `fn_beginPlanning` and `fn_commitTurn`. Presentation is now derived
+from `faction` at draw time and stored nowhere, which turns "colour is never
+read back" from a rule into a property of the code.
+
+Locations are drawn too, and are hit-testable — a click reports the record.
+There is no location mechanic to reach yet (3.8), but a group that draws and
+cannot be clicked at all is the same drift in the other direction.
+
+This was not battle-code work and it broke the phase-one ordering principle on
+purpose. The overlays it exists to carry are phase three, but the conversion was
+cheap now and got steadily more expensive: every strategic feature added before
+it is another `setMarkerPos` call site to find. The alternative — a side panel —
+is rejected in section 11.
 
 **Explicitly deferred out of phase 1:**
 

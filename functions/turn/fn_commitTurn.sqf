@@ -22,11 +22,8 @@ if (STRAT_turnPhase != "planning") exitWith {
 	false
 };
 
-// Restore the selected marker before input closes, or it stays dimmed for the
-// whole execution phase.
-if (!isNil "STRAT_selectedArmy" && {STRAT_selectedArmy isEqualType createHashMap}) then {
-	(STRAT_selectedArmy get "marker") setMarkerAlpha 1.0;
-};
+// Drop the selection before input closes. Nothing has to be restored: the
+// selection ring is emitted by the draw list only while the variable is set.
 STRAT_selectedArmy = nil;
 
 private _marching = 0;

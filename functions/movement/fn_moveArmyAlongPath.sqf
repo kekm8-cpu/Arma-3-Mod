@@ -66,9 +66,10 @@ while {_budget > 0 && {count _path > 0}} do {
 	};
 };
 
-// The record owns the position; the marker is a view of it.
+// The record owns the position, and now it is the only thing that does. The
+// campaign layer reads `location` straight off the record every frame the map
+// is drawn, so there is no view of it left to keep in step.
 _army set ["location", _currentPos];
-(_army get "marker") setMarkerPos _currentPos;
 
 // Unspent budget only survives when the route ran out early.
 if (count _path > 0) then { 0 } else { _budget / _metresPerSecond }

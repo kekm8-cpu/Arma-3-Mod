@@ -88,27 +88,17 @@ private _menClasses     = _menSpec call _fnc_expand;
 private _vehicleClasses = _vehicleSpec call _fnc_expand;
 
 // ------------------------------------------------------------------------ //
-// 2. MARKER PRESENTATION, BY FACTION                                        //
+// 2. BUILD                                                                  //
 // ------------------------------------------------------------------------ //
-// Cosmetic only, and short-lived: build plan 1.6 takes armies off markers
-// entirely. It lives here rather than in the scenario table so a scenario
-// reads as rosters and positions and nothing else.
-private _presentation = createHashMapFromArray [
-	["player",    ["b_inf", "ColorBLUE"]],
-	["csat",      ["b_inf", "ColorGREEN"]],
-	["drugLords", ["o_inf", "ColorRED"]],
-	["nato",      ["o_inf", "ColorORANGE"]]
-];
-
-(_presentation getOrDefault [_faction, ["b_inf", "ColorBLACK"]]) params ["_markerType", "_markerColor"];
-
-// ------------------------------------------------------------------------ //
-// 3. BUILD                                                                  //
-// ------------------------------------------------------------------------ //
+// The spec carries no presentation. It used to pick a marker type and colour
+// per faction here; armies are drawn by the campaign layer now, which derives
+// both from `faction` at draw time, so a scenario reads as rosters and
+// positions and nothing else.
+//
 // Copied, not handed over: the spec tables in init.sqf are shared between
 // scenarios and engagements, and an army that held its table's position array
 // by reference would rewrite the table the first time it marched.
-private _army = [_name, +_position, _markerType, _markerColor, nil, _faction] call STRAT_fnc_generateArmy;
+private _army = [_name, +_position, nil, _faction] call STRAT_fnc_generateArmy;
 
 // The first man listed leads. Deployment reads `isLeader` to pick the group
 // leader and to seat him in the front vehicle, so exactly one man carries it.
