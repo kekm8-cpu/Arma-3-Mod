@@ -25,6 +25,18 @@ private _side = _faction call STRAT_fnc_factionSide;
 // Create the unified group for this army
 private _grp = createGroup [_side, true];
 
+// Stamp the army's allegiance on the group. A live group carries no route back
+// to the record it was spawned from, and the map has to know whether a group is
+// friendly before it can decide how to draw it.
+//
+// Side is not a substitute and must not be used as one: section 12 makes
+// `faction` the source of truth for allegiance, and the bloc table in
+// STRAT_fnc_areHostile puts player and CSAT in one bloc while
+// STRAT_fnc_factionSide puts them on INDEPENDENT and EAST. A side comparison
+// would read an ally as an enemy and give no sign it had.
+_grp setVariable ["STRAT_faction", _faction];
+_grp setVariable ["STRAT_armyId", _army getOrDefault ["id", ""]];
+
 // 2. Gather vehicles and reverse the order to fill the front first
 private _armyVehicles = _army getOrDefault ["vehicles", []];
 private _rotationVehicles = [];

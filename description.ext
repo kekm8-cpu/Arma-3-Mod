@@ -83,6 +83,7 @@ class CfgFunctions {
             class dropOut {};
             class setCommandHud {};
             class commandEntities {};
+            class friendlyGroups {};
             class onCommandClick {};
             class issueMoveOrder {};
             class buildCommandList {};

@@ -188,6 +188,11 @@ TACT_commandArmyId    = "";     // Which army record the player is currently lea
 TACT_commandHitUnits  = 0.60;
 TACT_commandIconUnits = 0.85;   // Command icons sit slightly under an army icon
 
+// A friendly group that is not the player's is drawn as one icon over its
+// leader, at full size - it stands for a body of men, so it reads larger than
+// the individuals beside it. It carries no hit area: it is not his to order.
+TACT_commandGroupIconUnits = 1.00;
+
 // Yellow: the commander is not another unit to be ordered and should not read
 // as one.
 TACT_commandPlayerColour = [1, 0.85, 0.2, 1];

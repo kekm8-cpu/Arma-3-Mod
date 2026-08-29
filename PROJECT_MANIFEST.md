@@ -783,6 +783,22 @@ being made, across every force at once.
   die. Drop-in is `selectPlayer` on a body that was already there. No victory
   condition, no casualty count and no position sum has a special case for him,
   and none may acquire one.
+- **The tactical map draws individuals only for the player's own group.** The
+  player is one icon; each unit of his group is one icon and a click target;
+  every other friendly group is one icon over its leader, whole. A group's
+  internal composition is drawn only where the player arranges it, which is his
+  group and nowhere else — forty allied soldiers drawn man by man bury the eight
+  that are his. His own group is never *also* collapsed: no group icon is
+  emitted for it, because that would draw the same men twice, once as units he
+  commands and once as a body he does not. Composition for a collapsed group is
+  an adornment on its icon, never a second icon.
+- **Allegiance on the field is read from the group's faction stamp, never from
+  its side.** `TACT_fnc_deployMen` writes `STRAT_faction` onto every group it
+  creates because a live group carries no route back to its army record. Side
+  cannot stand in for it: the bloc table puts player and CSAT in one bloc while
+  `STRAT_fnc_factionSide` puts them on INDEPENDENT and EAST, so a side test
+  reads an ally as an enemy and gives no sign that it did. A group with no stamp
+  is skipped, not guessed at.
 - **Two command surfaces, never at once.** Map closed, the stock squad bar
   commands. Map open, the squad bar is hidden and the map commands. This
   includes the engine's own friendly icons on the map, which are a second
@@ -870,6 +886,12 @@ being made, across every force at once.
   `TACT_fnc_setCommandHud` hides the bar, the commanding menu and the engine's
   friendly map icons, and `TACT_fnc_onCommandClick` takes over: click an icon
   to select, CTRL to add or remove, click terrain to move the selection.
+  The layer draws three things: the player, each unit of his group, and every
+  other friendly group as one icon over its leader
+  (`TACT_fnc_friendlyGroups`), the last of these carrying no hit area because
+  an allied group is not his to order and a dead click target over live ones
+  loses orders. No group icon is drawn for his own group — its units are
+  already there individually.
   `TACT_fnc_commandEntities` resolves the group into what can actually be moved
   — a dismounted man, or a vehicle with at least one of ours in it, ordered
   through its driver — so a mounted rider resolves to the truck he is riding
@@ -956,6 +978,20 @@ the enforced one cannot drift apart.
   against overriding the stock squad bar, and every guard was another condition
   under which commanding behaved differently. All three return as group-level
   command, below, where the engine carries them natively.
+- The friendly-group pass draws nothing today, and that is a property of the
+  battle model rather than of the pass. `fn_buildEngagement` takes exactly two
+  armies, `fn_deployMen` spawns each as exactly one group, and contact detection
+  requires hostility — so the only groups on a battlefield are the player's and
+  one enemy's, and the pass correctly emits nothing. It becomes live the day a
+  battle holds a third army, a garrison deploys into the fight, or an army
+  deploys as more than one group. The rule is encoded now because it is cheaper
+  to hold than to retrofit, and because the alternative — every friendly unit
+  drawn individually — is the state this replaces.
+- Collapsed group icons carry no composition adornment yet, so a group of eight
+  in trucks and a group of eight on foot are the same icon and the same label.
+  `men` on the group record is what an adornment would read; the badge itself is
+  the same piece of work as the vehicle badge section 11 opens with, and should
+  land as one.
 - Nothing drawn on either map carries facing. `drawIcon`'s rotation argument is
   the literal `0` for every item, and hiding the engine's friendly icons takes
   away the stock facing arrows that were the only heading cue on the tactical
