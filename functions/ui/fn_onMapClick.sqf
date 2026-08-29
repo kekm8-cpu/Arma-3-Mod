@@ -28,6 +28,13 @@
 
 params ["_selectedUnits", "_pos", "_shift", "_alt"];
 
+// The map has two modes. While the player is commanding a battle on the
+// ground, clicks belong to TACT_fnc_onCommandClick, which is driven off the
+// map control's own mouse handlers because it needs CTRL and this callback
+// only reports SHIFT and ALT. Standing down silently is the point - a hint
+// here would fire on every tactical click.
+if (!isNil "TACT_commandActive" && {TACT_commandActive}) exitWith {};
+
 // Commitment is absolute: no order revision once the block is resolving.
 if (STRAT_turnPhase != "planning") exitWith {
 	hintSilent "The block is resolving. Orders stand until it ends.";

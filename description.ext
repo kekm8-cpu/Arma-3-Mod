@@ -40,7 +40,9 @@ class CfgFunctions {
             file = "functions\ui";
             class onMapClick {};
             class mapUnitMetres {};
+            class mapIconTexture {};
             class buildDrawList {};
+            class drawItems {};
             class drawCampaignLayer {};
             class attachMapLayer {};
         };
@@ -71,6 +73,21 @@ class CfgFunctions {
             class resolveVictory {};
             class syncBack {};
             class concludeBattle {};
+            class combatants {};
+        };
+
+        // Battle command mode: the player leading a deployed group, and the
+        // map as the command surface while it is open.
+        class Command {
+            file = "functions\command";
+            class dropIn {};
+            class dropOut {};
+            class setCommandHud {};
+            class commandEntities {};
+            class onCommandClick {};
+            class issueMoveOrder {};
+            class runRoutes {};
+            class buildCommandList {};
         };
     };
 };

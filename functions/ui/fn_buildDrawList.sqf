@@ -38,11 +38,12 @@
 		role      STRING  - "icon", "label", "selectionRing", "orderArrow"
 		record    HASHMAP - the record the group is drawn from
 		anchor    ARRAY   - the group's shared world position, by reference
-		shape     STRING  - "icon", "ellipse" or "arrow"
+		shape     STRING  - "icon", "ellipse", "arrow" or "polyline"
 		offset    ARRAY   - [x, y] from the anchor, in icon units
 		size      ARRAY   - [w, h] in icon units ("icon" shape)
 		radius    NUMBER  - in icon units ("ellipse" shape)
 		toWorld   ARRAY   - far end, world position ("arrow" shape)
+		points    ARRAY   - ordered world positions ("polyline" shape)
 		fromEdge  NUMBER  - icon units to push the arrow's origin off the anchor
 		texture   STRING  - texture path ("icon" shape)
 		text      STRING  - label text ("icon" shape)
@@ -58,35 +59,6 @@
 */
 
 private _list = [];
-
-// ------------------------------------------------------------------------ //
-// TEXTURE RESOLUTION                                                        //
-// ------------------------------------------------------------------------ //
-// Drawn icons pull the same artwork the engine draws for a marker of the same
-// class, so a drawn army and an authoring marker read as one system rather
-// than two icon sets that drifted apart. Cached because this runs every frame
-// and CfgMarkers does not change mid-mission.
-if (isNil "STRAT_drawTextureCache") then { STRAT_drawTextureCache = createHashMap };
-
-private _fnc_texture = {
-	params [["_markerClass", "", [""]]];
-
-	if (_markerClass in STRAT_drawTextureCache) exitWith {
-		STRAT_drawTextureCache get _markerClass
-	};
-
-	private _path = getText (configFile >> "CfgMarkers" >> _markerClass >> "icon");
-
-	if (_path == "") then {
-		// A missing class must not take the strategic map down with it, and a
-		// procedural colour is the one texture that cannot fail to resolve.
-		diag_log format ["STRAT Draw: CfgMarkers >> %1 >> icon is empty, drawing a plain square.", _markerClass];
-		_path = "#(argb,8,8,3)color(1,1,1,1)";
-	};
-
-	STRAT_drawTextureCache set [_markerClass, _path];
-	_path
-};
 
 // ------------------------------------------------------------------------ //
 // ITEM CONSTRUCTOR                                                          //
@@ -115,6 +87,7 @@ private _fnc_item = {
 		["size", [1, 1]],
 		["radius", 0],
 		["toWorld", []],
+		["points", []],
 		["fromEdge", 0],
 		["texture", STRAT_drawBlankTexture],
 		["text", ""],
@@ -154,7 +127,7 @@ if (!isNil "STRAT_locations") then {
 
 		[_id, "location", _location, _anchor, "icon", createHashMapFromArray [
 			["shape", "icon"],
-			["texture", [STRAT_drawLocationIcon] call _fnc_texture],
+			["texture", [STRAT_drawLocationIcon] call STRAT_fnc_mapIconTexture],
 			["colour", _colour],
 			["size", [STRAT_drawLocationUnits, STRAT_drawLocationUnits]],
 			["hitUnits", STRAT_drawHitUnits]
@@ -192,7 +165,7 @@ if (!isNil "STRAT_locations") then {
 	// second, much larger, way to select the army it belongs to.
 	[_id, "army", _army, _anchor, "icon", createHashMapFromArray [
 		["shape", "icon"],
-		["texture", [_icon] call _fnc_texture],
+		["texture", [_icon] call STRAT_fnc_mapIconTexture],
 		["colour", _colour],
 		["size", [1, 1]],
 		["hitUnits", STRAT_drawHitUnits]

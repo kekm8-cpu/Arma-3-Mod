@@ -147,6 +147,47 @@ TACT_battleRealSecondsMax = 2400;
 // strategic layer's side it can never outlast the block it began in.
 TACT_blockSecondsPerBattleSecond = 1;
 
+// ------------------------------------------------------------------------- //
+// BATTLE COMMAND MODE                                                        //
+// ------------------------------------------------------------------------- //
+// When a battle opens on the player's own army, the player leads its deployed
+// group. Two command surfaces then exist and they never overlap:
+//
+//   map closed - Arma's stock squad bar. F1, F2, F3 select subordinates and
+//                orders are given in the 3D world. Untouched.
+//   map open   - the squad bar is hidden and the map is the command surface.
+//                Left click an icon to select it, CTRL to add or remove, click
+//                terrain to move, SHIFT to stack a waypoint onto a route.
+//
+// An engagement between two AI armies drops nobody in and never leaves the
+// campaign layer, exactly as before.
+
+TACT_commandActive    = false;  // True only while the player leads a deployed group
+TACT_commandSelection = [];     // Selected entity objects; empty means the whole group
+TACT_commandArmyId    = "";     // Which army record the player is currently leading
+
+// Click radius around a command icon, in the same icon units the draw layer
+// uses, so a unit is as easy to click zoomed out as zoomed in.
+TACT_commandHitUnits  = 0.60;
+TACT_commandIconUnits = 0.85;   // Command icons sit slightly under an army icon
+
+// Yellow: the commander is not another unit to be ordered and should not read
+// as one.
+TACT_commandPlayerColour = [1, 0.85, 0.2, 1];
+
+// How close an entity has to get before a stacked waypoint counts as reached
+// and the next one goes out. A vehicle told to stop on a point stops near it,
+// and a radius as tight as a man's would leave it nudging back and forth on
+// the same leg forever.
+TACT_commandArrivalFoot    = 12;
+TACT_commandArrivalVehicle = 30;
+
+// How often the route executor looks at the field. Routes are a planning
+// device, not a control loop - the engine is driving between waypoints - so
+// this only has to be quick enough that the next leg goes out before anyone
+// notices they have stopped.
+TACT_commandTickSeconds = 1;
+
 TACT_activeEngagements       = [];  // Engagement records currently being fought
 TACT_resolvedPairsThisBlock  = [];  // Army id pairs that have already fought this block
 TACT_lastBattleReport        = "";  // Shown by the block readout and the planning phase
@@ -188,6 +229,11 @@ STRAT_drawLocationUnits    = 1.10;  // Location icon, slightly over an army's
 STRAT_drawArrowOriginUnits = 0.55;  // Order arrow starts just off the icon edge
 STRAT_drawArrowHeadUnits   = 0.45;  // Length of each barb of the arrowhead
 STRAT_drawArrowHeadDegrees = 25;    // Sweep of each barb off the shaft
+STRAT_drawWaypointPipUnits = 0.18;  // Ring on each stacked waypoint but the last
+
+// How far a mouse press may travel before its release stops being a click and
+// starts being a map pan. Screen units, so it is a fraction of screen width.
+STRAT_mapClickSlop = 0.01;
 
 // White, so selection reads as a highlight rather than as another faction.
 STRAT_drawSelectionColour = [1, 1, 1, 0.9];

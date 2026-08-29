@@ -83,7 +83,8 @@ disposition is deferred. See section 10.
 ## 4. Conventions
 
 - **`STRAT_fnc_*`** — strategic layer. Lives in `functions\<domain>\`.
-- **`TACT_fnc_*`** — tactical layer, battle lifecycle. Lives in `functions\battle\`.
+- **`TACT_fnc_*`** — tactical layer: battle lifecycle in `functions\battle\`,
+  and the player's command of a deployed group in `functions\command\`.
 - **`TEST_fnc_*`** — test harness. Lives in `functions\test\`. Neither layer,
   and deliberately a third prefix: everything under it is scaffolding for
   development and comes out in one piece. Nothing in `STRAT_` or `TACT_` may
@@ -111,13 +112,18 @@ functions/
                              fn_projectArrival, fn_commitTurn, fn_resolveTurn,
                              fn_applyUpkeep, fn_advanceClock
   ui/                        fn_onMapClick, fn_mapUnitMetres,
-                             fn_buildDrawList, fn_drawCampaignLayer,
+                             fn_mapIconTexture, fn_buildDrawList,
+                             fn_drawItems, fn_drawCampaignLayer,
                              fn_attachMapLayer
   battle/                    fn_detectContact, fn_buildEngagement,
                              fn_initiateBattle, fn_deployMen, fn_deployVehicles,
                              fn_drawBoundary, fn_resolveVictory,
-                             fn_concludeBattle, fn_syncBack
+                             fn_concludeBattle, fn_syncBack, fn_combatants
                              (planned) fn_captureLoop, fn_autoResolve
+  command/                   fn_dropIn, fn_dropOut, fn_setCommandHud,
+                             fn_commandEntities, fn_onCommandClick,
+                             fn_issueMoveOrder, fn_runRoutes,
+                             fn_buildCommandList
   test/                      fn_buildArmy, fn_clearArmies, fn_setupScenario,
                              fn_spawnBattle
 ```
@@ -619,6 +625,15 @@ markers, tactical-layer markers on the GPS during a battle, debug and authoring
 markers. One icon, one label, no adornment, no click behaviour, no relationship
 to anything drawn.
 
+**The map has two modes and they do not overlap.** Outside a battle it draws
+the campaign: armies and locations across the island. While the player is
+commanding a battle on the ground it draws the fight: his own units, what is
+selected, and the routes they have been given. The strategic icons stand down
+for the duration — there are two of them, they sit on top of the battle they
+represent, and they would compete for the same clicks. Both modes emit the same
+item shape into `STRAT_fnc_drawItems`, so a tactical route arrow and a strategic
+order arrow are the same lines drawn by the same law.
+
 The artwork is shared either way.
 `getText (configFile >> "CfgMarkers" >> "b_inf" >> "icon")` returns the same
 texture path the engine draws, so a drawn army icon and a marker read as one
@@ -629,6 +644,14 @@ system.
 `ctrlMapMouseOver` no longer resolves an army under the cursor, so army
 hit-testing is written by hand. Phase 1.6 already commits to writing it, so it
 is not a new cost — it is the same cost, now unavoidable rather than optional.
+
+Battle command mode also has to write its own mouse handling, for a second
+reason: `onMapSingleClick` reports SHIFT and ALT and nothing else, and
+selection needs CTRL. It therefore reads the map control's own
+`MouseButtonDown` and `MouseButtonUp`, treating a release that landed close to
+its press as a click and anything further as a pan — the map's own scrolling is
+a click and drag, so acting on the press would issue an order every time the
+player grabbed the map to move it.
 
 Armies also lose free presence on the GPS and minimap, and free persistence into
 saves. Neither should be load-bearing: `location` is authoritative on the
@@ -728,6 +751,15 @@ being made, across every force at once.
   any entity that carries adornment is drawn entirely in the Draw layer.
   Armies and locations are drawn; markers are for atomic engine-owned icons.
 - **Anything the player is penalised for must be visible at planning time.**
+- **The commander is in the group but never in the roster.** The player leads a
+  deployed group; he has no soldier record, is never a casualty, and never
+  leaves the field with the survivors. Every measure of an army's strength or
+  position goes through `TACT_fnc_combatants`, which excludes him. Counting him
+  would mean an army whose last man has fallen is not annihilated.
+- **Two command surfaces, never at once.** Map closed, the stock squad bar
+  commands. Map open, the squad bar is hidden and the map commands. Every path
+  out of command mode must restore the bar — a HUD element left switched off is
+  not something the player can fix.
 
 ---
 
@@ -796,6 +828,22 @@ being made, across every force at once.
   arrow from the icon's edge to the pending destination. Locations emit icon
   and label. Markers are gone from the army record and from all four call
   sites.
+- Battle command mode. When a battle opens on the player's own army,
+  `TACT_fnc_dropIn` makes the player that army's group leader and turns the map
+  into a command surface; `TACT_fnc_dropOut` withdraws him before the group is
+  torn down. With the map closed, Arma's stock squad bar commands the group
+  untouched. With it open, `TACT_fnc_setCommandHud` hides the bar and
+  `TACT_fnc_onCommandClick` takes over: click an icon to select, CTRL to add or
+  remove, click terrain to move, SHIFT to stack a waypoint. Nothing selected
+  means the whole group. `TACT_fnc_commandEntities` resolves the group into
+  what can actually be moved — a dismounted man, or a vehicle with at least one
+  of ours in it, ordered through its driver — so a mounted rider resolves to
+  the truck he is riding in. `TACT_fnc_runRoutes` walks stacked routes, since
+  `doMove` takes one destination and does not queue, and re-issues a leg only
+  when the entity is idle, which is what leaves a stock-UI order able to
+  interrupt one. `TACT_fnc_combatants` keeps the commander out of every measure
+  of army strength and position. An AI-versus-AI engagement drops nobody in and
+  never leaves the campaign layer.
 - Test harness (`TEST_fnc_*`). Named rosters, named starting states and named
   engagements, all declared as data in `init.sqf`. `TEST_fnc_setupScenario`
   builds what a session boots into; `TEST_fnc_spawnBattle` drops a fixed
@@ -846,8 +894,19 @@ the enforced one cannot drift apart.
 - A second battle can open in the same block once the first concludes, so a
   heavily contested block can run past 40 real minutes. Different pairs only —
   the same two armies never re-fight inside one block.
-- The player is not moved to an attended battle; there is no drop-in yet, so
-  "attended" currently means watched from the map.
+- Drop-in exists only for the player's own army. He is moved to the battle and
+  given command of the deployed group; an engagement between two AI armies is
+  still watched from the map, and overhead spectate does not exist. The rest of
+  3.12 — choosing whether to drop in, and spectating from above when you do not
+  — is untouched.
+- A player-led group does not execute the group `move` order `fn_initiateBattle`
+  issues: AI follow their leader, and the leader is now the player. The
+  player's army therefore holds at deployment until ordered, while the AI side
+  advances on its standing order. That is the intended shape of commanding, but
+  it means the two sides of a battle are now driven differently and the
+  boundary-crossing conditions have only been reasoned about, not played.
+- Everyone ordered at once is ordered to the same point rather than into a
+  formation around it, so a whole-group move bunches on arrival.
 - `fn_calculateRoadPath` snaps the start point to the *nearest* road but the end
   point to an arbitrary one; the jink-correction block assumes `_startInput` is
   an array and will error if an object was passed.
@@ -907,7 +966,8 @@ the enforced one cannot drift apart.
 - Naval and air movement (mandatory on an archipelago — road pathfinding cannot
   leave the island it starts on).
 - Save/load serialization.
-- Commander drop-in and overhead spectate.
+- Overhead spectate, and the choice of whether to drop in at all. Drop-in
+  itself is in, for the player's own army.
 - Soldier names, progression, and loadout persistence.
 
 ---
@@ -1177,7 +1237,12 @@ to be.
 
 3.11 **Progression.** Soldier names, ranks, loadouts.
 
-3.12 **Drop-in and spectate.**
+3.12 **Drop-in and spectate.** Partly done ahead of schedule, because the map
+command interface needs it: the stock F-key UI drives a real Arma group whose
+leader is the player, so unless the player actually leads the deployed group
+there is nothing for F1 to address. `TACT_fnc_dropIn` and `TACT_fnc_dropOut`
+ship. What remains is the choice — dropping in should be optional, not
+automatic — and overhead spectate for the battles the player does not join.
 
 3.13 **Story progression.** Contract structure and the fixed geographic
 campaign arc.

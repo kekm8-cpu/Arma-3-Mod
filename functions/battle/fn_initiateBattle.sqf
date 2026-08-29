@@ -54,7 +54,8 @@ _engagement set ["defenderGroup", _defenderGroup];
 // one vehicle, so an infantry-only army lands no units. A side that cannot
 // field anybody must not be counted as annihilated, so the engagement is
 // abandoned and both rosters are put back untouched.
-if (count (units _attackerGroup) == 0 || {count (units _defenderGroup) == 0}) exitWith {
+if (count ([_attackerGroup] call TACT_fnc_combatants) == 0
+	|| {count ([_defenderGroup] call TACT_fnc_combatants) == 0}) exitWith {
 	diag_log format [
 		"TACT Battle: deployment failed (%1: %2 units, %3: %4 units), engagement abandoned.",
 		_attacker get "name", count (units _attackerGroup),
@@ -95,6 +96,12 @@ if (count (units _attackerGroup) == 0 || {count (units _defenderGroup) == 0}) ex
 
 // 6. Draw the boundary the engagement actually enforces.
 [_anchor, true, _radius] call TACT_fnc_drawBoundary;
+
+// 7. If one of these armies is the player's, he leads it. Done after the
+// marching orders so the group already has somewhere to be when its new leader
+// arrives, and after the deployment check so a failed engagement never drops
+// him into a group that is about to be abandoned.
+[_engagement] call TACT_fnc_dropIn;
 
 // The turn loop owns the hint during resolution and refreshes it twice a
 // second, so the report is handed to it rather than hinted over the top of it.

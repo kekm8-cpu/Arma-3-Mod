@@ -12,17 +12,37 @@
 
 		Called once at boot. It installs a single scope that then owns the
 		lifecycle for the rest of the mission: wait for the map to be open and
-		its control built, attach, wait for the map to close, repeat. Map open
-		is observed directly rather than taken from a mission event handler,
-		because the thing that actually has to be true before attaching is that
-		control 51 exists, and that is a frame or more behind the event.
+		its control built, attach, hold while it is open, and go round again on
+		the next opening. Map open is observed directly rather than taken from
+		a mission event handler, because the thing that actually has to be true
+		before attaching is that control 51 exists, and that is a frame or more
+		behind the event.
 
-		The handler id is stored on the control, so a re-attach removes its own
-		predecessor by id rather than clearing every Draw handler on the map -
-		which would take the battle boundary's handler with it. That covers
-		both engine behaviours: if the display is destroyed on close the new
-		control simply has no id stored, and if it survives, the stale handler
-		is removed before the new one goes on.
+		Three things attach, and they are here together because they share one
+		precondition - the map is open and its control exists - and one owner:
+
+		  Draw            the campaign layer, which picks its own list by mode
+		  MouseButtonDown records where a press started
+		  MouseButtonUp   turns a press that did not travel into a click
+
+		Mouse handling is split across down and up because the map's own
+		panning is a click and drag. Acting on the press would fire an order
+		every time the player grabbed the map to move it, so a click is a
+		release that landed close to where its press did. The handlers are also
+		where CTRL comes from: `onMapSingleClick` reports SHIFT and ALT and
+		nothing else, and command-mode selection needs CTRL.
+
+		While the map is open and the player is commanding, the stock squad bar
+		is hidden. It is checked every frame rather than switched once, so
+		command mode beginning or ending underneath an open map is handled by
+		the same line as the map opening.
+
+		Handler ids are stored on the control, so a re-attach removes its own
+		predecessors by id rather than clearing every handler on the map -
+		which would take the battle boundary's Draw handler with it. That
+		covers both engine behaviours: if the display is destroyed on close the
+		new control simply has no ids stored, and if it survives, the stale
+		handlers are removed before the new ones go on.
 
 		Must be called from a scope that can spawn.
 
@@ -55,23 +75,79 @@ STRAT_mapLayerRunning = true;
 
 		// Never ctrlRemoveAllEventHandlers here: TACT_fnc_drawBoundary keeps
 		// its own Draw handler on this same control.
-		private _existing = _map getVariable ["STRAT_campaignLayerEH", -1];
-		if (_existing != -1) then {
-			_map ctrlRemoveEventHandler ["Draw", _existing];
-		};
+		{
+			_x params ["_type", "_key"];
 
-		private _id = _map ctrlAddEventHandler ["Draw", {
+			private _existing = _map getVariable [_key, -1];
+			if (_existing != -1) then {
+				_map ctrlRemoveEventHandler [_type, _existing];
+			};
+		} forEach [
+			["Draw", "STRAT_campaignLayerEH"],
+			["MouseButtonDown", "STRAT_mapPressEH"],
+			["MouseButtonUp", "STRAT_mapReleaseEH"]
+		];
+
+		private _drawId = _map ctrlAddEventHandler ["Draw", {
 			_this call STRAT_fnc_drawCampaignLayer;
 		}];
+		_map setVariable ["STRAT_campaignLayerEH", _drawId];
 
-		_map setVariable ["STRAT_campaignLayerEH", _id];
+		// The press is only remembered, never acted on: the map pans by click
+		// and drag, and an order issued on the press would fire every time the
+		// player grabbed the map to move it.
+		private _pressId = _map ctrlAddEventHandler ["MouseButtonDown", {
+			params ["_control", "_button", "_x", "_y"];
+			_control setVariable ["STRAT_mapPressAt", [_button, _x, _y]];
+			false       // Never consume: consuming this stops the map panning
+		}];
+		_map setVariable ["STRAT_mapPressEH", _pressId];
 
-		diag_log format ["STRAT Draw: campaign layer attached to the map (handler %1).", _id];
+		private _releaseId = _map ctrlAddEventHandler ["MouseButtonUp", {
+			params ["_control", "_button", "_x", "_y", "_shift", "_ctrl"];
+
+			private _press = _control getVariable ["STRAT_mapPressAt", []];
+			_control setVariable ["STRAT_mapPressAt", nil];
+
+			private _commanding = !isNil "TACT_commandActive" && {TACT_commandActive};
+
+			// Left button only, command mode only, and only a release that
+			// landed on its own press - anything further is a pan, and a pan
+			// is not an order.
+			if (_commanding && {_button == 0} && {count _press == 3} && {(_press select 0) == 0}) then {
+				private _travel = sqrt (
+					(((_press select 1) - _x) ^ 2) + (((_press select 2) - _y) ^ 2)
+				);
+
+				if (_travel <= STRAT_mapClickSlop) then {
+					private _world = _control ctrlMapScreenToWorld [_x, _y];
+					[_world, _ctrl, _shift] call TACT_fnc_onCommandClick;
+				};
+			};
+
+			false
+		}];
+		_map setVariable ["STRAT_mapReleaseEH", _releaseId];
+
+		diag_log format ["STRAT Draw: map layer attached (draw %1, press %2, release %3).", _drawId, _pressId, _releaseId];
 
 		// Hold here until the map closes, then go round and wait for the next
 		// opening. Nothing is detached on close - the control's handlers and
 		// variables go wherever the control goes.
-		waitUntil { !visibleMap };
+		//
+		// The squad bar is driven from inside the wait rather than switched
+		// once on either side of it, so a battle starting or ending while the
+		// map is already open is the same case as the map opening.
+		waitUntil {
+			private _commanding = !isNil "TACT_commandActive" && {TACT_commandActive};
+			[_commanding] call TACT_fnc_setCommandHud;
+
+			!visibleMap
+		};
+
+		// The map is closed: the stock commanding UI is the interface again,
+		// whether or not a battle is still running.
+		[false] call TACT_fnc_setCommandHud;
 	};
 };
 

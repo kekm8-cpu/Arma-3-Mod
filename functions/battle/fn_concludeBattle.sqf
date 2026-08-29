@@ -39,6 +39,11 @@ private _attacker = _engagement get "attacker";
 private _defender = _engagement get "defender";
 private _byArmy   = _outcome getOrDefault ["byArmy", createHashMap];
 
+// The commander comes out before anything is torn down. A group with the
+// player still in it is not empty, so the deleteGroup below would leave it
+// standing and holding him.
+call TACT_fnc_dropOut;
+
 private _sides = [
 	[_attacker, _engagement get "attackerGroup"],
 	[_defender, _engagement get "defenderGroup"]
@@ -56,7 +61,7 @@ private _armiesRemoved = [];
 	// ------------------------------------------------------------------ //
 	// 1. STRATEGIC POSITION, READ OFF THE SURVIVORS BEFORE THEY ARE GONE  //
 	// ------------------------------------------------------------------ //
-	private _living = (units _group) select {alive _x};
+	private _living = [_group] call TACT_fnc_combatants;
 
 	if (count _living > 0) then {
 		private _sumX = 0;
