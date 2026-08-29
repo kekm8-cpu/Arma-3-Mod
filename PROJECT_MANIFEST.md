@@ -659,6 +659,26 @@ its press as a click and anything further as a pan — the map's own scrolling i
 a click and drag, so acting on the press would issue an order every time the
 player grabbed the map to move it.
 
+Drawing does not replace what the engine already draws. A Draw handler renders
+after the map's own content, so a command icon lands *on top of* the stock icon
+for the same unit rather than in place of it — at a slightly different size,
+rotating to the unit's facing, and drawn once per man rather than once per
+entity, which is precisely the stacking `TACT_fnc_commandEntities` exists to
+collapse. `TACT_fnc_setCommandHud` therefore switches the friendly indicators
+off alongside the squad bar, with `disableMapIndicators [true, false, false,
+false]`. Enemies stay on: the command layer draws nothing hostile, so turning
+them off is a fog-of-war decision rather than a rendering one, and it is not
+this change's to make. It becomes one when an enemy is something the player can
+click — "attack this" is a map order, and a hostile the layer does not draw
+cannot be one.
+
+This has to be a scripting command rather than mission config. `mapContent` and
+its siblings are `CfgDifficultyPresets` options, which live in the server's
+config or the player's own profile; `description.ext`'s `DifficultyOverride`
+does not reach them. That is the better outcome anyway — a command is
+switchable per mode, and the invariant is about command mode, not about the
+mission.
+
 Armies also lose free presence on the GPS and minimap, and free persistence into
 saves. Neither should be load-bearing: `location` is authoritative on the
 strategic map, and the save format serialises records rather than presentation.
@@ -764,9 +784,13 @@ being made, across every force at once.
   condition, no casualty count and no position sum has a special case for him,
   and none may acquire one.
 - **Two command surfaces, never at once.** Map closed, the stock squad bar
-  commands. Map open, the squad bar is hidden and the map commands. Every path
-  out of command mode must restore the bar — a HUD element left switched off is
-  not something the player can fix.
+  commands. Map open, the squad bar is hidden and the map commands. This
+  includes the engine's own friendly icons on the map, which are a second
+  drawing of the same units rather than a second place to click: Draw handlers
+  render over the map's content, never instead of it, so the stock icons must
+  be switched off or the command layer is a second set of icons on top of the
+  first. Every path out of command mode must restore both — an interface
+  element left switched off is not something the player can fix.
 
 ---
 
@@ -843,9 +867,9 @@ being made, across every force at once.
   layer has no special case for the player anywhere — he is a soldier record
   that gets counted, wounded and killed like any other. With the map closed,
   Arma's stock squad bar commands the group untouched. With it open,
-  `TACT_fnc_setCommandHud` hides the bar and `TACT_fnc_onCommandClick` takes
-  over: click an icon to select, CTRL to add or remove, click terrain to move,
-  SHIFT to stack a waypoint. Nothing selected means the whole group.
+  `TACT_fnc_setCommandHud` hides the bar, the commanding menu and the engine's
+  friendly map icons, and `TACT_fnc_onCommandClick` takes over: click an icon
+  to select, CTRL to add or remove, click terrain to move the selection.
   `TACT_fnc_commandEntities` resolves the group into what can actually be moved
   — a dismounted man, or a vehicle with at least one of ours in it, ordered
   through its driver — so a mounted rider resolves to the truck he is riding
@@ -932,6 +956,16 @@ the enforced one cannot drift apart.
   against overriding the stock squad bar, and every guard was another condition
   under which commanding behaved differently. All three return as group-level
   command, below, where the engine carries them natively.
+- Nothing drawn on either map carries facing. `drawIcon`'s rotation argument is
+  the literal `0` for every item, and hiding the engine's friendly icons takes
+  away the stock facing arrows that were the only heading cue on the tactical
+  map. Facing belongs to an entity and not to an aggregate: a soldier and a
+  vehicle each have one, an army or a body of men under a single icon does not,
+  and the aggregate's equivalent is the order arrow it already draws —
+  direction of intent rather than direction of facing. So if this arrives it is
+  per command entity, and rotating the NATO silhouette is the wrong way to do
+  it — those symbols read as upright. It wants a barb off the icon's edge,
+  which is `_fnc_head` in `STRAT_fnc_drawItems` and already written.
 - `"polyline"` is a live shape in `STRAT_fnc_drawItems` that nothing emits. It
   is kept rather than deleted because an unreachable `case` cannot be entered
   and so cannot drift, and routes return with group waypoint chains. A
