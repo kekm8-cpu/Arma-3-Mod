@@ -4,18 +4,21 @@ Attach this as project context. It describes the intended scope, the data model,
 current implementation state, and the invariants that must not be broken.
 
 **Revision note:** the strategic layer was originally prototyped as realtime.
-It is now specified as turn-based (WEGO). Sections 5, 7, and 12 reflect that
+It is now specified as turn-based (WEGO). Sections 5, 7, and 13 reflect that
 decision; parts of the existing codebase still assume realtime and are flagged
-in section 12.
+in section 13.
 
-**Previous revision** added section 10, the battle type model, and closed two
-open decisions (execution presentation, boundary enforcement) that the battle
-model forced.
+**Earlier revisions** added section 10, the battle type model, and replaced the
+flat milestone list with the three-phase build plan in section 15. Sections 13
+and 14 are annotated with the phase each item belongs to.
 
-**This revision** replaces the flat milestone list with a three-phase build
-plan (section 14): a strategic minimum, a battle-layer deep dive, then a return
-to the strategic layer and story progression. Sections 12 and 13 are annotated
-with the phase each item belongs to.
+**This revision** adds section 11, battle command. It specifies the custom
+order interface, the element split model (real groups, not teams), element
+leadership by skill, and the battle-scoped lifetime of a split. All later
+sections shift by one. It forces one code change — victory conditions must be
+derived from the roster rather than from a single group handle — and one
+schedule change: a minimal drop-in becomes a phase two prerequisite, because a
+command interface cannot be tested against a battle the player only watches.
 
 ---
 
@@ -304,8 +307,18 @@ to them yet — accumulation is 2.6 and the sleep cycle is 3.10 — but
 `STRAT_fnc_armyFatigue` already derives an army-level value from `exertion`, so
 deployment has something to read.
 
+`skill` is load-bearing at battle time for two things, not one: combat accuracy
+and element leadership (section 11). Anything that later writes `skill` moves
+leadership with it.
+
+`isLeader` is the army's leader on the strategic layer and belongs to the
+roster. Battle-time element leadership is a separate, transient thing and must
+never be written back into this flag.
+
 *Planned additions:* `name`, `xp`/`rank`, `loadout`, `woundState`, `captureInfo`
-(when, where, from which faction).
+(when, where, from which faction). Deliberately absent: `element`. Splits are
+battle-scoped, so nothing needs it yet — see open decision 13 for what it would
+cost to add later.
 
 ### Vehicle (HashMap)
 
@@ -331,6 +344,11 @@ produces one of these; the lifecycle reads it rather than branching on type.
 | `blockTimeRemaining` | NUMBER | Hours left in the block when the battle opened |
 | `capturePoint` | HASHMAP | Set-piece only. Position, radius, progress, owner |
 | `sprung` | BOOL | Ambush only. False until combat begins |
+
+The record also carries `attackerGroup` and `defenderGroup` today. Both are
+provisional: a side that can split holds several groups, so a single handle
+stops describing it. They are display and convenience handles only — nothing
+that decides an outcome may read them. See section 11.
 
 ### Location (HashMap)
 
@@ -569,7 +587,142 @@ after the initial exchange.
 
 ---
 
-## 11. Invariants
+## 11. Battle Command
+
+How the player commands men once a battle has spawned. This is structural, not
+cosmetic: the split model determines what the victory conditions are allowed to
+read and what sync-back has to reconcile.
+
+### The interface is custom
+
+Order issuing runs on the main map through custom map-click and keypress
+handlers. **The High Command module is not used.** It does not support the
+order granularity intended here, and bending it into shape costs more than
+writing the handlers.
+
+Two consequences follow immediately.
+
+- **The map has one click handler, dispatched by mode.** `STRAT_fnc_onMapClick`
+  already owns map clicks and queues to `pendingOrder`. Tactical order issuing
+  wants the same input. Adding and removing handlers at battle boundaries
+  leaks, and a stale handler that queues a strategic order mid-battle is a bug
+  that costs an evening to find. One registration, branching on whether a
+  battle is live.
+- **The vanilla command interface must be suppressed.** With the player leading
+  a group it is live, and it will contest number keys, spacebar, and screen
+  space. Keys are consumed by returning `true` from the `KeyDown` handler; the
+  command bar and group bar are hidden through `showHUD`.
+
+Prefer a `MouseButtonDown` handler on the map control to `onMapSingleClick`.
+The latter is a single global slot that any script can overwrite; the control
+handler also supplies button index and modifier state, which additive selection
+needs.
+
+### Elements are groups, not teams
+
+An army spawns as a single group. The player may split it — "you five with me,
+you four loop east and meet us."
+
+Arma's engine-level subgroup is the **team** (`assignTeam`, the colour teams).
+Teams are a selection convenience for the vanilla command menu and nothing
+more. They carry no independent AI: the group still has one leader, one
+formation, one behaviour state, one combat mode, and one shared pool of known
+targets. A team cannot be sent away and left to itself, because the group's
+formation-keeping will drag it back. Formations are not subgroups either — a
+formation is the spatial arrangement of *all* of a group's units around its
+leader.
+
+Independent manoeuvre therefore requires a **new group**. Waypoints,
+`setBehaviour`, `setCombatMode`, `setSpeedMode`, `setFormation`, target
+sharing, and the leader's own decision-making are all group-scoped, and a
+detachment that goes out of sight and has to handle contact alone needs every
+one of them.
+
+**The dividing line.** If the order sends men beyond formation-keeping range or
+expects them to make their own decisions, it is a new group. Otherwise it is an
+individual override — `doMove` / `doStop` / `doFollow` on a subordinate — which
+is the right tool for "you, that window" or "you, hold here", and which the
+group's FSM will reclaim on contact or on the next leader order. Individual
+overrides are temporary by nature and nothing may depend on one persisting.
+
+That is the same two-tier split the interface exposes: orders to the whole
+element, and orders to one man.
+
+### Splitting an element
+
+The mechanics, each of which is easy to get wrong:
+
+- `createGroup [_side, true]`. The `deleteWhenEmpty` flag matters — there is a
+  hard per-side group cap and a campaign will churn groups continuously.
+- `joinSilent`, never `join`. `join` fires radio chatter and a formation
+  callout on every split.
+- **New groups inherit nothing.** Behaviour, combat mode, speed mode,
+  formation, and formation direction all reset to defaults and must be copied
+  from the parent explicitly, or the flanking element wanders off in SAFE at
+  limited speed.
+- **Known targets do not transfer.** Group knowledge is group-scoped, so a
+  detachment peeling off a group that has been in contact for two minutes walks
+  away blind to everything the parent can see. The parent's contacts are
+  `reveal`ed to the new group at the moment of the split. Skipping this reads
+  as a bug rather than as engine behaviour: splitting visibly makes the men
+  stupider.
+- Merging back is `joinSilent` in the other direction. The emptied group
+  deletes itself.
+
+### Element leadership
+
+The new element's leader is **the soldier in it with the highest `skill`**.
+Ties are broken at random among the tied soldiers. Applied with `selectLeader`
+after the join, because the engine otherwise picks by rank and returns whoever
+happens to sort highest.
+
+Two things this must not do:
+
+- **It must not write `isLeader`.** That flag is the army's leader on the
+  strategic layer and belongs to the roster, not to a transient element. A
+  split that overwrote it would corrupt the record through sync-back.
+- **It must not recompute on every casualty.** Leadership is assigned when the
+  element is formed and again when the current element leader dies. Not
+  continuously.
+
+### Elements are battle-scoped
+
+**Splits do not survive the battle.** The army reforms at conclusion regardless
+of where its pieces ended up, and its strategic position is taken from the
+largest surviving element. Exit classification is decided the same way — the
+largest surviving element's crossing determines breakthrough or repulse — so
+that position and outcome cannot disagree about where the army is.
+
+This costs the data layer nothing, because group membership is never the source
+of truth. Sync-back iterates the roster and reads each `obj`; it does not care
+which group the object was in. The one thing that must hold is that a unit
+never leaves the roster it came from.
+
+**Victory conditions must read the roster, not the group.** This is the code
+change splitting forces. `fn_resolveVictory` classifies annihilation,
+breakthrough and repulse from `units _group`, and the engagement record holds a
+single `attackerGroup` / `defenderGroup`. Once a side can hold several groups,
+those handles no longer describe it and half a split army becomes invisible to
+the check. Deriving from the army's living `obj` references instead is correct
+under splitting and already implied by the invariant that data outlives
+entities.
+
+Persistent detachments — an element that ends a battle elsewhere and stays a
+separate force on the strategic map — are deliberately out of scope. They would
+need a per-battle `element` field on the soldier record, a ruling for a split
+army whose halves exit in opposite directions, and a `pendingOrder` each. See
+open decision 13.
+
+### The player has to be in the battle first
+
+There is no drop-in: "attended" currently means watched from the map. A command
+interface cannot be built or tested against a battle the player is not standing
+in, so a minimal drop-in stops being a phase three finishing touch and becomes
+a prerequisite. See 2.7.
+
+---
+
+## 12. Invariants
 
 - **Data outlives entities.** A spawned unit is a temporary projection of a
   HashMap record. Anything that happens in a battle and matters afterward must
@@ -603,11 +756,21 @@ after the initial exchange.
   derived, never stored.
 - **A garrison is not an army.** It has no `pendingOrder`, does not move, and
   never enters `activeArmies`. It shares record formats only.
+- **Group membership is a battle-time presentation of the roster, never the
+  source of truth.** A unit never leaves the roster it came from, whatever
+  group it is standing in.
+- **Outcomes are derived from the roster, not from a group handle.** A side may
+  hold any number of groups; nothing that decides a victory condition, a
+  position, or a sync-back may read `units _group`.
+- **Battle-time element leadership never touches `isLeader`.** That flag is
+  strategic-layer roster state.
+- **The map has one click handler.** It dispatches on mode. Handlers are never
+  added and removed around battle boundaries.
 - **Anything the player is penalised for must be visible at planning time.**
 
 ---
 
-## 12. Implementation Status
+## 13. Implementation Status
 
 **Working**
 - Army/soldier/vehicle data construction, including hitpoint layout read from
@@ -707,6 +870,9 @@ the enforced one cannot drift apart.
   an array and will error if an object was passed.
 - Boundary radius is hardcoded and now load-bearing — it is the withdrawal
   mechanic, so it must be enforced and its crossing direction classified.
+- `fn_resolveVictory` and the engagement record both assume one group per side.
+  Correct today, wrong the moment splitting lands. Both must move to reading
+  the army roster's living `obj` references. See section 11.
 
 **Not started**
 - Post-battle march for a repulsed army. Survivors of every other outcome
@@ -737,12 +903,18 @@ the enforced one cannot drift apart.
 - Naval and air movement (mandatory on an archipelago — road pathfinding cannot
   leave the island it starts on).
 - Save/load serialization.
-- Commander drop-in and overhead spectate.
+- Commander drop-in and overhead spectate. Drop-in is now a phase two
+  prerequisite rather than a phase three finish, because the battle command
+  interface cannot be tested without it.
+- Battle command interface. Custom map-click and keypress order issuing, mode
+  dispatch on the shared map handler, vanilla command UI suppression, selection
+  state, and orders at both scales. Nothing of it exists. See section 11.
+- Element splitting and merging, and element leadership by skill.
 - Soldier names, progression, and loadout persistence.
 
 ---
 
-## 13. Open Decisions
+## 14. Open Decisions
 
 **Closed since last revision**
 
@@ -807,10 +979,20 @@ the enforced one cannot drift apart.
     classification is ambiguous. Needs a fallback rule.
 12. **Ambush preparation fidelity.** Hand-placed mines and roadblocks versus an
     abstract budget placed by script. Budget preferred on scope grounds.
+13. **Persistent detachments.** Splits are battle-scoped by ruling (section 11),
+    and nothing needs otherwise. The only part of this with a deadline is the
+    `element` field on the soldier record: additive and near-free now, and an
+    expensive retrofit once sync-back, save serialization, and the strategic
+    order model all assume one roster is one force. Decide whether to add the
+    field speculatively, not whether to build the mechanic.
+14. **Split exits in opposite directions.** The ruling is that the largest
+    surviving element decides both position and exit classification. Untested
+    against the case where a small element breaks through and achieves the
+    objective while the bulk is driven back. Revisit once splitting is played.
 
 ---
 
-## 14. Build Plan
+## 15. Build Plan
 
 Three phases. Phase one brings the strategic layer to the minimum that gives the
 battle layer real context. Phase two is the battle deep dive. Phase three
@@ -893,7 +1075,19 @@ planning time. Promoted into phase two because its whole visible effect is on
 the battlefield, and the visibility invariant means tuning it requires seeing
 what it does to a fight.
 
-2.7 **Ambushes.** One order type and one deployment plan. Cheap once 2.1 lands.
+2.7 **Minimal drop-in.** Put the player on the ground in an attended battle as
+leader of his army's element, and return him to the map at conclusion. Promoted
+out of phase three: 2.8 cannot be built or tested without it. Overhead spectate
+and commander-view polish stay in phase three.
+
+2.8 **Battle command interface and element splitting.** Section 11 in full:
+mode dispatch on the shared map handler, vanilla command UI suppression,
+selection state, orders at both scales, splitting and merging with contact
+transfer, element leadership by skill. Includes moving `fn_resolveVictory` and
+the engagement record off single-group handles onto the roster — do that first,
+because splitting silently breaks victory classification otherwise.
+
+2.9 **Ambushes.** One order type and one deployment plan. Cheap once 2.1 lands.
 Optional at the end of phase two — the order type is strategic-side work, so it
 may fall more naturally into phase three. Decide once set-piece is done.
 
@@ -934,7 +1128,8 @@ to be.
 
 3.11 **Progression.** Soldier names, ranks, loadouts.
 
-3.12 **Drop-in and spectate.**
+3.12 **Spectate and commander view.** Overhead spectate and drop-in polish.
+The functional drop-in itself moved to 2.7.
 
 3.13 **Story progression.** Contract structure and the fixed geographic
 campaign arc.
