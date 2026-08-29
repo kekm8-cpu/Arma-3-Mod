@@ -2,103 +2,115 @@
 	Function: TACT_fnc_dropIn
 
 	Description:
-		Puts the player at the head of their own army's deployed group when a
-		battle opens, and turns on the map's command mode.
+		Hands the player the body of the soldier his army flagged `isPlayer`,
+		once the battle has deployed, and turns on the map's command mode.
 
-		Section 5 says execution is watched, always. Watching a battle from the
-		map is watching it from outside; leading the group that is fighting it
-		is the same information with a hand on it. This is the working slice of
-		3.12 that the map command interface needs to exist at all: the stock
-		F-key commanding UI drives a real Arma group whose leader is the
-		player, so unless the player actually leads the deployed group there is
-		nothing for F1 to address.
+		Nothing is moved and nothing is inserted. Deployment has already
+		spawned the whole roster, the flagged man among them, standing where
+		the deployment plan put him and mounted in whatever vehicle the
+		rotation gave him. All this does is change which of those bodies the
+		player is looking through, with selectPlayer.
 
-		Only the player's own faction drops in. An engagement between two AI
-		armies still runs watched from the map, exactly as before, and the
-		command layer never comes up.
+		That is why the battle layer needs no special case for the player. He
+		is a soldier with a soldier record: he is counted in the army's
+		strength, his position is part of its centre of mass, sync-back writes
+		his condition back into his record, and he can die. No victory
+		condition has to know he exists.
 
-		The commander joins the group but never the roster. TACT_fnc_combatants
-		is what keeps him out of the army's strength and centre of mass; see
-		its header for why that matters.
+		He also has to lead, because the stock F-key commanding UI addresses a
+		group through its leader. The flag and the leader flag are usually the
+		same man; when they are not, the player takes command anyway - there is
+		no version of this interface that works from inside the ranks.
+
+		The avatar the player came from is left standing on the campaign map,
+		hidden and out of harm's way, because that is the body
+		TACT_fnc_dropOut gives back when the battle ends.
 
 	Parameters:
 		0: HASHMAP - engagement record, already deployed
 
 	Returns:
-		BOOL - true if the player took command of a side.
+		BOOL - true if the player took a body on the field.
 */
 
 params [
 	["_engagement", createHashMap, [createHashMap]]
 ];
 
-if (isNull player) exitWith { false };
-
 private _sides = [
 	[_engagement get "attacker", _engagement get "attackerGroup"],
 	[_engagement get "defender", _engagement get "defenderGroup"]
 ];
 
-private _army = createHashMap;
-private _group = grpNull;
+// ------------------------------------------------------------------------ //
+// 1. FIND THE FLAGGED MAN                                                   //
+// ------------------------------------------------------------------------ //
+private _army    = createHashMap;
+private _group   = grpNull;
+private _unit    = objNull;
+private _soldier = createHashMap;
 
 {
 	_x params ["_candidateArmy", "_candidateGroup"];
 
-	if ((_candidateArmy getOrDefault ["faction", ""]) == "player") exitWith {
-		_army = _candidateArmy;
-		_group = _candidateGroup;
-	};
+	{
+		if (_x getOrDefault ["isPlayer", false]) exitWith {
+			private _obj = _x getOrDefault ["obj", objNull];
+
+			// Flagged but not on the ground: deployment leaves `obj` null for
+			// a man it could not place. He is still on the roster and still
+			// alive - he simply is not in this battle, so there is no body to
+			// take.
+			if (!isNull _obj && {alive _obj}) then {
+				_army    = _candidateArmy;
+				_group   = _candidateGroup;
+				_unit    = _obj;
+				_soldier = _x;
+			};
+		};
+	} forEach (_candidateArmy getOrDefault ["men", []]);
 } forEach _sides;
 
-if (count _army == 0 || {isNull _group}) exitWith {
-	diag_log "TACT Command: neither side is the player's, no drop-in.";
-	false
-};
-
-private _combatants = [_group] call TACT_fnc_combatants;
-
-if (count _combatants == 0) exitWith {
-	diag_log "TACT Command: the player's army put nobody on the ground, no drop-in.";
+if (isNull _unit) exitWith {
+	diag_log "TACT Command: no deployed soldier is flagged isPlayer, battle runs watched.";
 	false
 };
 
 // ------------------------------------------------------------------------ //
-// 1. GET THERE                                                              //
+// 2. PUT THE CAMPAIGN AVATAR AWAY                                           //
 // ------------------------------------------------------------------------ //
-// The avatar is wherever the strategic map left it, which is nowhere near the
-// engagement. Placed on the first combatant rather than on the anchor: the
-// anchor is the middle of the field, which is the one place a commander should
-// not arrive standing up.
-private _anchorUnit = _combatants select 0;
-private _previousGroup = group player;
+// Remembered before the switch, because afterwards `player` is somebody else.
+// Hidden and made invulnerable rather than deleted: it is the body control
+// comes back to, and a stray soldier standing in a field for the length of a
+// battle is a body that can be shot.
+private _avatar = player;
 
-player setPosATL (getPosATL _anchorUnit);
+if (isNull TACT_campaignAvatar) then { TACT_campaignAvatar = _avatar };
 
 // ------------------------------------------------------------------------ //
-// 2. TAKE COMMAND                                                           //
+// 3. TAKE THE BODY                                                          //
 // ------------------------------------------------------------------------ //
-[player] joinSilent _group;
-_group selectLeader player;
+selectPlayer _unit;
+_group selectLeader _unit;
 
-// The group the avatar came from is left empty. It was created with
-// deleteWhenEmpty set, so it clears itself, but an editor-placed group would
-// not - hence the explicit sweep.
-if (!isNull _previousGroup && {_previousGroup != _group} && {count (units _previousGroup) == 0}) then {
-	deleteGroup _previousGroup;
+if (!isNull _avatar && {_avatar != _unit}) then {
+	_avatar hideObject true;
+	_avatar allowDamage false;
+	_avatar enableSimulation false;
 };
 
-// ------------------------------------------------------------------------ //
-// 3. RIDE WITH THEM                                                         //
-// ------------------------------------------------------------------------ //
-// Deployment mounts the whole roster, so the group is about to drive off. A
-// commander left standing at the deployment point would watch his own army
-// leave. Takes a seat if there is one and stays on foot if there is not.
-private _ride = vehicle _anchorUnit;
+// If the body dies, control goes back to the campaign avatar rather than to
+// the death screen. The battle carries on without him and concludes normally -
+// his record is dropped by sync-back like any other casualty, and the army
+// fights the next one with nobody flagged. Without this the first bullet that
+// finds the player ends the campaign.
+_unit addEventHandler ["Killed", {
+	params ["_dead"];
+	_dead removeAllEventHandlers "Killed";
 
-if (_ride != _anchorUnit && {alive _ride} && {(_ride emptyPositions "Cargo") > 0}) then {
-	player moveInCargo _ride;
-};
+	systemChat "You have been killed. Command reverts to the map.";
+	call TACT_fnc_dropOut;
+}];
 
 // ------------------------------------------------------------------------ //
 // 4. OPEN COMMAND MODE                                                      //
@@ -107,17 +119,14 @@ TACT_commandActive    = true;
 TACT_commandSelection = [];
 TACT_commandArmyId    = _army get "id";
 
-// Stacked routes are walked by the executor, not by the engine.
-call TACT_fnc_runRoutes;
-
 diag_log format [
-	"TACT Command: player has taken command of %1 (%2 combatants).",
-	_army get "name",
-	count _combatants
+	"TACT Command: player has taken %1 in %2.",
+	_soldier getOrDefault ["className", "?"],
+	_army get "name"
 ];
 
 systemChat format [
-	"You have command of %1. Open the map to give orders; close it for the squad bar.",
+	"You are with %1. Close the map for the squad bar; open it to give orders.",
 	_army get "name"
 ];
 

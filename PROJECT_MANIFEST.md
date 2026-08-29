@@ -118,12 +118,11 @@ functions/
   battle/                    fn_detectContact, fn_buildEngagement,
                              fn_initiateBattle, fn_deployMen, fn_deployVehicles,
                              fn_drawBoundary, fn_resolveVictory,
-                             fn_concludeBattle, fn_syncBack, fn_combatants
+                             fn_concludeBattle, fn_syncBack
                              (planned) fn_captureLoop, fn_autoResolve
   command/                   fn_dropIn, fn_dropOut, fn_setCommandHud,
                              fn_commandEntities, fn_onCommandClick,
-                             fn_issueMoveOrder, fn_runRoutes,
-                             fn_buildCommandList
+                             fn_issueMoveOrder, fn_buildCommandList
   test/                      fn_buildArmy, fn_clearArmies, fn_setupScenario,
                              fn_spawnBattle
 ```
@@ -322,8 +321,15 @@ deployment reads it from there to compute facing (section 10.1), so
 
 ### Soldier (HashMap)
 
-`className`, `health` (1.0 = healthy), `skill`, `isLeader`, `obj` (objNull when
-not deployed), `exertion`, `hoursSinceSleep`.
+`className`, `health` (1.0 = healthy), `skill`, `isLeader`, `isPlayer`, `obj`
+(objNull when not deployed), `exertion`, `hoursSinceSleep`.
+
+`isPlayer` marks the one man in an army whose body the player takes when that
+army fights. It changes nothing about the record: he is spawned, counted,
+wounded, killed and synced back exactly like every other soldier, and the flag
+is read in one place, by `TACT_fnc_dropIn`, after deployment. If he dies his
+record is dropped like any other casualty and the army fights its next battle
+with nobody flagged.
 
 `exertion` and `hoursSinceSleep` are present and default to 0. Nothing writes
 to them yet — accumulation is 2.6 and the sleep cycle is 3.10 — but
@@ -751,11 +757,12 @@ being made, across every force at once.
   any entity that carries adornment is drawn entirely in the Draw layer.
   Armies and locations are drawn; markers are for atomic engine-owned icons.
 - **Anything the player is penalised for must be visible at planning time.**
-- **The commander is in the group but never in the roster.** The player leads a
-  deployed group; he has no soldier record, is never a casualty, and never
-  leaves the field with the survivors. Every measure of an army's strength or
-  position goes through `TACT_fnc_combatants`, which excludes him. Counting him
-  would mean an army whose last man has fallen is not annihilated.
+- **The player is a soldier, not an exception.** One man in an army may carry
+  `isPlayer`. He is spawned by deployment like the rest, counted in the army's
+  strength, part of its centre of mass, written back by sync-back, and able to
+  die. Drop-in is `selectPlayer` on a body that was already there. No victory
+  condition, no casualty count and no position sum has a special case for him,
+  and none may acquire one.
 - **Two command surfaces, never at once.** Map closed, the stock squad bar
   commands. Map open, the squad bar is hidden and the map commands. Every path
   out of command mode must restore the bar — a HUD element left switched off is
@@ -828,22 +835,24 @@ being made, across every force at once.
   arrow from the icon's edge to the pending destination. Locations emit icon
   and label. Markers are gone from the army record and from all four call
   sites.
-- Battle command mode. When a battle opens on the player's own army,
-  `TACT_fnc_dropIn` makes the player that army's group leader and turns the map
-  into a command surface; `TACT_fnc_dropOut` withdraws him before the group is
-  torn down. With the map closed, Arma's stock squad bar commands the group
-  untouched. With it open, `TACT_fnc_setCommandHud` hides the bar and
-  `TACT_fnc_onCommandClick` takes over: click an icon to select, CTRL to add or
-  remove, click terrain to move, SHIFT to stack a waypoint. Nothing selected
-  means the whole group. `TACT_fnc_commandEntities` resolves the group into
-  what can actually be moved — a dismounted man, or a vehicle with at least one
-  of ours in it, ordered through its driver — so a mounted rider resolves to
-  the truck he is riding in. `TACT_fnc_runRoutes` walks stacked routes, since
-  `doMove` takes one destination and does not queue, and re-issues a leg only
-  when the entity is idle, which is what leaves a stock-UI order able to
-  interrupt one. `TACT_fnc_combatants` keeps the commander out of every measure
-  of army strength and position. An AI-versus-AI engagement drops nobody in and
-  never leaves the campaign layer.
+- Battle command mode. An army may flag one soldier `isPlayer`. Deployment
+  spawns him with the rest of the roster and `TACT_fnc_dropIn` then hands the
+  player that body with `selectPlayer`, making him the group's leader;
+  `TACT_fnc_dropOut` returns control to the campaign avatar before sync-back
+  deletes the entities. Nothing is moved and nothing is inserted, so the battle
+  layer has no special case for the player anywhere — he is a soldier record
+  that gets counted, wounded and killed like any other. With the map closed,
+  Arma's stock squad bar commands the group untouched. With it open,
+  `TACT_fnc_setCommandHud` hides the bar and `TACT_fnc_onCommandClick` takes
+  over: click an icon to select, CTRL to add or remove, click terrain to move,
+  SHIFT to stack a waypoint. Nothing selected means the whole group.
+  `TACT_fnc_commandEntities` resolves the group into what can actually be moved
+  — a dismounted man, or a vehicle with at least one of ours in it, ordered
+  through its driver — so a mounted rider resolves to the truck he is riding
+  in. A bare click issues a real `doMove`; stacked waypoints are a drawn plan
+  and are not executed, because the player walks his own route at the head of
+  the group and the group follows their leader. An army with no flagged soldier
+  drops nobody in and never leaves the campaign layer.
 - Test harness (`TEST_fnc_*`). Named rosters, named starting states and named
   engagements, all declared as data in `init.sqf`. `TEST_fnc_setupScenario`
   builds what a session boots into; `TEST_fnc_spawnBattle` drops a fixed
@@ -894,17 +903,24 @@ the enforced one cannot drift apart.
 - A second battle can open in the same block once the first concludes, so a
   heavily contested block can run past 40 real minutes. Different pairs only —
   the same two armies never re-fight inside one block.
-- Drop-in exists only for the player's own army. He is moved to the battle and
-  given command of the deployed group; an engagement between two AI armies is
-  still watched from the map, and overhead spectate does not exist. The rest of
-  3.12 — choosing whether to drop in, and spectating from above when you do not
-  — is untouched.
+- Drop-in happens automatically wherever a deployed army carries a flagged
+  soldier, and there is no way to decline it. Overhead spectate does not exist,
+  so a battle the player is not in is still watched from the map. Both are the
+  rest of 3.12.
+- `selectPlayer` is a singleplayer mechanism. Drop-in as built commits toward
+  the singleplayer side of open decision 1; a multiplayer fork would need a
+  different way to seat a player in a deployed roster.
 - A player-led group does not execute the group `move` order `fn_initiateBattle`
   issues: AI follow their leader, and the leader is now the player. The
   player's army therefore holds at deployment until ordered, while the AI side
-  advances on its standing order. That is the intended shape of commanding, but
-  it means the two sides of a battle are now driven differently and the
-  boundary-crossing conditions have only been reasoned about, not played.
+  advances on its standing order. That is the intended shape of commanding —
+  the route the player draws is the route he walks — but it means the two sides
+  of a battle are driven differently and the boundary-crossing conditions have
+  only been reasoned about, not played.
+- If the player's soldier is killed, control returns to the campaign avatar and
+  his record is dropped by sync-back like any other casualty. The army then has
+  nobody flagged and its next battle runs watched from the map. Nothing
+  promotes a replacement, because nothing should invent one.
 - Everyone ordered at once is ordered to the same point rather than into a
   formation around it, so a whole-group move bunches on arrival.
 - `fn_calculateRoadPath` snaps the start point to the *nearest* road but the end
@@ -986,7 +1002,10 @@ the enforced one cannot drift apart.
 
 1. **Singleplayer or multiplayer?** This fork affects locality, HashMap
    serialization, and every spawn call. Recommendation: SP first; do not pay MP
-   costs until the loop is proven.
+   costs until the loop is proven. Battle drop-in has since taken the SP side
+   in practice — it seats the player with `selectPlayer`, which has no
+   multiplayer equivalent — so an MP fork now has a concrete thing to replace
+   rather than only a general cost.
 2. **Concurrent battles.** How many spawned battles per block? A cap of one
    attended battle with all others auto-resolved is the safe default.
 3. **Auto-resolve fidelity.** Pure math, or a fast headless simulation? Math is
@@ -1239,10 +1258,12 @@ to be.
 
 3.12 **Drop-in and spectate.** Partly done ahead of schedule, because the map
 command interface needs it: the stock F-key UI drives a real Arma group whose
-leader is the player, so unless the player actually leads the deployed group
-there is nothing for F1 to address. `TACT_fnc_dropIn` and `TACT_fnc_dropOut`
-ship. What remains is the choice — dropping in should be optional, not
-automatic — and overhead spectate for the battles the player does not join.
+leader is the player, so unless the player is in the deployed group there is
+nothing for F1 to address. `TACT_fnc_dropIn` and `TACT_fnc_dropOut` ship, built
+on an `isPlayer` soldier record and `selectPlayer` rather than on moving an
+outside commander in. What remains is the choice — dropping in should be
+optional, not automatic — and overhead spectate for the battles the player does
+not join.
 
 3.13 **Story progression.** Contract structure and the fixed geographic
 campaign arc.

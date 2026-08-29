@@ -26,6 +26,9 @@
 		        [_menSpec, _vehicleSpec]. Each spec is an array whose entries
 		        are either "className" or ["className", count]. The first man
 		        listed leads the group.
+		     4: NUMBER - which man the player takes in battle, 1-based into the
+		        expanded roster. 0 for none. Omitted, a "player" faction army
+		        flags its leader and every other faction flags nobody.
 
 	Returns:
 		HASHMAP - the army, already pushed onto activeArmies. Empty on failure.
@@ -39,7 +42,8 @@ _spec params [
 	["_name", "", [""]],
 	["_faction", "player", [""]],
 	["_position", [0,0,0], [[]]],
-	["_roster", [], ["", []]]
+	["_roster", [], ["", []]],
+	["_playerSlot", -1, [0]]
 ];
 
 if (_name == "") exitWith {
@@ -100,10 +104,20 @@ private _vehicleClasses = _vehicleSpec call _fnc_expand;
 // by reference would rewrite the table the first time it marched.
 private _army = [_name, +_position, nil, _faction] call STRAT_fnc_generateArmy;
 
+// Which man the player takes when this army fights. Defaulted rather than
+// required: the player's own faction flags its leader, because a commander who
+// cannot command is not a starting state anyone wants, and everyone else flags
+// nobody. Pass a slot explicitly to put the player somewhere else in the
+// roster, or 0 to leave an army of the player's faction with no body in it.
+private _slot = _playerSlot;
+if (_slot < 0) then {
+	_slot = if (_faction == "player") then {1} else {0};
+};
+
 // The first man listed leads. Deployment reads `isLeader` to pick the group
 // leader and to seat him in the front vehicle, so exactly one man carries it.
 {
-	[_army, _x, _forEachIndex == 0] call STRAT_fnc_addMan;
+	[_army, _x, _forEachIndex == 0, (_forEachIndex + 1) == _slot] call STRAT_fnc_addMan;
 } forEach _menClasses;
 
 {
@@ -113,13 +127,14 @@ private _army = [_name, +_position, nil, _faction] call STRAT_fnc_generateArmy;
 activeArmies pushBack _army;
 
 diag_log format [
-	"TEST Harness: built %1 (%2, %3) - %4 men, %5 vehicle(s) at %6.",
+	"TEST Harness: built %1 (%2, %3) - %4 men, %5 vehicle(s) at %6, player in slot %7.",
 	_name,
 	_army get "id",
 	_faction,
 	count _menClasses,
 	count _vehicleClasses,
-	_position
+	_position,
+	_slot
 ];
 
 _army

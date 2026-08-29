@@ -150,8 +150,12 @@ TACT_blockSecondsPerBattleSecond = 1;
 // ------------------------------------------------------------------------- //
 // BATTLE COMMAND MODE                                                        //
 // ------------------------------------------------------------------------- //
-// When a battle opens on the player's own army, the player leads its deployed
-// group. Two command surfaces then exist and they never overlap:
+// When a battle deploys an army carrying a soldier flagged `isPlayer`, the
+// player takes that soldier's body with selectPlayer. He is an ordinary member
+// of the roster - spawned by deployment, counted in the army's strength, and
+// killable - so no battle-layer code has a special case for him.
+//
+// Two command surfaces then exist and they never overlap:
 //
 //   map closed - Arma's stock squad bar. F1, F2, F3 select subordinates and
 //                orders are given in the 3D world. Untouched.
@@ -159,10 +163,10 @@ TACT_blockSecondsPerBattleSecond = 1;
 //                Left click an icon to select it, CTRL to add or remove, click
 //                terrain to move, SHIFT to stack a waypoint onto a route.
 //
-// An engagement between two AI armies drops nobody in and never leaves the
-// campaign layer, exactly as before.
+// An army with no flagged soldier drops nobody in and never leaves the campaign
+// layer, exactly as before.
 
-TACT_commandActive    = false;  // True only while the player leads a deployed group
+TACT_commandActive    = false;  // True only while the player holds a body on the field
 TACT_commandSelection = [];     // Selected entity objects; empty means the whole group
 TACT_commandArmyId    = "";     // Which army record the player is currently leading
 
@@ -175,18 +179,10 @@ TACT_commandIconUnits = 0.85;   // Command icons sit slightly under an army icon
 // as one.
 TACT_commandPlayerColour = [1, 0.85, 0.2, 1];
 
-// How close an entity has to get before a stacked waypoint counts as reached
-// and the next one goes out. A vehicle told to stop on a point stops near it,
-// and a radius as tight as a man's would leave it nudging back and forth on
-// the same leg forever.
-TACT_commandArrivalFoot    = 12;
-TACT_commandArrivalVehicle = 30;
-
-// How often the route executor looks at the field. Routes are a planning
-// device, not a control loop - the engine is driving between waypoints - so
-// this only has to be quick enough that the next leg goes out before anyone
-// notices they have stopped.
-TACT_commandTickSeconds = 1;
+// The body the player returns to when a battle ends. Captured on the first
+// drop-in rather than set here, so it is whatever the avatar actually was
+// rather than whatever init.sqf assumed it would be.
+TACT_campaignAvatar = objNull;
 
 TACT_activeEngagements       = [];  // Engagement records currently being fought
 TACT_resolvedPairsThisBlock  = [];  // Army id pairs that have already fought this block

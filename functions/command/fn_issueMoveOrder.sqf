@@ -3,19 +3,28 @@
 
 	Description:
 		Writes a move order onto command entities as a route - an ordered list
-		of world positions - and starts them on its first leg.
+		of world positions - and, for a fresh order, tells them to go there.
 
-		A plain order replaces whatever route the entity had. A stacked one
-		appends, which is how a series of clicks becomes a path around a hill
-		rather than through it.
+		A plain order replaces whatever route the entity had and is issued as a
+		real move order. A stacked one appends and issues nothing: the extra
+		waypoints are a plan, drawn on the map, not a queue.
 
-		The route lives on the entity's own object rather than in a registry
-		keyed by it. An entity that dies takes its route with it, and nothing
-		has to notice and clean up after it.
+		That is deliberate rather than unfinished. doMove takes one destination
+		and does not queue, so walking a stack would mean a scripted executor
+		watching for arrivals and feeding out legs - a second thing driving the
+		group, fighting whatever the player just told it to do with the squad
+		bar. The route the player draws for his own group is a route he walks
+		at the head of it, and the group follows their leader without being
+		told to. Individual units get the leg that was clicked, which is the
+		order that was actually given.
 
-		Orders are issued with doMove rather than commandMove: silent, and
-		precise. The map already shows the route, so the radio chatter would be
-		reporting something the player is looking at.
+		Routes live on the entity's own object rather than in a registry keyed
+		by it. An entity that dies takes its route with it and nothing has to
+		notice.
+
+		Orders go out with doMove rather than commandMove: silent, and precise.
+		The map already shows the route, so radio chatter would be reporting
+		something the player is looking at.
 
 	Parameters:
 		0: ARRAY - command entities (see TACT_fnc_commandEntities)
@@ -61,12 +70,12 @@ private _unorderable = 0;
 			_route pushBack _destination;
 			_obj setVariable ["TACT_route", _route];
 
-			// Start the first leg now rather than waiting for the executor's
-			// next tick. A command that visibly does nothing for a second
-			// reads as a command that was not received.
-			private _leg = _route select 0;
-			{ _x doMove _leg } forEach _order;
-			_obj setVariable ["TACT_routeIssued", _leg];
+			// Only a fresh order moves anybody. A stacked waypoint is the next
+			// place the player intends to be, and issuing it now would send
+			// the entity straight there past everything in between.
+			if (!_stack) then {
+				{ _x doMove _destination } forEach _order;
+			};
 
 			_ordered = _ordered + 1;
 		};

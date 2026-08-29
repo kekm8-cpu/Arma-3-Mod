@@ -78,9 +78,7 @@ private _centroids = [];
 {
 	_x params ["_army", "_group"];
 
-	// The commander is in the group but not in the roster, so he is not part
-	// of the strength being measured. See TACT_fnc_combatants.
-	private _living = [_group] call TACT_fnc_combatants;
+	private _living = (units _group) select {alive _x};
 	_alive pushBack (count _living);
 
 	// Centre of mass of what is still standing. An army with nobody left has

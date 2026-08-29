@@ -85,8 +85,15 @@ private _seen = [];
 				// from. Ours by construction - deployment creates the vehicle
 				// empty and fills it from the roster - but checked, because a
 				// crew can change hands mid-battle.
+				//
+				// A vehicle the player is driving has no AI to order: he is
+				// the driver, and where it goes is where he drives it. It is
+				// still drawn, dimmed, because it is still his group's truck.
 				private _driver = driver _vehicle;
-				private _order = if (!isNull _driver && {alive _driver} && {_driver in _members}) then {
+				private _order = if (!isNull _driver
+					&& {alive _driver}
+					&& {_driver != player}
+					&& {_driver in _members}) then {
 					[_driver]
 				} else {
 					[]

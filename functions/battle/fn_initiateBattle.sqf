@@ -54,8 +54,7 @@ _engagement set ["defenderGroup", _defenderGroup];
 // one vehicle, so an infantry-only army lands no units. A side that cannot
 // field anybody must not be counted as annihilated, so the engagement is
 // abandoned and both rosters are put back untouched.
-if (count ([_attackerGroup] call TACT_fnc_combatants) == 0
-	|| {count ([_defenderGroup] call TACT_fnc_combatants) == 0}) exitWith {
+if (count (units _attackerGroup) == 0 || {count (units _defenderGroup) == 0}) exitWith {
 	diag_log format [
 		"TACT Battle: deployment failed (%1: %2 units, %3: %4 units), engagement abandoned.",
 		_attacker get "name", count (units _attackerGroup),

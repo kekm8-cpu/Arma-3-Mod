@@ -73,7 +73,6 @@ class CfgFunctions {
             class resolveVictory {};
             class syncBack {};
             class concludeBattle {};
-            class combatants {};
         };
 
         // Battle command mode: the player leading a deployed group, and the
@@ -86,7 +85,6 @@ class CfgFunctions {
             class commandEntities {};
             class onCommandClick {};
             class issueMoveOrder {};
-            class runRoutes {};
             class buildCommandList {};
         };
     };

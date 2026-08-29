@@ -9,9 +9,12 @@
 		                  selection; a bare click replaces the selection with
 		                  just that entity.
 		  on terrain    - a move order. It goes to the selection, or to the
-		                  whole group when nothing is selected. SHIFT stacks it
-		                  onto the existing route; a bare click replaces the
-		                  route outright.
+		                  whole group when nothing is selected. SHIFT stacks a
+		                  waypoint onto the existing route; a bare click
+		                  replaces the route outright and sends them.
+
+		Only a bare click moves anybody. Stacked waypoints are a drawn plan -
+		see TACT_fnc_issueMoveOrder for why they are not a queue.
 
 		Hit-testing runs against the list the map is drawing - the same
 		TACT_fnc_buildCommandList output, filtered to the items that declared a
@@ -132,11 +135,14 @@ private _targets = if (count TACT_commandSelection == 0) then {
 private _ordered = [_targets, _position, _shift] call TACT_fnc_issueMoveOrder;
 
 if (_ordered > 0) then {
-	systemChat format [
-		"%1 %2 ordered to move.",
-		_ordered,
-		if (count TACT_commandSelection == 0) then {"(whole group)"} else {"selected"}
-	];
+	private _who = if (count TACT_commandSelection == 0) then {"(whole group)"} else {"selected"};
+
+	private _report = if (_shift) then {
+		format ["Waypoint added for %1 %2.", _ordered, _who]
+	} else {
+		format ["%1 %2 ordered to move.", _ordered, _who]
+	};
+	systemChat _report;
 };
 
 _ordered > 0
