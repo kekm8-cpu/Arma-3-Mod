@@ -92,7 +92,9 @@ init.sqf                     World bootstrap, side relations, event hooks
 mission.sqm                  Player start
 functions/
   army/                      fn_generateArmy, fn_addMan, fn_addVehicle,
-                             fn_areHostile
+                             fn_areHostile, fn_factionSide
+  location/                  fn_createLocation, fn_getLocation,
+                             fn_addGarrisonMan, fn_addGarrisonVehicle
   movement/                  fn_calculateRoadPath, fn_moveArmyAlongPath
   turn/                      fn_beginPlanning, fn_issueOrder,
                              fn_projectArrival, fn_commitTurn, fn_resolveTurn,
@@ -324,7 +326,7 @@ produces one of these; the lifecycle reads it rather than branching on type.
 | `capturePoint` | HASHMAP | Set-piece only. Position, radius, progress, owner |
 | `sprung` | BOOL | Ambush only. False until combat begins |
 
-### Location (HashMap) — planned, required by set-piece battles
+### Location (HashMap)
 
 | Key | Type | Notes |
 |---|---|---|
@@ -334,11 +336,17 @@ produces one of these; the lifecycle reads it rather than branching on type.
 | `owner` | STRING | Faction string |
 | `garrison` | HASHMAP | Soldier and vehicle records held in place. Not an army — it has no `pendingOrder` and does not move |
 | `flagPos` | ARRAY | Capture point position, centrally located |
-| `opinion` | NUMBER | Local opinion, per the settlement mechanic |
 
 A garrison is a static roster, not an army. It shares the soldier and vehicle
 record formats so sync-back is one code path, but it never appears in
 `activeArmies`.
+
+Ids are authored, not minted — locations are few and fixed, and orders and the
+test harness reference them by name.
+
+*Planned additions:* `opinion` (local opinion, per the settlement mechanic) and
+per-location benefits, both phase 3.8. Deliberately absent rather than stubbed:
+an empty key invites code to read it before the mechanic exists.
 
 ### Health convention
 
@@ -360,8 +368,13 @@ be packed into them carefully. Intended mapping:
 | Druglords | WEST | Hostile to INDEPENDENT and EAST |
 | NATO (druglord backer) | WEST | Shares a side with the druglords, which gets NATO intervention for free |
 
-**Note:** the current `fn_deployMen` assigns `drugLords` to OPFOR, which
-collides with CSAT. This needs correcting before more factions are added.
+The map lives in `STRAT_fnc_factionSide`; the matching `setFriend` block is in
+`init.sqf`. Arma's side relations are global, so those two are halves of one
+decision and change together. `fn_deployMen` previously put `drugLords` on EAST,
+which collided with CSAT and made the patron and the cartel engine-level allies.
+
+Sides are only how the engine is told about the blocs. Hostility itself is
+decided from `faction` by `STRAT_fnc_areHostile` and never read off a side.
 
 ---
 
@@ -622,6 +635,15 @@ after the initial exchange.
   resolution for whatever is left of the block.
 - Hostility gating on contact (`STRAT_fnc_areHostile`): two blocs read from
   `faction`, so converging friendlies are a rendezvous rather than a battle.
+- Side allocation per section 8. `STRAT_fnc_factionSide` is the single
+  faction→Arma-side map and `init.sqf` sets the matching global relations;
+  the druglords sit on WEST with their NATO backer instead of colliding with
+  CSAT on EAST.
+- Location and garrison records, minimally: `STRAT_fnc_createLocation` with
+  `id`, `type`, `position`, `owner`, `garrison`, `flagPos`, registered in
+  `STRAT_locations` and looked up by id with `STRAT_fnc_getLocation`.
+  `STRAT_fnc_addGarrisonMan` / `addGarrisonVehicle` delegate to the army
+  roster builders, so a garrison holds identical soldier and vehicle records.
 
 **Needs conversion to turn-based**
 
@@ -651,7 +673,7 @@ the enforced one cannot drift apart.
 
 **Partial / needs work**
 - `fn_deployMen` requires at least one vehicle; infantry-only armies deploy
-  nothing. `fn_initiateBattle` now detects an empty deployment and abandons the
+  nothing, and a dismounted garrison is exactly that case. `fn_initiateBattle` now detects an empty deployment and abandons the
   engagement rather than letting the side be classified as annihilated, so the
   limitation costs a battle but never a roster.
 - Only annihilation, breakthrough, repulse, and block-clock expiry are live
@@ -678,7 +700,8 @@ the enforced one cannot drift apart.
   rejoin movement resolution for what is left of the block, but a repulsed army
   stops where it was driven to rather than reversing along its route.
 - Auto-resolution for unattended battles.
-- Location and garrison records; set-piece battles; the capture point.
+- Set-piece battles and the capture point. The location and garrison records
+  they depend on now exist; what is missing is the battle type, not the data.
 - Prisoner records and holding.
 - Ambush order type and deployment.
 - Fatigue accumulation and its effects. `fn_applyUpkeep` holds the per-block
@@ -691,7 +714,8 @@ the enforced one cannot drift apart.
 - Money, manpower, recruitment, wages.
 - Battle test harness — spawn a named engagement with fixed rosters, bypassing
   the turn. Phase 1.
-- Location capture, ownership, and per-location benefits.
+- Location capture, ownership transfer, per-location benefits, and local
+  opinion. The record deliberately carries no `opinion` key until then.
 - Naval and air movement (mandatory on an archipelago — road pathfinding cannot
   leave the island it starts on).
 - Save/load serialization.
@@ -788,17 +812,15 @@ supposed to deliver; what remains is short.
 
 **Remaining, in order:**
 
-1.1 **Fix side allocation.** `fn_deployMen` assigns `drugLords` to OPFOR, which
-collides with CSAT. Correct the faction→side map per section 8. Small, but every
-battle built and tested during phase two would otherwise sit on a wrong
-hostility map.
+~~1.1 **Fix side allocation.**~~ **Done.** The faction→side map is
+`STRAT_fnc_factionSide`, called by `fn_deployMen`; the matching global
+relations are set in `init.sqf`. Druglords moved off EAST, where they collided
+with CSAT, onto WEST with their NATO backer.
 
-1.2 **Locations and garrisons, minimally.** `id`, `type`, `position`, `owner`,
-`garrison`, `flagPos`. Defer `opinion` and per-location benefits. This is the
-real gate on phase two: set-piece battles are a hard dependency on location
-records, and set-piece is the type worth deep-diving. Without it the deep dive
-can only cover open field — the cheapest type — and would have to be reopened
-for the expensive one.
+~~1.2 **Locations and garrisons, minimally.**~~ **Done.** `id`, `type`,
+`position`, `owner`, `garrison`, `flagPos`, built by `STRAT_fnc_createLocation`
+into the `STRAT_locations` registry. Garrison rosters reuse the army record
+builders. `opinion` and per-location benefits stay deferred to 3.8.
 
 1.3 **Favor and aggression accrual hooks.** Balances plus
 `STRAT_fnc_addAggression` and `STRAT_fnc_spendFavor`. **Not** the economy, not

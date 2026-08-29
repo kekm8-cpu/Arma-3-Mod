@@ -16,10 +16,11 @@ params [
 	["_army", createHashMap, [createHashMap]]
 ];
 
-// 1. Determine side based on the "faction" attribute
+// 1. Determine the Arma side from the "faction" attribute. The faction->side
+// map is section 8's, and it lives in one place so garrison deployment and the
+// test harness cannot drift from it.
 private _faction = _army getOrDefault ["faction", "player"];
-private _side = independent;
-if (_faction == "drugLords") then { _side = opfor; };
+private _side = _faction call STRAT_fnc_factionSide;
 
 // Create the unified group for this army
 private _grp = createGroup [_side, true];

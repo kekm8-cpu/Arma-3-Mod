@@ -6,6 +6,14 @@ class CfgFunctions {
             class addMan {};
             class addVehicle {};
             class areHostile {};
+            class factionSide {};
+        };
+        class Location {
+            file = "functions\location";
+            class createLocation {};
+            class getLocation {};
+            class addGarrisonMan {};
+            class addGarrisonVehicle {};
         };
         class Movement {
             file = "functions\movement";

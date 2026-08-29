@@ -10,9 +10,9 @@
 		against the druglords and their NATO backer. Same bloc is a rendezvous,
 		not a battle.
 
-		Note: the faction→Arma-side map used at deployment is a separate
-		concern and still needs correcting (`fn_deployMen` puts drugLords on
-		OPFOR, which collides with CSAT).
+		The faction→Arma-side map used at deployment is a separate concern
+		and lives in STRAT_fnc_factionSide. Sides are how the engine is told
+		about the blocs; this function is where the blocs are decided.
 
 	Parameters:
 		0: STRING - first faction

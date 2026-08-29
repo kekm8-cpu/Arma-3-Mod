@@ -8,10 +8,34 @@
 // Wait for main displays to load
 waitUntil {!isNull (findDisplay 46) && !isNull (findDisplay 12)};
 
-// Set Independents to be hostile towards CSAT
-independent setFriend [opfor, 0];
-// Set CSAT to be hostile towards Independents
-opfor setFriend [independent, 0];
+// ------------------------------------------------------------------------- //
+// SIDE RELATIONS (section 8)                                                 //
+// ------------------------------------------------------------------------- //
+// Four story factions packed into Arma's four sides. Relations are global, so
+// this block and STRAT_fnc_factionSide are two halves of one decision and are
+// changed together:
+//
+//   player    -> INDEPENDENT   friendly to EAST, hostile to WEST
+//   csat      -> EAST          friendly to INDEPENDENT
+//   drugLords -> WEST
+//   nato      -> WEST          shares the cartel side with drugLords
+//
+// setFriend takes 0..1 and the engine reads anything above 0.6 as friendly,
+// so the blocs are written as the extremes.
+
+// The contractors and their CSAT patron
+independent setFriend [east, 1];
+east setFriend [independent, 1];
+
+// The contractors against the cartel and its NATO backer
+independent setFriend [west, 0];
+west setFriend [independent, 0];
+
+// The patron against the cartel. WEST and EAST are permanently hostile in the
+// engine and setFriend cannot change that; the pair is written anyway so the
+// whole relation map reads from one block.
+east setFriend [west, 0];
+west setFriend [east, 0];
 
 // Initialize the central tracker for all active forces on the map
 activeArmies = [];
@@ -108,8 +132,12 @@ private _blueArmy = ["BLU_Merc_Vanguard", _blueSpawnPos, nil, nil, nil, "player"
 activeArmies pushBack _blueArmy;
 
 // ------------------------------------------------------------------------- //
-// 2. INITIALIZE RED ARMY (OPFOR / CARTEL FORCES)                             //
+// 2. INITIALIZE RED ARMY (CARTEL FORCES, WEST)                               //
 // ------------------------------------------------------------------------- //
+// The cartel now spawns on WEST per section 8. The roster still uses O_ unit
+// classes, so these men wear CSAT kit while fighting for the cartel - cosmetic
+// only, since createUnit takes the group's side, and the real fix is a
+// cartel-flavoured loadout set (phase 3.11), not a different stock faction.
 private _redSpawnPos = [8464.34, 9907.8, 0];
 
 // Generate the base data-driven HashMap
@@ -123,6 +151,34 @@ private _redArmy = ["O_Cartel_Patrol", _redSpawnPos, nil, "ColorRED", nil, "drug
 
 // Register to the global array activeArmies
 activeArmies pushBack _redArmy;
+
+// ------------------------------------------------------------------------- //
+// 3. STRATEGIC LOCATIONS                                                     //
+// ------------------------------------------------------------------------- //
+// Minimal per build plan 1.2: enough of a record for set-piece battles to be
+// built against. Owning a location does nothing else yet - no per-location
+// benefits, no ownership transfer, no local opinion. Those are phase 3.8.
+//
+// Garrisons are static rosters. They never join activeArmies and the turn
+// model never sees them; only a set-piece battle reads them.
+STRAT_locations = createHashMap;
+
+// Placeholder siting. The position is picked off the two test armies' spawns
+// so the seed location sits on ground they already traverse; real campaign
+// locations get sited on actual Tanoa settlements when set-piece work lands.
+private _plantation = [
+    "tanoa_plantation_north",
+    "plantation",
+    [8600, 9950, 0],
+    "drugLords"
+] call STRAT_fnc_createLocation;
+
+// A dismounted garrison, which is the normal set-piece case. Note that
+// TACT_fnc_deployMen cannot place this yet - it requires at least one vehicle,
+// and infantry-only deployment is build plan 2.2.
+[_plantation, "O_T_Soldier_SL_F", true] call STRAT_fnc_addGarrisonMan;
+[_plantation, "O_T_Soldier_F", false] call STRAT_fnc_addGarrisonMan;
+[_plantation, "O_T_Soldier_AR_F", false] call STRAT_fnc_addGarrisonMan;
 
 // Keep old tracking reference for backwards compatibility with your click hooks
 STRAT_selectedArmy = nil;
