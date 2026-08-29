@@ -14,10 +14,12 @@
 		anchor.
 
 		The player is drawn and never hit-tested. A commander is worth seeing
-		on the map, and is not something to select and order. The group's route
-		is his adornment, because it is his line of march rather than an order
-		any subordinate is holding - one item however many times it bends, and
-		drawn once rather than once per man.
+		on the map, and is not something to select and order.
+
+		Nothing here draws orders yet beyond the selection ring. An individual
+		unit's move order is a single destination it is already walking to, and
+		a body of men has no map order to draw until group-level command
+		arrives to give it one.
 
 		Rebuilt every frame, like the campaign list, and for the same reason:
 		units move continuously during a battle, and a cached list is exactly
@@ -162,18 +164,5 @@ private _playerAnchor = getPosATL (vehicle player);
 	["text", "YOU"],
 	["textSize", STRAT_drawLabelUnits]
 ]] call _fnc_item;
-
-// The group's route, as one adornment of the commander it belongs to. It is
-// his line of march, not an order held by anybody, so it hangs off him and is
-// drawn once - it used to be stored on every entity and rendered once per man,
-// stacked on top of itself.
-if (count TACT_groupRoute > 0) then {
-	["CMD_PLAYER", "commander", createHashMap, _playerAnchor, "route", createHashMapFromArray [
-		["shape", "polyline"],
-		["points", TACT_groupRoute],
-		["fromEdge", STRAT_drawArrowOriginUnits],
-		["colour", TACT_commandPlayerColour]
-	]] call _fnc_item;
-};
 
 _list

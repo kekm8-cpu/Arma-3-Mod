@@ -849,13 +849,13 @@ being made, across every force at once.
   `TACT_fnc_commandEntities` resolves the group into what can actually be moved
   — a dismounted man, or a vehicle with at least one of ours in it, ordered
   through its driver — so a mounted rider resolves to the truck he is riding
-  in. The two terrain cases differ in kind. Units selected: a single `doMove`
-  to exactly those units, and nothing more — an individual gets a destination,
-  never a chain. Nothing selected: the click lays the **group's route**, held
-  in `TACT_groupRoute` and drawn once on the commander. That route is given to
-  nobody. It is the player's own line of march, and he walks it at the head of
-  the group with the AI following their leader as they already do. An army with
-  no flagged soldier drops nobody in and never leaves the campaign layer.
+  in. A terrain click sends the selection there — one `doMove`, one
+  destination, never a chain. With nothing selected it does nothing at all: an
+  empty selection addresses nobody and does not fall back to the whole group,
+  because the player leads that group and the only order the map could give it
+  is one competing with him for control of his own men. Whatever the group does
+  as a body, it does by following him. An army with no flagged soldier drops
+  nobody in and never leaves the campaign layer.
 - Test harness (`TEST_fnc_*`). Named rosters, named starting states and named
   engagements, all declared as data in `init.sqf`. `TEST_fnc_setupScenario`
   builds what a session boots into; `TEST_fnc_spawnBattle` drops a fixed
@@ -924,13 +924,19 @@ the enforced one cannot drift apart.
   his record is dropped by sync-back like any other casualty. The army then has
   nobody flagged and its next battle runs watched from the map. Nothing
   promotes a replacement, because nothing should invent one.
-- An individual unit inside the player's group can be given one destination and
-  nothing else — no chained waypoints, no held position. Both were built once,
-  as a loop that watched for arrivals and re-issued `doMove`, and both were
+- Map command mode currently issues exactly one kind of order: send the
+  selection to a point. There are no chained waypoints, no held positions, and
+  no order at all for the group as a body. Chaining and holding were built
+  once, as a loop that watched for arrivals and re-issued `doMove`, and were
   removed: the workaround needed guards against dragging men out of cover and
   against overriding the stock squad bar, and every guard was another condition
-  under which commanding behaved differently. They return as group-level
-  command, below, where the engine does them natively.
+  under which commanding behaved differently. All three return as group-level
+  command, below, where the engine carries them natively.
+- `"polyline"` is a live shape in `STRAT_fnc_drawItems` that nothing emits. It
+  is kept rather than deleted because an unreachable `case` cannot be entered
+  and so cannot drift, and routes return with group waypoint chains. A
+  conditional inside a shape that *is* reached is a different matter and was
+  removed with the held post.
 - `fn_calculateRoadPath` snaps the start point to the *nearest* road but the end
   point to an arbitrary one; the jink-correction block assumes `_startInput` is
   an array and will error if an object was passed.

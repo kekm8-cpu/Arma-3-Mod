@@ -9,21 +9,20 @@
 		                  selection; a bare click replaces the selection with
 		                  just that entity.
 		  on terrain    - with units selected, a move order to exactly those
-		                  units. With nothing selected, a waypoint on the
-		                  group's route: a bare click replaces the route, SHIFT
-		                  appends a leg to it.
+		                  units. With nothing selected, nothing at all.
 
-		The two terrain cases are different in kind, not just in who they
-		address. A selection is given a destination and goes there. The group's
-		route is not given to anybody - it is the player's own line of march,
-		drawn on the map, and he walks it at the head of the group with the AI
-		following their leader as they already do.
+		A terrain click addresses whoever is selected, and an empty selection
+		addresses nobody. It does not fall back to the whole group: the player
+		leads that group, so the only order it can be given from the map is one
+		that competes with him for control of his own subordinates. Whatever
+		the group does as a body it does by following him.
 
-		That is why the group route issues no orders. Chained waypoints and
-		held ground are engine features at the group level and are not
-		reproducible inside a player-led group without a script fighting the
-		formation AI for control of every subordinate; see
-		TACT_fnc_issueMoveOrder.
+		Orders for a body of men will arrive as group-level command, where the
+		engine carries them - a group with no player in it executes an
+		addWaypoint chain natively. Until then this is silent rather than
+		hinted at: a click on open ground is the easiest click to make by
+		accident, and a line of chat every time is worse than nothing
+		happening.
 
 		Hit-testing runs against the list the map is drawing - the same
 		TACT_fnc_buildCommandList output, filtered to the items that declared a
@@ -130,42 +129,24 @@ if (!isNull _hit) exitWith {
 };
 
 // ------------------------------------------------------------------------ //
-// TERRAIN                                                                   //
+// TERRAIN: A MOVE ORDER FOR THE SELECTION, OR NOTHING                       //
 // ------------------------------------------------------------------------ //
-private _waypoint = [_position select 0, _position select 1, 0];
+// Silently. See the header: an empty selection addresses nobody, and open
+// ground is the easiest thing on the map to click by accident.
+if (count TACT_commandSelection == 0) exitWith { false };
 
-// ------------------------------------------------------------------------ //
-// NOTHING SELECTED: THE GROUP'S ROUTE                                       //
-// ------------------------------------------------------------------------ //
-// One route for the group, held in one place and drawn once. It used to be
-// stored on every entity, which meant the same line was rendered once per man.
-if (count TACT_commandSelection == 0) exitWith {
-	if (_shift) then {
-		TACT_groupRoute pushBack _waypoint;
-	} else {
-		TACT_groupRoute = [_waypoint];
-	};
-
-	systemChat format [
-		"Group route: %1 leg(s). Lead them along it.",
-		count TACT_groupRoute
-	];
-
-	true
-};
-
-// ------------------------------------------------------------------------ //
-// UNITS SELECTED: A MOVE ORDER                                              //
-// ------------------------------------------------------------------------ //
 private _targets = _entities select {(_x get "obj") in TACT_commandSelection};
 
-private _ordered = [_targets, _waypoint] call TACT_fnc_issueMoveOrder;
+private _ordered = [
+	_targets,
+	[_position select 0, _position select 1, 0]
+] call TACT_fnc_issueMoveOrder;
 
 if (_ordered > 0) then {
 	systemChat format ["%1 selected ordered to move.", _ordered];
 
-	// Said once per order rather than swallowed silently, because SHIFT does
-	// something here and the player has every reason to expect it to stack.
+	// Said rather than swallowed, because SHIFT does something here and the
+	// player has every reason to expect it to stack.
 	if (_shift) then {
 		systemChat "An individual unit takes one destination. Routes are a group order.";
 	};

@@ -145,6 +145,13 @@ private _fnc_head = {
 		// A stacked route: the anchor's icon edge, then every waypoint in
 		// order, with the head on the last leg. One item, because a route is
 		// one adornment of one entity however many legs it happens to have.
+		//
+		// Currently emitted by nothing. Kept rather than deleted because an
+		// unreachable case in a switch is inert - it cannot be entered, so it
+		// cannot surprise anyone or drift - and routes return as soon as
+		// group-level command has waypoint chains to draw. That is a different
+		// case from a conditional inside a live shape, which changes how that
+		// shape behaves for every caller and was removed with the held post.
 		case "polyline": {
 			private _points = _item get "points";
 

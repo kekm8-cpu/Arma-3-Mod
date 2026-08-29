@@ -35,10 +35,6 @@ if (isNil "TACT_commandActive" || {!TACT_commandActive}) exitWith { false };
 // still reading a group that is about to be torn down.
 TACT_commandActive = false;
 
-// The group's route is cleared, or the next battle would open with a line
-// drawn across ground nowhere near the new field.
-TACT_groupRoute = [];
-
 // ------------------------------------------------------------------------ //
 // BACK TO THE CAMPAIGN AVATAR                                               //
 // ------------------------------------------------------------------------ //

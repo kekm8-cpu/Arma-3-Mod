@@ -38,7 +38,8 @@
 		role      STRING  - "icon", "label", "selectionRing", "orderArrow"
 		record    HASHMAP - the record the group is drawn from
 		anchor    ARRAY   - the group's shared world position, by reference
-		shape     STRING  - "icon", "ellipse", "arrow" or "polyline"
+		shape     STRING  - "icon", "ellipse", "arrow", or "polyline" (which
+		                    nothing emits yet - see STRAT_fnc_drawItems)
 		offset    ARRAY   - [x, y] from the anchor, in icon units
 		size      ARRAY   - [w, h] in icon units ("icon" shape)
 		radius    NUMBER  - in icon units ("ellipse" shape)

@@ -160,22 +160,21 @@ TACT_blockSecondsPerBattleSecond = 1;
 //   map closed - Arma's stock squad bar. F1, F2, F3 select subordinates and
 //                orders are given in the 3D world. Untouched.
 //   map open   - the squad bar is hidden and the map is the command surface.
-//                Left click an icon to select it, CTRL to add or remove. Click
-//                terrain with units selected to send them there. Click terrain
-//                with nothing selected to lay the group's route, SHIFT to add
-//                a leg to it.
+//                Left click an icon to select it, CTRL to add or remove, click
+//                terrain to send the selection there.
 //
-// The two terrain cases differ in kind. A selection is given a destination and
-// goes there. The group's route is given to nobody: it is the player's own
-// line of march, drawn on the map, and he walks it at the head of the group
-// with the AI following their leader as they already do.
+// A terrain click addresses whoever is selected, and an empty selection
+// addresses nobody - it does not fall back to the whole group. The player
+// leads that group, so the only order the map could give it is one competing
+// with him for control of his own men; whatever the group does as a body, it
+// does by following him.
 //
-// Individual units get one destination and no more. Chained waypoints and held
+// A selected unit gets one destination and no more. Chained waypoints and held
 // ground are engine features at the GROUP level - a group with no player in it
 // executes an addWaypoint chain natively, HOLD waypoints included - and are
 // not reproducible inside a player-led group without a script fighting the
-// formation AI for every subordinate. A player who wants one man to flank wide
-// or watch a ridge will detach him into a group of one, once detaching exists.
+// formation AI for every subordinate. Orders for a body of men, and the split
+// that lets one man take them, both arrive with group-level command.
 //
 // An army with no flagged soldier drops nobody in and never leaves the campaign
 // layer, exactly as before.
@@ -192,10 +191,6 @@ TACT_commandIconUnits = 0.85;   // Command icons sit slightly under an army icon
 // Yellow: the commander is not another unit to be ordered and should not read
 // as one.
 TACT_commandPlayerColour = [1, 0.85, 0.2, 1];
-
-// The group's line of march, as world positions. One route, held in one place
-// and drawn once on the commander it belongs to.
-TACT_groupRoute = [];
 
 // The body the player returns to when a battle ends. Captured on the first
 // drop-in rather than set here, so it is whatever the avatar actually was
