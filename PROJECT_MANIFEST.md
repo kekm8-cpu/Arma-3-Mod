@@ -122,7 +122,8 @@ functions/
                              (planned) fn_captureLoop, fn_autoResolve
   command/                   fn_dropIn, fn_dropOut, fn_setCommandHud,
                              fn_commandEntities, fn_onCommandClick,
-                             fn_issueMoveOrder, fn_buildCommandList
+                             fn_issueMoveOrder, fn_runRoutes,
+                             fn_buildCommandList
   test/                      fn_buildArmy, fn_clearArmies, fn_setupScenario,
                              fn_spawnBattle
 ```
@@ -849,9 +850,12 @@ being made, across every force at once.
   `TACT_fnc_commandEntities` resolves the group into what can actually be moved
   — a dismounted man, or a vehicle with at least one of ours in it, ordered
   through its driver — so a mounted rider resolves to the truck he is riding
-  in. A bare click issues a real `doMove`; stacked waypoints are a drawn plan
-  and are not executed, because the player walks his own route at the head of
-  the group and the group follows their leader. An army with no flagged soldier
+  in. A bare click issues a real `doMove` and replaces the route; SHIFT appends
+  a leg. `TACT_fnc_runRoutes` walks the stack, handing out each leg as the one
+  before it is reached, because `doMove` takes one destination and does not
+  queue. A leg is re-issued only when the entity is idle, which is what leaves
+  an order given through the stock squad bar able to interrupt a route and hand
+  back to it afterwards. An army with no flagged soldier
   drops nobody in and never leaves the campaign layer.
 - Test harness (`TEST_fnc_*`). Named rosters, named starting states and named
   engagements, all declared as data in `init.sqf`. `TEST_fnc_setupScenario`

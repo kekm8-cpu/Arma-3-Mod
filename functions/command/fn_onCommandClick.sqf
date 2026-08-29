@@ -13,8 +13,10 @@
 		                  waypoint onto the existing route; a bare click
 		                  replaces the route outright and sends them.
 
-		Only a bare click moves anybody. Stacked waypoints are a drawn plan -
-		see TACT_fnc_issueMoveOrder for why they are not a queue.
+		A bare click starts whoever it addressed on their way. Stacked
+		waypoints are handed out leg by leg as the earlier ones are walked -
+		see TACT_fnc_runRoutes - so a route means the same thing whether it was
+		given to one man or to the whole group.
 
 		Hit-testing runs against the list the map is drawing - the same
 		TACT_fnc_buildCommandList output, filtered to the items that declared a
@@ -126,7 +128,9 @@ if (!isNull _hit) exitWith {
 // An empty selection is not "nobody" - it is the default, which is everybody.
 // That is what makes the common case one click rather than a select-all
 // followed by a click.
-private _targets = if (count TACT_commandSelection == 0) then {
+private _toGroup = count TACT_commandSelection == 0;
+
+private _targets = if (_toGroup) then {
 	_entities
 } else {
 	_entities select {(_x get "obj") in TACT_commandSelection}
@@ -135,7 +139,7 @@ private _targets = if (count TACT_commandSelection == 0) then {
 private _ordered = [_targets, _position, _shift] call TACT_fnc_issueMoveOrder;
 
 if (_ordered > 0) then {
-	private _who = if (count TACT_commandSelection == 0) then {"(whole group)"} else {"selected"};
+	private _who = if (_toGroup) then {"(whole group)"} else {"selected"};
 
 	private _report = if (_shift) then {
 		format ["Waypoint added for %1 %2.", _ordered, _who]

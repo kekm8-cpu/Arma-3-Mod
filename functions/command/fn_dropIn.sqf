@@ -119,6 +119,11 @@ TACT_commandActive    = true;
 TACT_commandSelection = [];
 TACT_commandArmyId    = _army get "id";
 
+// Routes given to a selection are stepped through by the executor. Started
+// here rather than on the first order, so there is one place that owns it and
+// one flag that stops it.
+call TACT_fnc_runRoutes;
+
 diag_log format [
 	"TACT Command: player has taken %1 in %2.",
 	_soldier getOrDefault ["className", "?"],

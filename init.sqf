@@ -163,6 +163,10 @@ TACT_blockSecondsPerBattleSecond = 1;
 //                Left click an icon to select it, CTRL to add or remove, click
 //                terrain to move, SHIFT to stack a waypoint onto a route.
 //
+// Routes are walked leg by leg by TACT_fnc_runRoutes, because doMove takes one
+// destination and does not queue. That holds for a route given to one man and
+// for one given to the whole group alike.
+//
 // An army with no flagged soldier drops nobody in and never leaves the campaign
 // layer, exactly as before.
 
@@ -178,6 +182,19 @@ TACT_commandIconUnits = 0.85;   // Command icons sit slightly under an army icon
 // Yellow: the commander is not another unit to be ordered and should not read
 // as one.
 TACT_commandPlayerColour = [1, 0.85, 0.2, 1];
+
+// How close an entity has to get before a stacked waypoint counts as reached
+// and the next one goes out. A vehicle told to stop on a point stops near it,
+// and a radius as tight as a man's would leave it nudging back and forth on
+// the same leg forever.
+TACT_commandArrivalFoot    = 12;
+TACT_commandArrivalVehicle = 30;
+
+// How often the route executor looks at the field. Routes are a planning
+// device, not a control loop - the engine drives between waypoints - so this
+// only has to be quick enough that the next leg goes out before anyone notices
+// they have stopped.
+TACT_commandTickSeconds = 1;
 
 // The body the player returns to when a battle ends. Captured on the first
 // drop-in rather than set here, so it is whatever the avatar actually was

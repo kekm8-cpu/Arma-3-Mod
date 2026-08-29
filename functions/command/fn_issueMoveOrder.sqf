@@ -5,18 +5,10 @@
 		Writes a move order onto command entities as a route - an ordered list
 		of world positions - and, for a fresh order, tells them to go there.
 
-		A plain order replaces whatever route the entity had and is issued as a
-		real move order. A stacked one appends and issues nothing: the extra
-		waypoints are a plan, drawn on the map, not a queue.
-
-		That is deliberate rather than unfinished. doMove takes one destination
-		and does not queue, so walking a stack would mean a scripted executor
-		watching for arrivals and feeding out legs - a second thing driving the
-		group, fighting whatever the player just told it to do with the squad
-		bar. The route the player draws for his own group is a route he walks
-		at the head of it, and the group follows their leader without being
-		told to. Individual units get the leg that was clicked, which is the
-		order that was actually given.
+		A plain order replaces whatever route the entity had and starts it on
+		the first leg. A stacked one appends, and TACT_fnc_runRoutes hands the
+		later legs out as the earlier ones are walked - doMove takes one
+		destination and does not queue, so something has to.
 
 		Routes live on the entity's own object rather than in a registry keyed
 		by it. An entity that dies takes its route with it and nothing has to
@@ -70,9 +62,10 @@ private _unorderable = 0;
 			_route pushBack _destination;
 			_obj setVariable ["TACT_route", _route];
 
-			// Only a fresh order moves anybody. A stacked waypoint is the next
-			// place the player intends to be, and issuing it now would send
-			// the entity straight there past everything in between.
+			// Only a fresh order moves anybody now. A stacked waypoint is a
+			// later leg, and issuing it here would send the entity straight
+			// there past everything in between; the executor hands it out when
+			// the leg before it has been walked.
 			if (!_stack) then {
 				{ _x doMove _destination } forEach _order;
 			};

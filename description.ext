@@ -85,6 +85,7 @@ class CfgFunctions {
             class commandEntities {};
             class onCommandClick {};
             class issueMoveOrder {};
+            class runRoutes {};
             class buildCommandList {};
         };
     };
