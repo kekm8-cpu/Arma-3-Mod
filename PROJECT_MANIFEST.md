@@ -8,17 +8,20 @@ It is now specified as turn-based (WEGO). Sections 5, 7, and 13 reflect that
 decision; parts of the existing codebase still assume realtime and are flagged
 in section 13.
 
-**Earlier revisions** added section 10, the battle type model, and replaced the
-flat milestone list with the three-phase build plan in section 15. Sections 13
-and 14 are annotated with the phase each item belongs to.
+**Earlier revisions** added section 10, the battle type model, closing two open
+decisions (execution presentation, boundary enforcement) that the battle model
+forced; and replaced the flat milestone list with the three-phase build plan
+(section 15) — a strategic minimum, a battle-layer deep dive, then a return to
+the strategic layer and story progression. Sections 13 and 14 are annotated
+with the phase each item belongs to.
 
-**This revision** adds section 11, battle command. It specifies the custom
-order interface, the element split model (real groups, not teams), element
-leadership by skill, and the battle-scoped lifetime of a split. All later
-sections shift by one. It forces one code change — victory conditions must be
-derived from the roster rather than from a single group handle — and one
-schedule change: a minimal drop-in becomes a phase two prerequisite, because a
-command interface cannot be tested against a battle the player only watches.
+**This revision** adds section 11, map rendering, and renumbers the sections
+after it. The first draft of it split the map between markers and a Draw layer.
+That split does not survive contact with the engine: marker extent cannot be
+queried, so nothing drawn beside a marker can be aligned to it or scaled with
+it. Section 11 now carries the rule that follows — one entity, one renderer —
+and armies move off markers entirely. Sections 1, 5, 7, 12, 13 and 15 are
+updated accordingly.
 
 ---
 
@@ -28,7 +31,7 @@ The player is a mercenary captain contracted by CSAT to dismantle druglord
 networks on Tanoa. The druglords are covertly backed by NATO. The player begins
 as a small outfit in one corner of the island chain and expands outward.
 
-**Structure:** a turn-based strategic map where armies move as markers and
+**Structure:** a turn-based strategic map where armies move as drawn icons and
 orders resolve simultaneously. When hostile armies converge, the strategic layer
 collapses into a live Arma tactical battle. When the battle ends, surviving
 personnel and materiel are written back to data and the campaign advances.
@@ -104,6 +107,8 @@ functions/
                              fn_projectArrival, fn_commitTurn, fn_resolveTurn,
                              fn_applyUpkeep, fn_advanceClock
   ui/                        fn_onMapClick
+                             (planned) fn_buildDrawList,
+                             fn_drawCampaignLayer, fn_attachMapLayer
   battle/                    fn_detectContact, fn_buildEngagement,
                              fn_initiateBattle, fn_deployMen, fn_deployVehicles,
                              fn_drawBoundary, fn_resolveVictory,
@@ -147,7 +152,7 @@ A tactical battle is paid for out of the block it occurs in, and when it
 concludes, whatever block time remains is spent continuing the strategic march.
 
 **The two layers keep different clocks.** The strategic execution phase is
-compressed — a whole block is a couple of minutes of watching markers move. The
+compressed — a whole block is a couple of minutes of watching icons move. The
 tactical layer is realtime Arma and runs at 1:1: a firefight is the thing the
 game is about and there is nothing in it worth compressing.
 
@@ -281,7 +286,6 @@ Aviation fuel gated behind captured airfields is the strongest version.
 | `location` | ARRAY | World position, authoritative on the strategic map |
 | `path` | ARRAY | Road objects remaining to traverse this block |
 | `speed` | NUMBER | km/h, used to resolve progress within a block |
-| `marker` | STRING | Map marker name |
 | `faction` | STRING | `"player"`, `"drugLords"`, `"csat"`, `"nato"` |
 | `men` | ARRAY of HashMap | Soldier records |
 | `vehicles` | ARRAY of HashMap | Vehicle records |
@@ -289,7 +293,11 @@ Aviation fuel gated behind captured airfields is the strongest version.
 | `inBattle` | BOOL | Suppresses strategic resolution |
 | `prisoners` | ARRAY of HashMap | Captured soldier records held by this army |
 
-`isMoving` is a realtime artifact and is replaced by `pendingOrder`.
+`isMoving` is a realtime artifact and is replaced by `pendingOrder`. `marker`
+is gone: armies are drawn, not marked (section 11). `location` was already
+authoritative, so nothing that read the record loses information — only
+`fn_generateArmy`, `fn_moveArmyAlongPath` and `fn_onMapClick` touched the
+marker, and all three are listed in section 13.
 
 The army's **destination** lives on `pendingOrder`, not on the army. Battle
 deployment reads it from there to compute facing (section 10.1), so
@@ -307,18 +315,8 @@ to them yet — accumulation is 2.6 and the sleep cycle is 3.10 — but
 `STRAT_fnc_armyFatigue` already derives an army-level value from `exertion`, so
 deployment has something to read.
 
-`skill` is load-bearing at battle time for two things, not one: combat accuracy
-and element leadership (section 11). Anything that later writes `skill` moves
-leadership with it.
-
-`isLeader` is the army's leader on the strategic layer and belongs to the
-roster. Battle-time element leadership is a separate, transient thing and must
-never be written back into this flag.
-
 *Planned additions:* `name`, `xp`/`rank`, `loadout`, `woundState`, `captureInfo`
-(when, where, from which faction). Deliberately absent: `element`. Splits are
-battle-scoped, so nothing needs it yet — see open decision 13 for what it would
-cost to add later.
+(when, where, from which faction).
 
 ### Vehicle (HashMap)
 
@@ -344,11 +342,6 @@ produces one of these; the lifecycle reads it rather than branching on type.
 | `blockTimeRemaining` | NUMBER | Hours left in the block when the battle opened |
 | `capturePoint` | HASHMAP | Set-piece only. Position, radius, progress, owner |
 | `sprung` | BOOL | Ambush only. False until combat begins |
-
-The record also carries `attackerGroup` and `defenderGroup` today. Both are
-provisional: a side that can split holds several groups, so a single handle
-stops describing it. They are display and convenience handles only — nothing
-that decides an outcome may read them. See section 11.
 
 ### Location (HashMap)
 
@@ -587,138 +580,99 @@ after the initial exchange.
 
 ---
 
-## 11. Battle Command
+## 11. Map Rendering
 
-How the player commands men once a battle has spawned. This is structural, not
-cosmetic: the split model determines what the victory conditions are allowed to
-read and what sync-back has to reconcile.
+Two renderers exist and they do not compose. Marker icons scale with map zoom;
+anything drawn beside them scales by whatever law the Draw handler applies. The
+deeper problem is that there is no way to ask the engine how large a marker
+currently renders — `getMarkerSize` returns the multiplier that was set, not an
+extent, and the base dimensions sit in `CfgMarkers` behind an engine constant.
+Putting a vehicle badge at the right-hand edge of an armour icon means fitting
+that constant by eye and trusting that no patch and no per-user map text scale
+moves it.
 
-### The interface is custom
+Hence the governing rule:
 
-Order issuing runs on the main map through custom map-click and keypress
-handlers. **The High Command module is not used.** It does not support the
-order granularity intended here, and bending it into shape costs more than
-writing the handlers.
+**Anything made of more than one visual element referring to one entity is
+drawn wholesale by one renderer.** Composition across the layer boundary is not
+available, at any zoom, for any pair of elements.
 
-Two consequences follow immediately.
+### The split
 
-- **The map has one click handler, dispatched by mode.** `STRAT_fnc_onMapClick`
-  already owns map clicks and queues to `pendingOrder`. Tactical order issuing
-  wants the same input. Adding and removing handlers at battle boundaries
-  leaks, and a stale handler that queues a strategic order mid-battle is a bug
-  that costs an evening to find. One registration, branching on whether a
-  battle is live.
-- **The vanilla command interface must be suppressed.** With the player leading
-  a group it is live, and it will contest number keys, spacebar, and screen
-  space. Keys are consumed by returning `true` from the `KeyDown` handler; the
-  command bar and group bar are hidden through `showHUD`.
+**Armies and locations render entirely in the Draw layer.** They are precisely
+the things that accrete adornment — vehicle badge, strength count, fatigue pip,
+selection ring, opinion shading, an order arrow that has to originate at the
+icon's edge rather than its centre. Each of those is a second element beside a
+first, so the first cannot be a marker.
 
-Prefer a `MouseButtonDown` handler on the map control to `onMapSingleClick`.
-The latter is a single global slot that any script can overwrite; the control
-handler also supplies button index and modifier state, which additive selection
-needs.
+**Markers keep atomic, non-interactive, engine-owned work.** Task and briefing
+markers, tactical-layer markers on the GPS during a battle, debug and authoring
+markers. One icon, one label, no adornment, no click behaviour, no relationship
+to anything drawn.
 
-### Elements are groups, not teams
+The artwork is shared either way.
+`getText (configFile >> "CfgMarkers" >> "b_inf" >> "icon")` returns the same
+texture path the engine draws, so a drawn army icon and a marker read as one
+system.
 
-An army spawns as a single group. The player may split it — "you five with me,
-you four loop east and meet us."
+### What this costs
 
-Arma's engine-level subgroup is the **team** (`assignTeam`, the colour teams).
-Teams are a selection convenience for the vanilla command menu and nothing
-more. They carry no independent AI: the group still has one leader, one
-formation, one behaviour state, one combat mode, and one shared pool of known
-targets. A team cannot be sent away and left to itself, because the group's
-formation-keeping will drag it back. Formations are not subgroups either — a
-formation is the spatial arrangement of *all* of a group's units around its
-leader.
+`ctrlMapMouseOver` no longer resolves an army under the cursor, so army
+hit-testing is written by hand. Phase 1.6 already commits to writing it, so it
+is not a new cost — it is the same cost, now unavoidable rather than optional.
 
-Independent manoeuvre therefore requires a **new group**. Waypoints,
-`setBehaviour`, `setCombatMode`, `setSpeedMode`, `setFormation`, target
-sharing, and the leader's own decision-making are all group-scoped, and a
-detachment that goes out of sight and has to handle contact alone needs every
-one of them.
+Armies also lose free presence on the GPS and minimap, and free persistence into
+saves. Neither should be load-bearing: `location` is authoritative on the
+strategic map, and the save format serialises records rather than presentation.
+Any map that needs to show armies gets the same Draw handler attached to it.
 
-**The dividing line.** If the order sends men beyond formation-keeping range or
-expects them to make their own decisions, it is a new group. Otherwise it is an
-individual override — `doMove` / `doStop` / `doFollow` on a subordinate — which
-is the right tool for "you, that window" or "you, hold here", and which the
-group's FSM will reclaim on contact or on the next leader order. Individual
-overrides are temporary by nature and nothing may depend on one persisting.
+### Scaling is ours
 
-That is the same two-tier split the interface exposes: orders to the whole
-element, and orders to one man.
+`drawIcon` takes width and height in metres, so an icon at a fixed metre size
+scales with zoom exactly as a marker does. Multiplying by `ctrlMapScale`
+instead holds a constant pixel size. The point is not that one law is correct —
+it is that every element of an army is drawn by the same pass and therefore
+shares one scale factor by construction, so they cannot drift apart. Detail can
+also be varied by zoom, strongholds and front lines when zoomed out against
+per-army adornment when zoomed in, which markers cannot do at all.
 
-### Splitting an element
+### One draw list
 
-The mechanics, each of which is easy to get wrong:
+`STRAT_fnc_buildDrawList` derives a list of draw items from campaign state:
+texture, world position, size, colour, text, and the record each item belongs
+to. `STRAT_fnc_drawCampaignLayer` renders it. `fn_onMapClick` hit-tests against
+the same list.
 
-- `createGroup [_side, true]`. The `deleteWhenEmpty` flag matters — there is a
-  hard per-side group cap and a campaign will churn groups continuously.
-- `joinSilent`, never `join`. `join` fires radio chatter and a formation
-  callout on every split.
-- **New groups inherit nothing.** Behaviour, combat mode, speed mode,
-  formation, and formation direction all reset to defaults and must be copied
-  from the parent explicitly, or the flanking element wanders off in SAFE at
-  limited speed.
-- **Known targets do not transfer.** Group knowledge is group-scoped, so a
-  detachment peeling off a group that has been in contact for two minutes walks
-  away blind to everything the parent can see. The parent's contacts are
-  `reveal`ed to the new group at the moment of the split. Skipping this reads
-  as a bug rather than as engine behaviour: splitting visibly makes the men
-  stupider.
-- Merging back is `joinSilent` in the other direction. The emptied group
-  deletes itself.
+The list is also where the composition rule is enforced. An army emits a
+*group* of items sharing one anchor and one scale factor, not several
+independent icons that happen to be placed near each other. An adornment that
+cannot state which group it belongs to is a bug, not a loose icon.
 
-### Element leadership
+If what is drawn and what is clickable are computed in two places they will
+drift, and the drift is invisible until a player clicks something that is not
+there — the same class of lie as a drawn boundary that disagrees with the
+enforced one.
 
-The new element's leader is **the soldier in it with the highest `skill`**.
-Ties are broken at random among the tied soldiers. Applied with `selectLeader`
-after the join, because the engine otherwise picks by rank and returns whoever
-happens to sort highest.
+### Handler attachment
 
-Two things this must not do:
+Display 12 does not exist until the player opens the map. A Draw handler
+attached while the map is closed attaches to a null control and silently renders
+nothing. The campaign layer attaches on map open, not on state change, and
+stores its handler ID on the control so it can be removed by ID rather than by
+clearing every handler — the pattern `fn_drawBoundary` uses, minus
+`fn_drawBoundary`'s call-time control lookup. See section 13.
 
-- **It must not write `isLeader`.** That flag is the army's leader on the
-  strategic layer and belongs to the roster, not to a transient element. A
-  split that overwrote it would corrupt the record through sync-back.
-- **It must not recompute on every casualty.** Leadership is assigned when the
-  element is formed and again when the current element leader dies. Not
-  continuously.
+Because armies are now drawn rather than marked, a failure to attach is not a
+cosmetic fault. It is an empty strategic map.
 
-### Elements are battle-scoped
+### The rejected alternative
 
-**Splits do not survive the battle.** The army reforms at conclusion regardless
-of where its pieces ended up, and its strategic position is taken from the
-largest surviving element. Exit classification is decided the same way — the
-largest surviving element's crossing determines breakthrough or repulse — so
-that position and outcome cannot disagree about where the army is.
-
-This costs the data layer nothing, because group membership is never the source
-of truth. Sync-back iterates the roster and reads each `obj`; it does not care
-which group the object was in. The one thing that must hold is that a unit
-never leaves the roster it came from.
-
-**Victory conditions must read the roster, not the group.** This is the code
-change splitting forces. `fn_resolveVictory` classifies annihilation,
-breakthrough and repulse from `units _group`, and the engagement record holds a
-single `attackerGroup` / `defenderGroup`. Once a side can hold several groups,
-those handles no longer describe it and half a split army becomes invisible to
-the check. Deriving from the army's living `obj` references instead is correct
-under splitting and already implied by the invariant that data outlives
-entities.
-
-Persistent detachments — an element that ends a battle elsewhere and stays a
-separate force on the strategic map — are deliberately out of scope. They would
-need a per-battle `element` field on the soldier record, a ruling for a split
-army whose halves exit in opposite directions, and a `pendingOrder` each. See
-open decision 13.
-
-### The player has to be in the battle first
-
-There is no drop-in: "attended" currently means watched from the map. A command
-interface cannot be built or tested against a battle the player is not standing
-in, so a minimal drop-in stops being a phase three finishing touch and becomes
-a prerequisite. See 2.7.
+Keeping markers for armies and moving per-army detail into a side panel that
+fills on selection sidesteps the alignment problem completely and costs almost
+nothing to build. It is rejected because it is a menu. Detail would then be
+visible for the one army the player has clicked, when the whole purpose of the
+visibility invariant is that the cost of a plan is legible while the plan is
+being made, across every force at once.
 
 ---
 
@@ -746,26 +700,24 @@ a prerequisite. See 2.7.
   after the loop closes.
 - **Identity is compared on `id`, never `isEqualTo`.** `isEqualTo` performs a
   content comparison on HashMaps and will produce false positives.
-- **`faction` is the source of truth for allegiance,** not marker colour. Marker
-  colour is presentation only.
-- **The strategic layer must never spawn entities.** Marker movement and data
-  updates only; entity spawning belongs to the tactical layer.
+- **`faction` is the source of truth for allegiance,** not icon colour. Colour
+  is presentation only, in either renderer, and is never read back.
+- **The strategic layer must never spawn entities.** Record updates and drawing
+  only; entity spawning belongs to the tactical layer.
 - **Contact detection must check hostility** before initiating. Two friendly
   armies converging is a rendezvous, not a battle.
 - **Fatigue lives on the soldier, never on the army.** Army-level values are
   derived, never stored.
 - **A garrison is not an army.** It has no `pendingOrder`, does not move, and
   never enters `activeArmies`. It shares record formats only.
-- **Group membership is a battle-time presentation of the roster, never the
-  source of truth.** A unit never leaves the roster it came from, whatever
-  group it is standing in.
-- **Outcomes are derived from the roster, not from a group handle.** A side may
-  hold any number of groups; nothing that decides a victory condition, a
-  position, or a sync-back may read `units _group`.
-- **Battle-time element leadership never touches `isLeader`.** That flag is
-  strategic-layer roster state.
-- **The map has one click handler.** It dispatches on mode. Handlers are never
-  added and removed around battle boundaries.
+- **What is drawn and what is clickable derive from one list.** The Draw layer
+  and the click hit-test read the same output of `STRAT_fnc_buildDrawList`. Two
+  independent computations of the same geometry will drift.
+- **Map draw handlers attach on map open, never on state change.** Display 12
+  is absent while the map is closed and the attachment fails silently.
+- **One entity, one renderer.** Marker extent cannot be queried or matched, so
+  any entity that carries adornment is drawn entirely in the Draw layer.
+  Armies and locations are drawn; markers are for atomic engine-owned icons.
 - **Anything the player is penalised for must be visible at planning time.**
 
 ---
@@ -870,9 +822,23 @@ the enforced one cannot drift apart.
   an array and will error if an object was passed.
 - Boundary radius is hardcoded and now load-bearing — it is the withdrawal
   mechanic, so it must be enforced and its crossing direction classified.
-- `fn_resolveVictory` and the engagement record both assume one group per side.
-  Correct today, wrong the moment splitting lands. Both must move to reading
-  the army roster's living `obj` references. See section 11.
+- `fn_drawBoundary` resolves `(findDisplay 12) displayCtrl 51` at call time. It
+  is called from `fn_initiateBattle`, which can fire while the map is closed, in
+  which case the handler attaches to a null control and the boundary is never
+  drawn. Attachment belongs on map open (section 11).
+- `fn_drawBoundary` guards on `ctrlMapWorldToScreen` returning a non-empty
+  array, which is false whenever the *centre* scrolls offscreen — so panning
+  away from the anchor drops the whole circle rather than clipping it. The
+  guard should be removed; `drawEllipse` takes world coordinates and clips
+  itself.
+- Armies are still on markers, which section 11 removes. Three call sites:
+  `fn_generateArmy` mints `STRAT_Marker_<id>` and stores it on the record;
+  `fn_moveArmyAlongPath` calls `setMarkerPos` as it advances; `fn_onMapClick`
+  resolves selection through `ctrlMapMouseOver` and flags it with
+  `setMarkerAlpha 0.5`. All three go in 1.6. The alpha flag is the worst of
+  them — it reads as the army being faded out rather than picked, and it
+  mutates presentation state that must be restored on every exit path,
+  including the ones a rejected order takes.
 
 **Not started**
 - Post-battle march for a repulsed army. Survivors of every other outcome
@@ -888,6 +854,13 @@ the enforced one cannot drift apart.
   anything that writes `exertion`, the skill and morale modifiers at
   deployment, and the projection at planning time. Curve constants are
   untuned.
+- Campaign draw layer. `fn_drawBoundary` proves the mechanism, but nothing
+  builds a draw list, attaches on map open, or hit-tests drawn items. It is no
+  longer an overlay on top of markers: under section 11 it is how armies and
+  locations are drawn at all, and every planning-time adornment the visibility
+  invariant asks for — order arrows, projected arrival, route exposure, opinion
+  shading, fatigue and tonnage — is a member of the same drawn group as the
+  icon it belongs to. See section 11 and phase 1.6.
 - Stronghold definition and frontier gating.
 - Route exposure and interception.
 - CSAT Favor and NATO Aggression beyond the hooks. The balances and the
@@ -903,13 +876,7 @@ the enforced one cannot drift apart.
 - Naval and air movement (mandatory on an archipelago — road pathfinding cannot
   leave the island it starts on).
 - Save/load serialization.
-- Commander drop-in and overhead spectate. Drop-in is now a phase two
-  prerequisite rather than a phase three finish, because the battle command
-  interface cannot be tested without it.
-- Battle command interface. Custom map-click and keypress order issuing, mode
-  dispatch on the shared map handler, vanilla command UI suppression, selection
-  state, and orders at both scales. Nothing of it exists. See section 11.
-- Element splitting and merging, and element leadership by skill.
+- Commander drop-in and overhead spectate.
 - Soldier names, progression, and loadout persistence.
 
 ---
@@ -979,16 +946,6 @@ the enforced one cannot drift apart.
     classification is ambiguous. Needs a fallback rule.
 12. **Ambush preparation fidelity.** Hand-placed mines and roadblocks versus an
     abstract budget placed by script. Budget preferred on scope grounds.
-13. **Persistent detachments.** Splits are battle-scoped by ruling (section 11),
-    and nothing needs otherwise. The only part of this with a deadline is the
-    `element` field on the soldier record: additive and near-free now, and an
-    expensive retrofit once sync-back, save serialization, and the strategic
-    order model all assume one roster is one force. Decide whether to add the
-    field speculatively, not whether to build the mechanic.
-14. **Split exits in opposite directions.** The ruling is that the largest
-    surviving element decides both position and exit classification. Untested
-    against the case where a small element breaks through and achieves the
-    objective while the bulk is driven back. Revisit once splitting is played.
 
 ---
 
@@ -1042,6 +999,22 @@ placeholders — fatigue is tuned in phase two against played battles.
 rosters, no turn required. Roughly an hour of work, used several hundred times
 during phase two.
 
+1.6 **Campaign draw layer, and armies off markers.** Attachment lifecycle on
+map open, `STRAT_fnc_buildDrawList`, `STRAT_fnc_drawCampaignLayer`, and
+`fn_onMapClick` hit-testing the same list. Armies are drawn as groups —
+icon plus adornment sharing one anchor and one scale factor — and the `marker`
+field, `fn_generateArmy`'s marker minting, `fn_moveArmyAlongPath`'s
+`setMarkerPos`, and the `ctrlMapMouseOver` selection branch all come out.
+Ships with two adornments to prove the group shape: a selection ring replacing
+`setMarkerAlpha`, and an arrow from each army to its pending destination,
+originating at the icon edge.
+
+This is not battle-code work and it breaks the phase-one ordering principle on
+purpose. The overlays it exists to carry are phase three, but the conversion is
+cheap now and gets steadily more expensive: every strategic feature added
+before it is another `setMarkerPos` call site to find. The alternative — a
+side panel — is rejected in section 11.
+
 **Explicitly deferred out of phase 1:**
 
 | Deferred | Why it can wait |
@@ -1075,19 +1048,7 @@ planning time. Promoted into phase two because its whole visible effect is on
 the battlefield, and the visibility invariant means tuning it requires seeing
 what it does to a fight.
 
-2.7 **Minimal drop-in.** Put the player on the ground in an attended battle as
-leader of his army's element, and return him to the map at conclusion. Promoted
-out of phase three: 2.8 cannot be built or tested without it. Overhead spectate
-and commander-view polish stay in phase three.
-
-2.8 **Battle command interface and element splitting.** Section 11 in full:
-mode dispatch on the shared map handler, vanilla command UI suppression,
-selection state, orders at both scales, splitting and merging with contact
-transfer, element leadership by skill. Includes moving `fn_resolveVictory` and
-the engagement record off single-group handles onto the roster — do that first,
-because splitting silently breaks victory classification otherwise.
-
-2.9 **Ambushes.** One order type and one deployment plan. Cheap once 2.1 lands.
+2.7 **Ambushes.** One order type and one deployment plan. Cheap once 2.1 lands.
 Optional at the end of phase two — the order type is strategic-side work, so it
 may fall more naturally into phase three. Decide once set-piece is done.
 
@@ -1111,7 +1072,8 @@ of guessed.
 3.4 **Water and air movement.** Unlocks the rest of Tanoa and the island
 progression.
 
-3.5 **Route exposure and interception.** Surfaced at planning time.
+3.5 **Route exposure and interception.** Surfaced at planning time, as a route
+polyline coloured by exposure on the campaign draw layer from 1.6.
 
 3.6 **Economy.** Money, manpower, recruitment, wages.
 
@@ -1119,7 +1081,8 @@ progression.
 menu, one spendable asset end to end. The hooks already exist from 1.3.
 
 3.8 **Locations, in full.** Per-location benefits, ownership transfer, local
-opinion and its diffusion.
+opinion and its diffusion. Opinion is shaded per location on the draw layer;
+a number in a menu does not satisfy the visibility invariant.
 
 3.9 **Prisoner disposition.** Whatever the answer to open decision 8 turns out
 to be.
@@ -1128,8 +1091,7 @@ to be.
 
 3.11 **Progression.** Soldier names, ranks, loadouts.
 
-3.12 **Spectate and commander view.** Overhead spectate and drop-in polish.
-The functional drop-in itself moved to 2.7.
+3.12 **Drop-in and spectate.**
 
 3.13 **Story progression.** Contract structure and the fixed geographic
 campaign arc.
