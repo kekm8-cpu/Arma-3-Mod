@@ -160,18 +160,28 @@ TACT_blockSecondsPerBattleSecond = 1;
 //   map closed - Arma's stock squad bar. F1, F2, F3 select subordinates and
 //                orders are given in the 3D world. Untouched.
 //   map open   - the squad bar is hidden and the map is the command surface.
-//                Left click an icon to select it, CTRL to add or remove, click
-//                terrain to move, SHIFT to stack a waypoint onto a route.
+//                Left click an icon to select it, CTRL to add or remove. Click
+//                terrain with units selected to send them there. Click terrain
+//                with nothing selected to lay the group's route, SHIFT to add
+//                a leg to it.
 //
-// Routes are walked leg by leg by TACT_fnc_runRoutes, because doMove takes one
-// destination and does not queue. That holds for a route given to one man and
-// for one given to the whole group alike.
+// The two terrain cases differ in kind. A selection is given a destination and
+// goes there. The group's route is given to nobody: it is the player's own
+// line of march, drawn on the map, and he walks it at the head of the group
+// with the AI following their leader as they already do.
+//
+// Individual units get one destination and no more. Chained waypoints and held
+// ground are engine features at the GROUP level - a group with no player in it
+// executes an addWaypoint chain natively, HOLD waypoints included - and are
+// not reproducible inside a player-led group without a script fighting the
+// formation AI for every subordinate. A player who wants one man to flank wide
+// or watch a ridge will detach him into a group of one, once detaching exists.
 //
 // An army with no flagged soldier drops nobody in and never leaves the campaign
 // layer, exactly as before.
 
 TACT_commandActive    = false;  // True only while the player holds a body on the field
-TACT_commandSelection = [];     // Selected entity objects; empty means the whole group
+TACT_commandSelection = [];     // Selected entity objects; empty routes clicks to the group
 TACT_commandArmyId    = "";     // Which army record the player is currently leading
 
 // Click radius around a command icon, in the same icon units the draw layer
@@ -183,18 +193,9 @@ TACT_commandIconUnits = 0.85;   // Command icons sit slightly under an army icon
 // as one.
 TACT_commandPlayerColour = [1, 0.85, 0.2, 1];
 
-// How close an entity has to get before a stacked waypoint counts as reached
-// and the next one goes out. A vehicle told to stop on a point stops near it,
-// and a radius as tight as a man's would leave it nudging back and forth on
-// the same leg forever.
-TACT_commandArrivalFoot    = 12;
-TACT_commandArrivalVehicle = 30;
-
-// How often the route executor looks at the field. Routes are a planning
-// device, not a control loop - the engine drives between waypoints - so this
-// only has to be quick enough that the next leg goes out before anyone notices
-// they have stopped.
-TACT_commandTickSeconds = 1;
+// The group's line of march, as world positions. One route, held in one place
+// and drawn once on the commander it belongs to.
+TACT_groupRoute = [];
 
 // The body the player returns to when a battle ends. Captured on the first
 // drop-in rather than set here, so it is whatever the avatar actually was

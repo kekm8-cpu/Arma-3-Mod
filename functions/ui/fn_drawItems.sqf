@@ -102,21 +102,10 @@ private _fnc_head = {
 		case "ellipse": {
 			private _r = (_item get "radius") * _metresPerUnit;
 
-			// Centred on the anchor by default, or on `toWorld` when the item
-			// marks a place rather than the thing it belongs to - a held post
-			// is an adornment of the unit holding it but is drawn where the
-			// ground is, not where the unit currently stands.
-			private _to = _item get "toWorld";
-			private _centre = if (count _to >= 2) then {
-				[_to select 0, _to select 1, 0]
-			} else {
-				_pos
-			};
-
 			// No ctrlMapWorldToScreen guard. drawEllipse takes world
 			// coordinates and clips itself; gating on the centre being on
 			// screen drops the whole ring the moment the player pans past it.
-			_map drawEllipse [_centre, _r, _r, 0, _colour, ""];
+			_map drawEllipse [_pos, _r, _r, 0, _colour, ""];
 		};
 
 		// ---------------------------------------------------------------- //

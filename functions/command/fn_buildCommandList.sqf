@@ -11,11 +11,13 @@
 		One group per command entity, on the same terms section 11 sets for the
 		campaign layer: every item carries its group id and the entity's own
 		position array, and adornments are placed in icon units off that
-		anchor. A route is one item, not one per leg - it is one adornment of
-		one entity, however many times it bends.
+		anchor.
 
 		The player is drawn and never hit-tested. A commander is worth seeing
-		on the map, and is not something to select and order.
+		on the map, and is not something to select and order. The group's route
+		is his adornment, because it is his line of march rather than an order
+		any subordinate is holding - one item however many times it bends, and
+		drawn once rather than once per man.
 
 		Rebuilt every frame, like the campaign list, and for the same reason:
 		units move continuously during a battle, and a cached list is exactly
@@ -135,39 +137,6 @@ private _friendly = STRAT_drawFactionColour getOrDefault ["player", [0.25, 0.45,
 		]] call _fnc_item;
 	};
 
-	// The route, drawn whether or not the entity is selected. What every unit
-	// has been told to do is exactly the thing that has to stay legible while
-	// the next order is being given.
-	private _route = _obj getVariable ["TACT_route", []];
-
-	if (count _route > 0) then {
-		[_id, "commandEntity", _entity, _anchor, "route", createHashMapFromArray [
-			["shape", "polyline"],
-			["points", _route],
-			["fromEdge", STRAT_drawArrowOriginUnits],
-			["colour", _colour]
-		]] call _fnc_item;
-	};
-
-	// The post, once the route has been walked out. Drawn because a unit
-	// holding ground is under an order and the order has to stay readable -
-	// otherwise a squad posted on a flank and a squad that merely wandered
-	// there look identical. It sits under the icon while the entity is on it,
-	// and separates visibly the moment a fight has pulled the unit away.
-	private _post = _obj getVariable ["TACT_post", []];
-
-	if (count _post >= 2) then {
-		// Carried as a world position rather than as the item's anchor. The
-		// group's anchor is the entity, the same for every item in it; a post
-		// is somewhere else on the map, which is exactly what `toWorld` is for
-		// on the shapes that already have one.
-		[_id, "commandEntity", _entity, _anchor, "post", createHashMapFromArray [
-			["shape", "ellipse"],
-			["toWorld", [_post select 0, _post select 1, 0]],
-			["radius", STRAT_drawWaypointPipUnits],
-			["colour", _colour]
-		]] call _fnc_item;
-	};
 } forEach (call TACT_fnc_commandEntities);
 
 // ------------------------------------------------------------------------ //
@@ -193,5 +162,18 @@ private _playerAnchor = getPosATL (vehicle player);
 	["text", "YOU"],
 	["textSize", STRAT_drawLabelUnits]
 ]] call _fnc_item;
+
+// The group's route, as one adornment of the commander it belongs to. It is
+// his line of march, not an order held by anybody, so it hangs off him and is
+// drawn once - it used to be stored on every entity and rendered once per man,
+// stacked on top of itself.
+if (count TACT_groupRoute > 0) then {
+	["CMD_PLAYER", "commander", createHashMap, _playerAnchor, "route", createHashMapFromArray [
+		["shape", "polyline"],
+		["points", TACT_groupRoute],
+		["fromEdge", STRAT_drawArrowOriginUnits],
+		["colour", TACT_commandPlayerColour]
+	]] call _fnc_item;
+};
 
 _list

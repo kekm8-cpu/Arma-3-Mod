@@ -122,8 +122,7 @@ functions/
                              (planned) fn_captureLoop, fn_autoResolve
   command/                   fn_dropIn, fn_dropOut, fn_setCommandHud,
                              fn_commandEntities, fn_onCommandClick,
-                             fn_issueMoveOrder, fn_runRoutes,
-                             fn_buildCommandList
+                             fn_issueMoveOrder, fn_buildCommandList
   test/                      fn_buildArmy, fn_clearArmies, fn_setupScenario,
                              fn_spawnBattle
 ```
@@ -850,19 +849,13 @@ being made, across every force at once.
   `TACT_fnc_commandEntities` resolves the group into what can actually be moved
   — a dismounted man, or a vehicle with at least one of ours in it, ordered
   through its driver — so a mounted rider resolves to the truck he is riding
-  in. A bare click issues a real `doMove` and replaces the route; SHIFT appends
-  a leg. `TACT_fnc_runRoutes` walks the stack, handing out each leg as the one
-  before it is reached, because `doMove` takes one destination and does not
-  queue. A leg is re-issued only when the entity is idle, which is what leaves
-  an order given through the stock squad bar able to interrupt a route and hand
-  back to it afterwards. Where a route ends becomes the entity's **post**: it
-  holds there, and the executor walks it back whenever it has drifted off and
-  has nothing better to do. That is a held position expressed as an order, not
-  as a restriction — nothing is disabled, so a posted unit takes cover,
-  manoeuvres and fights normally, and is never recalled while it is in COMBAT
-  behaviour. A new order releases the post; the stock squad bar's regroup is
-  still how a unit is put back in formation. An army with no flagged soldier
-  drops nobody in and never leaves the campaign layer.
+  in. The two terrain cases differ in kind. Units selected: a single `doMove`
+  to exactly those units, and nothing more — an individual gets a destination,
+  never a chain. Nothing selected: the click lays the **group's route**, held
+  in `TACT_groupRoute` and drawn once on the commander. That route is given to
+  nobody. It is the player's own line of march, and he walks it at the head of
+  the group with the AI following their leader as they already do. An army with
+  no flagged soldier drops nobody in and never leaves the campaign layer.
 - Test harness (`TEST_fnc_*`). Named rosters, named starting states and named
   engagements, all declared as data in `init.sqf`. `TEST_fnc_setupScenario`
   builds what a session boots into; `TEST_fnc_spawnBattle` drops a fixed
@@ -931,8 +924,13 @@ the enforced one cannot drift apart.
   his record is dropped by sync-back like any other casualty. The army then has
   nobody flagged and its next battle runs watched from the map. Nothing
   promotes a replacement, because nothing should invent one.
-- Everyone ordered at once is ordered to the same point rather than into a
-  formation around it, so a whole-group move bunches on arrival.
+- An individual unit inside the player's group can be given one destination and
+  nothing else — no chained waypoints, no held position. Both were built once,
+  as a loop that watched for arrivals and re-issued `doMove`, and both were
+  removed: the workaround needed guards against dragging men out of cover and
+  against overriding the stock squad bar, and every guard was another condition
+  under which commanding behaved differently. They return as group-level
+  command, below, where the engine does them natively.
 - `fn_calculateRoadPath` snaps the start point to the *nearest* road but the end
   point to an arbitrary one; the jink-correction block assumes `_startInput` is
   an array and will error if an object was passed.
@@ -994,6 +992,25 @@ the enforced one cannot drift apart.
 - Save/load serialization.
 - Overhead spectate, and the choice of whether to drop in at all. Drop-in
   itself is in, for the player's own army.
+- **Group-level battle command.** Chained waypoints and held ground are engine
+  features one level up: a group with no player in it executes an `addWaypoint`
+  chain natively — sequencing, completion radii, and a real `HOLD` waypoint
+  type — with no script watching it. A player who wants one man to flank wide
+  or watch a ridge detaches him into a group of one, gives that group a
+  waypoint chain, and merges him back afterwards. Detaching is an explicit act
+  on the map, not implicit on ordering, so the split has a visible result and a
+  stray click cannot fragment a squad.
+
+  Its prerequisite is a change to how a side's strength is measured.
+  `fn_resolveVictory` and `fn_concludeBattle` both read `units _attackerGroup` /
+  `units _defenderGroup`, so a detached squad silently stops being counted and
+  an army could be declared annihilated while a live detachment is still
+  fighting. Both must count living soldiers from the army record's `men` array
+  instead — which is what the "data records own the truth" invariant already
+  says, and is immune to regrouping. It is deliberately not done in advance:
+  with no detaching, the roster and the group are the same set, so changing the
+  victory logic today would be a no-op edit to the most consequence-heavy code
+  in the project.
 - Soldier names, progression, and loadout persistence.
 
 ---

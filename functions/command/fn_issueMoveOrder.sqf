@@ -2,31 +2,32 @@
 	Function: TACT_fnc_issueMoveOrder
 
 	Description:
-		Writes a move order onto command entities as a route - an ordered list
-		of world positions - and, for a fresh order, tells them to go there.
+		Sends a set of command entities to a world position. One destination,
+		issued once, and that is the whole of it.
 
-		A plain order replaces whatever route the entity had and starts it on
-		the first leg. A stacked one appends, and TACT_fnc_runRoutes hands the
-		later legs out as the earlier ones are walked - doMove takes one
-		destination and does not queue, so something has to.
+		There is no route here and no queue. Arma's doMove takes a single
+		destination and does not chain, and a subordinate inside a player-led
+		group drifts back into formation rather than holding where it was sent.
+		Both of those were worked around for a while by a script that watched
+		for arrivals and re-issued orders; the workaround needed guards against
+		dragging men out of cover and against overriding the stock squad bar,
+		and every guard was another condition under which commanding behaved
+		differently.
 
-		Either way the entity is released from whatever post it was holding.
-		A new order supersedes the old one; the route it has just been given
-		ends somewhere, and where it ends becomes the post it holds next.
-
-		Routes live on the entity's own object rather than in a registry keyed
-		by it. An entity that dies takes its route with it and nothing has to
-		notice.
+		Chained waypoints and held ground move to the group level instead,
+		where Arma does them natively - a group with no player in it executes
+		an addWaypoint chain on its own, HOLD waypoints included. A player who
+		wants one man to flank wide or watch a ridge detaches him into a group
+		of one. Until that exists, an individual takes a destination and
+		nothing more.
 
 		Orders go out with doMove rather than commandMove: silent, and precise.
-		The map already shows the route, so radio chatter would be reporting
-		something the player is looking at.
+		The map has already shown where they were sent, so radio chatter would
+		be reporting something the player is looking at.
 
 	Parameters:
 		0: ARRAY - command entities (see TACT_fnc_commandEntities)
 		1: ARRAY - world position ordered
-		2: BOOL  - stack onto the existing route instead of replacing it
-		           (default false)
 
 	Returns:
 		NUMBER - how many entities took the order.
@@ -34,8 +35,7 @@
 
 params [
 	["_entities", [], [[]]],
-	["_position", [], [[]]],
-	["_stack", false, [true]]
+	["_position", [], [[]]]
 ];
 
 if (count _position < 2) exitWith { 0 };
@@ -57,28 +57,7 @@ private _unorderable = 0;
 		if (count _order == 0) then {
 			_unorderable = _unorderable + 1;
 		} else {
-			private _route = if (_stack) then {
-				+(_obj getVariable ["TACT_route", []])
-			} else {
-				[]
-			};
-
-			_route pushBack _destination;
-			_obj setVariable ["TACT_route", _route];
-
-			// Off the old post. TACT_fnc_runRoutes sets the new one when this
-			// route runs out, so between here and there the entity is under
-			// orders rather than holding anything.
-			_obj setVariable ["TACT_post", nil];
-
-			// Only a fresh order moves anybody now. A stacked waypoint is a
-			// later leg, and issuing it here would send the entity straight
-			// there past everything in between; the executor hands it out when
-			// the leg before it has been walked.
-			if (!_stack) then {
-				{ _x doMove _destination } forEach _order;
-			};
-
+			{ _x doMove _destination } forEach _order;
 			_ordered = _ordered + 1;
 		};
 	};

@@ -35,18 +35,9 @@ if (isNil "TACT_commandActive" || {!TACT_commandActive}) exitWith { false };
 // still reading a group that is about to be torn down.
 TACT_commandActive = false;
 
-// Routes and posts are wiped while the entities that carry them still exist.
-// They live on the objects, so most go with sync-back anyway, but a survivor
-// carrying either into the next battle would show up already committed to a
-// plan the player made in the last one, or holding a post on ground that is
-// nowhere near the new field.
-{
-	private _obj = _x get "obj";
-	if (!isNull _obj) then {
-		_obj setVariable ["TACT_route", nil];
-		_obj setVariable ["TACT_post", nil];
-	};
-} forEach (call TACT_fnc_commandEntities);
+// The group's route is cleared, or the next battle would open with a line
+// drawn across ground nowhere near the new field.
+TACT_groupRoute = [];
 
 // ------------------------------------------------------------------------ //
 // BACK TO THE CAMPAIGN AVATAR                                               //
