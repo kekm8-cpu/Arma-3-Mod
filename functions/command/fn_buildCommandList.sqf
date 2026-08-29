@@ -148,6 +148,26 @@ private _friendly = STRAT_drawFactionColour getOrDefault ["player", [0.25, 0.45,
 			["colour", _colour]
 		]] call _fnc_item;
 	};
+
+	// The post, once the route has been walked out. Drawn because a unit
+	// holding ground is under an order and the order has to stay readable -
+	// otherwise a squad posted on a flank and a squad that merely wandered
+	// there look identical. It sits under the icon while the entity is on it,
+	// and separates visibly the moment a fight has pulled the unit away.
+	private _post = _obj getVariable ["TACT_post", []];
+
+	if (count _post >= 2) then {
+		// Carried as a world position rather than as the item's anchor. The
+		// group's anchor is the entity, the same for every item in it; a post
+		// is somewhere else on the map, which is exactly what `toWorld` is for
+		// on the shapes that already have one.
+		[_id, "commandEntity", _entity, _anchor, "post", createHashMapFromArray [
+			["shape", "ellipse"],
+			["toWorld", [_post select 0, _post select 1, 0]],
+			["radius", STRAT_drawWaypointPipUnits],
+			["colour", _colour]
+		]] call _fnc_item;
+	};
 } forEach (call TACT_fnc_commandEntities);
 
 // ------------------------------------------------------------------------ //

@@ -10,6 +10,10 @@
 		later legs out as the earlier ones are walked - doMove takes one
 		destination and does not queue, so something has to.
 
+		Either way the entity is released from whatever post it was holding.
+		A new order supersedes the old one; the route it has just been given
+		ends somewhere, and where it ends becomes the post it holds next.
+
 		Routes live on the entity's own object rather than in a registry keyed
 		by it. An entity that dies takes its route with it and nothing has to
 		notice.
@@ -61,6 +65,11 @@ private _unorderable = 0;
 
 			_route pushBack _destination;
 			_obj setVariable ["TACT_route", _route];
+
+			// Off the old post. TACT_fnc_runRoutes sets the new one when this
+			// route runs out, so between here and there the entity is under
+			// orders rather than holding anything.
+			_obj setVariable ["TACT_post", nil];
 
 			// Only a fresh order moves anybody now. A stacked waypoint is a
 			// later leg, and issuing it here would send the entity straight

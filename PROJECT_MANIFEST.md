@@ -855,7 +855,13 @@ being made, across every force at once.
   before it is reached, because `doMove` takes one destination and does not
   queue. A leg is re-issued only when the entity is idle, which is what leaves
   an order given through the stock squad bar able to interrupt a route and hand
-  back to it afterwards. An army with no flagged soldier
+  back to it afterwards. Where a route ends becomes the entity's **post**: it
+  holds there, and the executor walks it back whenever it has drifted off and
+  has nothing better to do. That is a held position expressed as an order, not
+  as a restriction — nothing is disabled, so a posted unit takes cover,
+  manoeuvres and fights normally, and is never recalled while it is in COMBAT
+  behaviour. A new order releases the post; the stock squad bar's regroup is
+  still how a unit is put back in formation. An army with no flagged soldier
   drops nobody in and never leaves the campaign layer.
 - Test harness (`TEST_fnc_*`). Named rosters, named starting states and named
   engagements, all declared as data in `init.sqf`. `TEST_fnc_setupScenario`

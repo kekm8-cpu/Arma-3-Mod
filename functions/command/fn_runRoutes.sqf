@@ -20,6 +20,24 @@
 		every tick would make a map route impossible to countermand from the
 		keyboard, which is half of what the map mode exists to leave working.
 
+		THE POST. The last waypoint of a route is not the end of the order, it
+		is the post the entity now holds. Walking a route out leaves the entity
+		posted there, and the executor keeps it there by re-issuing the move
+		whenever it has drifted off and has nothing better to do.
+
+		That is a held position expressed as an order rather than as a
+		restriction. Nothing is disabled and nothing is frozen: a posted unit
+		takes cover, manoeuvres, and fights exactly as it otherwise would. It
+		simply walks back to its post once the shooting stops, instead of
+		drifting back into formation on the player.
+
+		Two guards keep the post from becoming the freeze it is meant not to
+		be. It is never re-issued while a unit is in COMBAT behaviour, because
+		dragging a man out of the cover he has just taken and back onto an open
+		hilltop is precisely the failure that makes scripted hold orders
+		unusable. And it is never re-issued while a unit is busy, so an order
+		given through the stock squad bar runs to completion first.
+
 		Runs for as long as the player holds a body on the field, and stops
 		when TACT_fnc_dropOut clears the flag. Must be spawned - this sleeps.
 
@@ -44,8 +62,9 @@ TACT_routesRunning = true;
 			private _obj    = _entity get "obj";
 			private _order  = _entity get "order";
 			private _route  = _obj getVariable ["TACT_route", []];
+			private _post   = _obj getVariable ["TACT_post", []];
 
-			if (count _route > 0 && {count _order > 0} && {alive _obj}) then {
+			if (count _order > 0 && {alive _obj}) then {
 
 				// Vehicles are given more room than men: an MRAP told to stop
 				// on a point stops near it, and a radius as tight as a man's
@@ -56,24 +75,54 @@ TACT_routesRunning = true;
 					TACT_commandArrivalFoot
 				};
 
-				private _leg = _route select 0;
+				// Nothing is currently being executed. Both branches below
+				// wait on this: an order the player gave through the stock
+				// squad bar runs to completion before the map's orders resume.
+				private _idle = _order findIf { !(unitReady _x) } == -1;
 
-				if ((_obj distance2D _leg) <= _arrival) then {
-					// Leg walked. Drop it and start the next one immediately.
-					_route deleteAt 0;
-					_obj setVariable ["TACT_route", _route];
+				if (count _route > 0) then {
 
-					if (count _route > 0) then {
-						private _next = _route select 0;
-						{ _x doMove _next } forEach _order;
+					// ------------------------------------------------ //
+					// WALKING THE ROUTE                                 //
+					// ------------------------------------------------ //
+					private _leg = _route select 0;
+
+					if ((_obj distance2D _leg) <= _arrival) then {
+						// Leg walked. Drop it and start the next one.
+						_route deleteAt 0;
+						_obj setVariable ["TACT_route", _route];
+
+						if (count _route > 0) then {
+							{ _x doMove (_route select 0) } forEach _order;
+						} else {
+							// Route walked out. Where it ended is the post.
+							_obj setVariable ["TACT_post", _leg];
+						};
+					} else {
+						// Not there yet. The entity either never received the
+						// leg, gave up on it, or has just finished something
+						// the player ordered through the stock UI.
+						if (_idle) then {
+							{ _x doMove _leg } forEach _order;
+						};
 					};
+
 				} else {
-					// Not there yet. Re-issue only if nothing is currently
-					// being executed - the entity either never received the
-					// leg, gave up on it, or has just finished an order the
-					// player gave through the stock UI.
-					if (_order findIf { !(unitReady _x) } == -1) then {
-						{ _x doMove _leg } forEach _order;
+
+					// ------------------------------------------------ //
+					// HOLDING THE POST                                  //
+					// ------------------------------------------------ //
+					if (count _post >= 2 && {(_obj distance2D _post) > _arrival}) then {
+
+						// Never while fighting. A unit in COMBAT behaviour has
+						// taken cover or is manoeuvring on something, and
+						// walking it back to a post mid-contact is how a hold
+						// order gets a squad killed.
+						private _fighting = _order findIf { behaviour _x == "COMBAT" } > -1;
+
+						if (_idle && {!_fighting}) then {
+							{ _x doMove _post } forEach _order;
+						};
 					};
 				};
 			};

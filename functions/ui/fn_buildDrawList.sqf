@@ -42,7 +42,8 @@
 		offset    ARRAY   - [x, y] from the anchor, in icon units
 		size      ARRAY   - [w, h] in icon units ("icon" shape)
 		radius    NUMBER  - in icon units ("ellipse" shape)
-		toWorld   ARRAY   - far end, world position ("arrow" shape)
+		toWorld   ARRAY   - "arrow": the far end. "ellipse": centre it here
+		                    rather than on the anchor. Both world positions
 		points    ARRAY   - ordered world positions ("polyline" shape)
 		fromEdge  NUMBER  - icon units to push the arrow's origin off the anchor
 		texture   STRING  - texture path ("icon" shape)
