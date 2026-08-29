@@ -152,48 +152,107 @@ TACT_resolvedPairsThisBlock  = [];  // Army id pairs that have already fought th
 TACT_lastBattleReport        = "";  // Shown by the block readout and the planning phase
 
 // ------------------------------------------------------------------------- //
-// 1. INITIALIZE BLUE ARMY (BLUFOR / PLAYER'S MERCENARIES)                    //
+// TEST HARNESS (build plan 1.5)                                              //
 // ------------------------------------------------------------------------- //
-private _blueSpawnPos = [7774.82, 8842.66, 0];
+// Everything down to the scenario call is harness data, not campaign data:
+// the rosters a test uses, the starting states a session can boot into, and
+// the engagements that can be dropped straight into a fight without a turn.
+// It is one block, one prefix and one function domain so that it lifts out
+// whole once the campaign has a real opening state of its own.
+//
+// It replaces two hand-built armies that used to be spawned here directly.
+// Naming the states is the whole point: what is on the map at boot is a test
+// question, and answering it should not be a code edit.
 
-// Generate the base data-driven HashMap
-private _blueArmy = ["BLU_Merc_Vanguard", _blueSpawnPos, nil, nil, nil, "player"] call STRAT_fnc_generateArmy;
+// Which starting state this session boots into. A key of TEST_scenarios.
+//
+//   "sandbox"  - one player army and nothing hostile anywhere on the map.
+//                Orders, routes and the block clock with the battle layer
+//                taken out from under them.
+//   "skirmish" - the player army and a cartel patrol, out of contact at the
+//                start. A battle happens if the player marches into one.
+//   "contact"  - the same two inside TACT_contactRadius, so the first
+//                committed block opens a battle immediately.
+TEST_scenario = "sandbox";
 
-// Fill the roster: Add 3 men (1 Leader, 2 Riflemen) and 1 Vehicle
-[_blueArmy, "B_T_Soldier_SL_F", true] call STRAT_fnc_addMan;
-[_blueArmy, "B_T_Soldier_F", false] call STRAT_fnc_addMan;
-[_blueArmy, "B_T_Soldier_AR_F", false] call STRAT_fnc_addMan;
-[_blueArmy, "B_T_MRAP_01_gmg_F"] call STRAT_fnc_addVehicle;
+// Put the mission.sqm avatar on the commanding faction's side at setup. It
+// starts on WEST, which section 8 gives to the cartel and its NATO backer, so
+// without this the player's own mercenaries deploy hostile to their commander.
+// See TEST_fnc_setupScenario.
+TEST_alignPlayerSide = true;
 
-// Force the marker color to Blue to distinguish it visually on the interface
-(_blueArmy get "marker") setMarkerColor "ColorBLUE";
+// Named rosters: [_menSpec, _vehicleSpec]. Each entry is "className" or
+// ["className", count]. The first man listed leads.
+//
+// Rosters are named rather than written inline so the same force appears in
+// every scenario and every engagement that uses it. A battle is only worth
+// replaying if what fought it did not quietly change between runs.
+//
+// The cartel roster still uses O_ unit classes, so these men wear CSAT kit
+// while fighting for the cartel on WEST - cosmetic only, since createUnit
+// takes the group's side, and the real fix is a cartel-flavoured loadout set
+// (phase 3.11), not a different stock faction.
+TEST_rosters = createHashMapFromArray [
+    ["mercVanguard", [
+        ["B_T_Soldier_SL_F", "B_T_Soldier_F", "B_T_Soldier_AR_F"],
+        ["B_T_MRAP_01_gmg_F"]
+    ]],
+    ["cartelPatrol", [
+        ["O_T_Soldier_SL_F", "O_T_Soldier_F", "O_T_Soldier_AR_F"],
+        ["O_MBT_02_cannon_F"]
+    ]]
+];
 
-// Register to the global array activeArmies
-activeArmies pushBack _blueArmy;
+// Placeholder siting, carried over unchanged from the armies these replace.
+TEST_playerSpawn = [7774.82, 8842.66, 0];
+TEST_cartelSpawn = [8464.34, 9907.8, 0];
+
+// The close variant: the same bearing off the player spawn, pulled in to
+// 800 m. That is inside TACT_contactRadius, so the pair engages, and it leaves
+// each army 400 m from the midpoint - comfortably inside TACT_boundaryRadius,
+// which matters because a battle that opens with either side already outside
+// its own boundary ends instantly.
+TEST_cartelSpawnClose = TEST_playerSpawn vectorAdd
+    ((TEST_playerSpawn vectorFromTo TEST_cartelSpawn) vectorMultiply 800);
+
+// Starting states, built by TEST_fnc_setupScenario. Each is a list of army
+// specs, and an army spec is [name, faction, position, roster].
+//
+// A scenario owns armies and nothing else. Locations are campaign data and are
+// seeded below whichever scenario is running.
+TEST_scenarios = createHashMapFromArray [
+    ["sandbox", [
+        ["BLU_Merc_Vanguard", "player", TEST_playerSpawn, "mercVanguard"]
+    ]],
+    ["skirmish", [
+        ["BLU_Merc_Vanguard", "player", TEST_playerSpawn, "mercVanguard"],
+        ["O_Cartel_Patrol",   "drugLords", TEST_cartelSpawn, "cartelPatrol"]
+    ]],
+    ["contact", [
+        ["BLU_Merc_Vanguard", "player", TEST_playerSpawn, "mercVanguard"],
+        ["O_Cartel_Patrol",   "drugLords", TEST_cartelSpawnClose, "cartelPatrol"]
+    ]]
+];
+
+// Named engagements for TEST_fnc_spawnBattle: a pair of army specs that is
+// spawned straight into a battle, bypassing the turn entirely - no planning
+// phase, no order, no march, no contact detection.
+TEST_engagements = createHashMapFromArray [
+    ["openField", [
+        ["BLU_Merc_Vanguard", "player", TEST_playerSpawn, "mercVanguard"],
+        ["O_Cartel_Patrol",   "drugLords", TEST_cartelSpawnClose, "cartelPatrol"]
+    ]]
+];
+
+// Which engagement SHIFT+B spawns. See the key handler in block 2.
+TEST_defaultEngagement = "openField";
+
+// Build the starting state. Everything above is data; this is the only line
+// here that does anything.
+[TEST_scenario] call TEST_fnc_setupScenario;
 
 // ------------------------------------------------------------------------- //
-// 2. INITIALIZE RED ARMY (CARTEL FORCES, WEST)                               //
-// ------------------------------------------------------------------------- //
-// The cartel now spawns on WEST per section 8. The roster still uses O_ unit
-// classes, so these men wear CSAT kit while fighting for the cartel - cosmetic
-// only, since createUnit takes the group's side, and the real fix is a
-// cartel-flavoured loadout set (phase 3.11), not a different stock faction.
-private _redSpawnPos = [8464.34, 9907.8, 0];
-
-// Generate the base data-driven HashMap
-private _redArmy = ["O_Cartel_Patrol", _redSpawnPos, nil, "ColorRED", nil, "drugLords"] call STRAT_fnc_generateArmy;
-
-// Fill the roster: Add 3 men (1 Leader, 2 Sicarios) and 1 Vehicle
-[_redArmy, "O_T_Soldier_SL_F", true] call STRAT_fnc_addMan;
-[_redArmy, "O_T_Soldier_F", false] call STRAT_fnc_addMan;
-[_redArmy, "O_T_Soldier_AR_F", false] call STRAT_fnc_addMan;
-[_redArmy, "O_MBT_02_cannon_F"] call STRAT_fnc_addVehicle;
-
-// Register to the global array activeArmies
-activeArmies pushBack _redArmy;
-
-// ------------------------------------------------------------------------- //
-// 3. STRATEGIC LOCATIONS                                                     //
+// STRATEGIC LOCATIONS                                                        //
 // ------------------------------------------------------------------------- //
 // Minimal per build plan 1.2: enough of a record for set-piece battles to be
 // built against. Owning a location does nothing else yet - no per-location
@@ -203,9 +262,10 @@ activeArmies pushBack _redArmy;
 // model never sees them; only a set-piece battle reads them.
 STRAT_locations = createHashMap;
 
-// Placeholder siting. The position is picked off the two test armies' spawns
-// so the seed location sits on ground they already traverse; real campaign
-// locations get sited on actual Tanoa settlements when set-piece work lands.
+// Placeholder siting. The position is picked off the harness spawns above so
+// the seed location sits on ground the test armies already traverse; real
+// campaign locations get sited on actual Tanoa settlements when set-piece work
+// lands.
 private _plantation = [
     "tanoa_plantation_north",
     "plantation",
@@ -233,16 +293,31 @@ onMapSingleClick { _this call STRAT_fnc_onMapClick };
 
 // SPACE commits the block. Planning closes on this key and there is no input
 // again until resolution ends.
+//
+// SHIFT+B is the test harness (build plan 1.5): it clears the map and spawns
+// TEST_defaultEngagement straight into a battle, no turn required. The harness
+// is expected to be used several hundred times during phase two, so it is one
+// key rather than a debug-console paste. It takes SHIFT because an unmodified
+// key would put a whole engagement on the ground on a mis-press.
 (findDisplay 46) displayAddEventHandler ["KeyDown", {
-    params ["_display", "_key"];
+    params ["_display", "_key", "_shift"];
 
     // DIK 57 = Space
-    if (_key == 57 && {STRAT_turnPhase == "planning"}) then {
+    if (_key == 57 && {STRAT_turnPhase == "planning"}) exitWith {
         call STRAT_fnc_commitTurn;
         true    // Consume the key so it does not also reach the player unit
-    } else {
-        false
     };
+
+    // DIK 48 = B
+    if (_key == 48 && {_shift} && {STRAT_turnPhase == "planning"}) exitWith {
+        // Anchored on the player so the fight opens where they are standing
+        // and can be watched without driving to it. Pass no anchor to fight it
+        // at the coordinates the engagement names instead.
+        [TEST_defaultEngagement, getPosATL player] call TEST_fnc_spawnBattle;
+        true
+    };
+
+    false
 }];
 
 // Contact detection is no longer a background thread. TACT_fnc_detectContact

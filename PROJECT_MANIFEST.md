@@ -84,6 +84,10 @@ disposition is deferred. See section 10.
 
 - **`STRAT_fnc_*`** — strategic layer. Lives in `functions\<domain>\`.
 - **`TACT_fnc_*`** — tactical layer, battle lifecycle. Lives in `functions\battle\`.
+- **`TEST_fnc_*`** — test harness. Lives in `functions\test\`. Neither layer,
+  and deliberately a third prefix: everything under it is scaffolding for
+  development and comes out in one piece. Nothing in `STRAT_` or `TACT_` may
+  call it, and nothing in it may hold state the other two read.
 - All functions are registered in `description.ext` under `CfgFunctions`.
 - File naming is `fn_<name>.sqf`, matching the class entry.
 - Every function carries a header block: purpose, params, return.
@@ -114,6 +118,8 @@ functions/
                              fn_drawBoundary, fn_resolveVictory,
                              fn_concludeBattle, fn_syncBack
                              (planned) fn_captureLoop, fn_autoResolve
+  test/                      fn_buildArmy, fn_clearArmies, fn_setupScenario,
+                             fn_spawnBattle
 ```
 
 ---
@@ -772,6 +778,13 @@ being made, across every force at once.
 - Derived army fatigue: `STRAT_fnc_armyFatigue` curves per-soldier `exertion`
   and averages it into a 0–1 army value, recomputed on demand rather than
   stored. Returns 0 for everything until accumulation lands.
+- Test harness (`TEST_fnc_*`). Named rosters, named starting states and named
+  engagements, all declared as data in `init.sqf`. `TEST_fnc_setupScenario`
+  builds what a session boots into; `TEST_fnc_spawnBattle` drops a fixed
+  engagement straight into a battle with no turn around it, bound to SHIFT+B.
+  The two hand-built armies that used to sit in `init.sqf` are now the
+  `skirmish` scenario, and `sandbox` — one player army, nothing hostile — is
+  the default.
 
 **Needs conversion to turn-based**
 
@@ -869,8 +882,6 @@ the enforced one cannot drift apart.
   favor accrual itself are phase 3.7. The starting favor balance is a
   placeholder stake so phase two has something to spend.
 - Money, manpower, recruitment, wages.
-- Battle test harness — spawn a named engagement with fixed rosters, bypassing
-  the turn. Phase 1.
 - Location capture, ownership transfer, per-location benefits, and local
   opinion. The record deliberately carries no `opinion` key until then.
 - Naval and air movement (mandatory on an archipelago — road pathfinding cannot
@@ -995,9 +1006,38 @@ garrison roster unchanged. Nothing accumulates yet, so every army currently
 reports 0. The three curve constants are in `init.sqf` and are untuned
 placeholders — fatigue is tuned in phase two against played battles.
 
-1.5 **Battle test harness.** Spawn a named engagement directly with fixed
-rosters, no turn required. Roughly an hour of work, used several hundred times
-during phase two.
+~~1.5 **Battle test harness.**~~ **Done.** `TEST_fnc_spawnBattle` opens a named
+engagement from `TEST_engagements` with no turn around it — no planning phase,
+no order, no march, no contact detection — and runs it through
+`buildEngagement` → `initiateBattle` → `runBattle` → `concludeBattle`
+unchanged, so what the harness tests is what ships. Bound to SHIFT+B, anchored
+on the player so the fight opens where they are standing. It closes input for
+its duration through `STRAT_turnPhase` and reopens planning when the fight
+ends.
+
+Around it, the boot state is data rather than code. `TEST_rosters`,
+`TEST_scenarios` and `TEST_engagements` are declared in `init.sqf` and built by
+`TEST_fnc_setupScenario`; the two armies that used to be spawned by hand there
+are now the `skirmish` scenario. Three states ship: `sandbox` (one player army,
+nothing hostile anywhere), `skirmish` (out of contact), `contact` (inside
+`TACT_contactRadius`, so the first committed block opens a battle). `sandbox`
+is the default — the strategic layer with the battle layer taken out from under
+it, for working on orders and routes without a fight interrupting. It needs no
+hidden enemy to stand up: `fn_detectContact` pairs armies off against each
+other and finds nothing to pair, and `fn_resolveTurn` marches a single army
+perfectly well.
+
+Two things came out of it that were not harness work. `fn_beginPlanning`
+guarded on `STRAT_turnPhase == "resolving"` — the flag it is itself the only
+writer of back to `"planning"` — so it refused to reopen planning after the
+first commit and the campaign accepted exactly one order. It now guards on
+`STRAT_resolutionRunning`, which `fn_resolveTurn` clears before handing over.
+And the `mission.sqm` avatar starts on WEST, which section 8 gives to the
+cartel, so the player's own mercenaries deployed hostile to their commander;
+`TEST_fnc_setupScenario` rejoins the avatar to the commanding faction's side,
+under `TEST_alignPlayerSide`. That belongs in `mission.sqm` eventually — it is
+in the harness because that is where it is currently needed and where it is
+cheap to remove.
 
 1.6 **Campaign draw layer, and armies off markers.** Attachment lifecycle on
 map open, `STRAT_fnc_buildDrawList`, `STRAT_fnc_drawCampaignLayer`, and

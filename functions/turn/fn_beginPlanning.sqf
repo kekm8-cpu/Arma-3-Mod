@@ -18,7 +18,18 @@
 		       resolving.
 */
 
-if (STRAT_turnPhase == "resolving") exitWith {
+// The guard asks whether a block is actually still in flight, not what the
+// phase flag says. It used to read STRAT_turnPhase, which this function is
+// itself the only thing that ever sets back to "planning" - so the first
+// commit set the phase to "resolving", resolution ended, and this refused to
+// reopen planning on the grounds of the flag it was about to clear. Nothing
+// else writes the flag, so the campaign stopped accepting orders after one
+// block.
+//
+// STRAT_fnc_resolveTurn clears STRAT_resolutionRunning immediately before
+// calling STRAT_fnc_advanceClock, which calls this, so by the time control
+// arrives here the block genuinely is over.
+if (!isNil "STRAT_resolutionRunning" && {STRAT_resolutionRunning}) exitWith {
 	diag_log "STRAT Turn: beginPlanning refused, a block is still resolving.";
 	false
 };

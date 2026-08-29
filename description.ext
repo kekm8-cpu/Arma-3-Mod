@@ -41,6 +41,19 @@ class CfgFunctions {
             class onMapClick {};
         };
     };
+    // Build plan 1.5. Harness only: named rosters, named starting states, and
+    // a named engagement spawned straight into a battle without a turn. It is
+    // a third prefix on purpose - it is neither strategic nor tactical layer,
+    // and keeping it separate is what makes it removable in one piece.
+    class TEST {
+        class Harness {
+            file = "functions\test";
+            class buildArmy {};
+            class clearArmies {};
+            class setupScenario {};
+            class spawnBattle {};
+        };
+    };
     class TACT {
         class Battle {
             file = "functions\battle";
