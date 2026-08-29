@@ -92,7 +92,8 @@ init.sqf                     World bootstrap, side relations, event hooks
 mission.sqm                  Player start
 functions/
   army/                      fn_generateArmy, fn_addMan, fn_addVehicle,
-                             fn_areHostile, fn_factionSide
+                             fn_areHostile, fn_factionSide, fn_armyFatigue
+  favor/                     fn_addAggression, fn_spendFavor
   location/                  fn_createLocation, fn_getLocation,
                              fn_addGarrisonMan, fn_addGarrisonVehicle
   movement/                  fn_calculateRoadPath, fn_moveArmyAlongPath
@@ -297,6 +298,11 @@ deployment reads it from there to compute facing (section 10.1), so
 
 `className`, `health` (1.0 = healthy), `skill`, `isLeader`, `obj` (objNull when
 not deployed), `exertion`, `hoursSinceSleep`.
+
+`exertion` and `hoursSinceSleep` are present and default to 0. Nothing writes
+to them yet — accumulation is 2.6 and the sleep cycle is 3.10 — but
+`STRAT_fnc_armyFatigue` already derives an army-level value from `exertion`, so
+deployment has something to read.
 
 *Planned additions:* `name`, `xp`/`rank`, `loadout`, `woundState`, `captureInfo`
 (when, where, from which faction).
@@ -644,6 +650,13 @@ after the initial exchange.
   `STRAT_locations` and looked up by id with `STRAT_fnc_getLocation`.
   `STRAT_fnc_addGarrisonMan` / `addGarrisonVehicle` delegate to the army
   roster builders, so a garrison holds identical soldier and vehicle records.
+- Favor economy hooks: `STRAT_natoAggression` and `STRAT_csatFavor` balances,
+  `STRAT_fnc_addAggression` (accrual only; decay is an upkeep tick) and
+  `STRAT_fnc_spendFavor` (all-or-nothing debit). Call points only — no
+  triggers, no catalogue, no menu.
+- Derived army fatigue: `STRAT_fnc_armyFatigue` curves per-soldier `exertion`
+  and averages it into a 0–1 army value, recomputed on demand rather than
+  stored. Returns 0 for everything until accumulation lands.
 
 **Needs conversion to turn-based**
 
@@ -704,13 +717,18 @@ the enforced one cannot drift apart.
   they depend on now exist; what is missing is the battle type, not the data.
 - Prisoner records and holding.
 - Ambush order type and deployment.
-- Fatigue accumulation and its effects. `fn_applyUpkeep` holds the per-block
-  and per-day hook points it attaches to.
+- Fatigue accumulation and its effects. The soldier keys, the derived army
+  value, and the `fn_applyUpkeep` hook points all exist; what is missing is
+  anything that writes `exertion`, the skill and morale modifiers at
+  deployment, and the projection at planning time. Curve constants are
+  untuned.
 - Stronghold definition and frontier gating.
 - Route exposure and interception.
-- CSAT Favor and NATO Aggression. The balances and the
-  `STRAT_fnc_addAggression` / `STRAT_fnc_spendFavor` hooks are phase 1 work;
-  accrual triggers, decay, display, and the spend menu are phase 3.
+- CSAT Favor and NATO Aggression beyond the hooks. The balances and the
+  `STRAT_fnc_addAggression` / `STRAT_fnc_spendFavor` call points are in;
+  accrual triggers, decay, display, the spend menu, the asset catalogue, and
+  favor accrual itself are phase 3.7. The starting favor balance is a
+  placeholder stake so phase two has something to spend.
 - Money, manpower, recruitment, wages.
 - Battle test harness — spawn a named engagement with fixed rosters, bypassing
   the turn. Phase 1.
@@ -822,18 +840,21 @@ with CSAT, onto WEST with their NATO backer.
 into the `STRAT_locations` registry. Garrison rosters reuse the army record
 builders. `opinion` and per-location benefits stay deferred to 3.8.
 
-1.3 **Favor and aggression accrual hooks.** Balances plus
-`STRAT_fnc_addAggression` and `STRAT_fnc_spendFavor`. **Not** the economy, not
-the spend menu, not the accrual triggers themselves. Aggression accrues from
-tactical conduct and favor assets are called in *during* battles, so a battle
-layer built with nothing to report to means retrofitting every
-explosive-ordnance and support-call path. Same staging pattern as fatigue:
-skeleton early, implementation deferred.
+~~1.3 **Favor and aggression accrual hooks.**~~ **Done.**
+`STRAT_natoAggression` and `STRAT_csatFavor` balances, plus
+`STRAT_fnc_addAggression` and `STRAT_fnc_spendFavor` as the two call points the
+battle layer needs. Aggression only rises through the hook — decay is an upkeep
+tick, and `fn_applyUpkeep` names the slot. No `addFavor`: its triggers are
+strategic, so nothing gets retrofitted by leaving that direction to 3.7. The
+economy, the spend menu, the asset catalogue and the accrual triggers all stay
+deferred.
 
-1.4 **Derived army fatigue value.** One function over the soldier records,
-returning an army-level number. No accumulation yet. Deployment (lifecycle
-stage 7) applies fatigue as skill and morale modifiers and needs something to
-read.
+~~1.4 **Derived army fatigue value.**~~ **Done.** `STRAT_fnc_armyFatigue`
+curves each soldier's `exertion` and averages, returning 0–1. Derived on
+demand, never stored, so merges and splits need no invalidation; it reads a
+garrison roster unchanged. Nothing accumulates yet, so every army currently
+reports 0. The three curve constants are in `init.sqf` and are untuned
+placeholders — fatigue is tuned in phase two against played battles.
 
 1.5 **Battle test harness.** Spawn a named engagement directly with fixed
 rosters, no turn required. Roughly an hour of work, used several hundred times

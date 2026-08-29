@@ -35,7 +35,13 @@ private _soldierObject = createHashMapFromArray [
     ["health", 1.0],       // 1.0 = Fully healthy, matching engine's 1 - damage paradigm
     ["skill", _defaultSkill],
     ["isLeader", _isLeader],
-	["obj", objNull]
+	["obj", objNull],
+	// Fatigue lives on the soldier, not the army, so detachments can merge and
+	// split without inheriting each other's condition (section 6). Nothing
+	// accumulates into these yet - that is build plan 2.6 - but
+	// STRAT_fnc_armyFatigue already derives an army-level value from them.
+	["exertion", 0],        // Hours of foot movement carried, reset by sleep
+	["hoursSinceSleep", 0]  // Unread until the 24h cycle lands (3.10)
 ];
 
 // 3. Extract the army's structural "men" array pointer

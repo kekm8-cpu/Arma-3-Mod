@@ -7,6 +7,12 @@ class CfgFunctions {
             class addVehicle {};
             class areHostile {};
             class factionSide {};
+            class armyFatigue {};
+        };
+        class Favor {
+            file = "functions\favor";
+            class addAggression {};
+            class spendFavor {};
         };
         class Location {
             file = "functions\location";

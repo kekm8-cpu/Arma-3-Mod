@@ -72,6 +72,46 @@ STRAT_resolutionRunning = false;       // Guards against a double commit
 setTimeMultiplier 0.1;
 
 // ------------------------------------------------------------------------- //
+// FAVOR ECONOMY BALANCES                                                     //
+// ------------------------------------------------------------------------- //
+// Two mirrored currencies (pillar 2). Only the balances and the two call
+// points the battle layer needs exist yet - STRAT_fnc_addAggression and
+// STRAT_fnc_spendFavor. Accrual triggers, decay, display and the spend menu
+// are phase 3.7, and the asset catalogue with them.
+
+// Accrues from the player's own tactical conduct and pays out to the
+// druglords. Starts clean: nothing has been done yet.
+STRAT_natoAggression = 0;
+
+// Spent on rare CSAT vehicles, airstrikes, spec-ops backup and intel.
+//
+// PLACEHOLDER. Favor is earned by completing CSAT objectives and by restraint,
+// neither of which exists until 3.7, so a zero balance would leave every
+// support-call path built in phase two untestable. This is a starting stake to
+// spend against during the deep dive, not an economy decision.
+STRAT_csatFavor = 100;
+
+// ------------------------------------------------------------------------- //
+// FATIGUE CURVE                                                              //
+// ------------------------------------------------------------------------- //
+// Read by STRAT_fnc_armyFatigue to turn per-soldier exertion into an
+// army-level 0..1 value. Nothing accumulates into exertion yet (build plan
+// 2.6), so every army currently reports 0; these shape the curve for when it
+// does.
+//
+// UNTUNED. Fatigue is tuned in phase two against played battles - its whole
+// visible effect is on the battlefield, so the numbers cannot be settled in
+// the abstract. The shape is section 6's: free below a threshold, gentle for
+// the first hour past it, steepening after.
+//
+// At these values a soldier reads roughly 0.02 fatigued after two hours on
+// foot, 0.18 after four (one full block of marching), 0.51 after six, and
+// fully spent at eight.
+STRAT_fatigueFreeHours  = 1;   // Exertion below this costs nothing
+STRAT_fatigueSpentHours = 8;   // Exertion at or above this is fully spent
+STRAT_fatigueCurvePower = 2;   // >1 steepens; 1 would be a flat ramp
+
+// ------------------------------------------------------------------------- //
 // BATTLE STATE                                                               //
 // ------------------------------------------------------------------------- //
 
