@@ -24,6 +24,11 @@
 		replaced - and a teardown that has to be guarded by its callers is a
 		teardown that will eventually run twice.
 
+		It also gives back what the drill borrowed rather than owned. The icon
+		probe seeds STRAT_drawTextureCache, which the campaign layer reads too,
+		so the seeded keys come back out here - by the list the drill recorded,
+		not by the switch that set it.
+
 	Parameters:
 		none
 
@@ -107,6 +112,30 @@ if (!isNil "TEST_drillHostile" && {!isNull TEST_drillHostile}) then {
 };
 
 [[0,0,0], false] call TACT_fnc_drawBoundary;
+
+// The icon probe, which is the drill's for as long as the drill runs and the
+// campaign layer's again the moment it does not. STRAT_drawTextureCache is
+// shared, so the seeded keys are DELETED rather than overwritten with the real
+// paths: deleting leaves STRAT_fnc_mapIconTexture to resolve them out of config
+// on its next call, which is the same path a cold cache takes and therefore the
+// one thing that cannot leave a wrong value behind.
+//
+// Driven off the list the drill recorded rather than off TEST_iconProbeEnabled.
+// The switch can be flipped while a drill is running; what was seeded cannot
+// change underneath us, and a teardown that reads the switch would leave white
+// squares in the cache for the rest of the mission.
+if (!isNil "TEST_iconProbePrimed" && {count TEST_iconProbePrimed > 0}) then {
+	if (!isNil "STRAT_drawTextureCache") then {
+		{ STRAT_drawTextureCache deleteAt _x } forEach TEST_iconProbePrimed;
+	};
+
+	diag_log format [
+		"TEST Harness: icon probe off - %1 classes back to CfgMarkers artwork.",
+		count TEST_iconProbePrimed
+	];
+
+	TEST_iconProbePrimed = [];
+};
 
 // ------------------------------------------------------------------------ //
 // 4. BACK TO THE STRATEGIC MAP                                              //

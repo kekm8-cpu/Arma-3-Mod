@@ -1302,6 +1302,19 @@ the enforced one cannot drift apart.
 - `drawIcon`'s text size is fed in world metres like its width and height, so
   labels scale with the icons. Along with `STRAT_drawIconScreenSize` itself,
   that number wants an eyeball pass in game against a real zoom range.
+- The command layer currently draws its labels and none of its silhouettes. The
+  `squadFour` drill puts `YOU` and the slot numbers on the map with nothing
+  above them, and there are exactly two explanations: the CfgMarkers texture is
+  not resolving, or the icon is being drawn at a metre size the zoom does not
+  survive. They cannot be told apart by looking, because an icon and its label
+  are the same `drawIcon` call through the same `STRAT_fnc_mapUnitMetres`
+  figure and differ only in the texture and the size argument.
+  `TEST_iconProbeEnabled` settles it: it seeds `STRAT_drawTextureCache` with a
+  procedural white square - the one texture that cannot fail to resolve - so
+  squares appearing indicts the texture path and squares still absent indicts
+  the scale. It seeds the cache rather than editing `STRAT_fnc_mapIconTexture`,
+  because a resolver edited to return a square is no longer the resolver under
+  test.
 
 **Not started**
 - Post-battle march for a repulsed army. Survivors of every other outcome

@@ -35,6 +35,16 @@
 		both sides, and a side that is nil is a different kind of absent from a
 		side with no men in it.
 
+		Section 6 is the one exception to "does not fake the layer it is
+		testing", and it is bounded on purpose. With TEST_iconProbeEnabled set
+		it seeds STRAT_drawTextureCache so the command layer's silhouettes draw
+		as plain squares, which separates a texture that will not resolve from
+		an icon drawn too small to see - the two explanations for a map showing
+		its labels and none of its icons. It substitutes the texture and
+		nothing else: the resolver, the draw list and the renderer run exactly
+		as they ship, which is what makes the result mean anything. The cache is
+		shared with the campaign layer, so TEST_fnc_endDrill hands it back.
+
 	Parameters:
 		0: STRING or ARRAY - drill name in TEST_drills, or an inline army spec
 		   (see TEST_fnc_buildArmy)
@@ -245,5 +255,65 @@ hint format [
 	"DRILL - %1\n\nM opens the map. With it closed the stock squad bar and commanding menu are the interface; with it open they go away and the command map is. Nothing is switched by hand.\n\nOn the map:\n  click a unit       select it\n  CTRL + click       add one, or take one back out\n  click the ground   move the selection\n\nYou are the yellow icon, and are never selectable. SHIFT+B ends the drill and hands the map back to the campaign layer.",
 	_army get "name"
 ];
+
+// ------------------------------------------------------------------------ //
+// 6. THE ICON PROBE                                                         //
+// ------------------------------------------------------------------------ //
+// Off unless TEST_iconProbeEnabled says otherwise, and the reasoning for it is
+// with the switch in init.sqf. In short: the command layer is drawing its
+// labels and none of its silhouettes, an icon and its label are the same
+// drawIcon call differing in two arguments, and this rules one of the two out.
+//
+// STRAT_fnc_mapIconTexture answers out of STRAT_drawTextureCache before it
+// reads config, so seeding that cache substitutes the texture without the
+// resolver, the draw list or the renderer knowing anything happened. That is
+// the point: the probe must not change the path it is measuring. A resolver
+// edited to return a square would be testing an edited resolver.
+//
+// Seeded here rather than at boot because the cache is shared with the
+// campaign layer. A drill owns it for as long as the drill runs, and
+// TEST_fnc_endDrill hands it back.
+//
+// Last, after the drop-in has succeeded, because TEST_fnc_endDrill is what
+// unseeds it and the failure paths above never reach it. Seeded before that
+// guard, an abandoned drill would leave white squares in a cache the
+// campaign map goes on reading for the rest of the mission.
+if (!isNil "TEST_iconProbeEnabled" && {TEST_iconProbeEnabled}) then {
+
+	// Every class the command layer can ask for. The first three are named by
+	// TACT_fnc_buildCommandList itself - b_hq for the commander, b_inf and
+	// b_armor for a command entity on foot or mounted - and the rest are the
+	// faction silhouettes a collapsed group icon reads. A drill has no allies
+	// and no second group of its own, so those last ones are unused today;
+	// they are seeded anyway, because a probe that covers what the layer can
+	// draw rather than what this drill happens to draw does not need revisiting
+	// the first time a drill grows a second group.
+	private _classes = ["b_hq", "b_inf", "b_armor"];
+
+	{
+		if (!(_y in _classes)) then { _classes pushBack _y };
+	} forEach STRAT_drawFactionIcon;
+
+	if (isNil "STRAT_drawTextureCache") then { STRAT_drawTextureCache = createHashMap };
+
+	{
+		STRAT_drawTextureCache set [_x, TEST_iconProbeTexture];
+	} forEach _classes;
+
+	// What was actually seeded, so the teardown removes this list rather than
+	// a second copy of it written out by hand and free to disagree.
+	TEST_iconProbePrimed = +_classes;
+
+	diag_log format [
+		"TEST Harness: icon probe on - %1 classes drawing as plain squares (%2).",
+		count _classes,
+		_classes
+	];
+
+	// Said on screen as well as in the log, because the probe changes what the
+	// map means. A tester who sees squares and does not know why has been given
+	// a second bug to chase rather than an answer to the first one.
+	systemChat "DRILL - icon probe ON: command icons are plain squares, not artwork.";
+};
 
 _record

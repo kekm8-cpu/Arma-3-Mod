@@ -659,6 +659,56 @@ TEST_drills = createHashMapFromArray [
 TEST_bootDrill = "squadFour";
 
 // ------------------------------------------------------------------------- //
+// THE ICON PROBE                                                             //
+// ------------------------------------------------------------------------- //
+// ON, because the question it answers is open. Turned on, a drill draws its
+// command icons as plain white squares instead of the CfgMarkers artwork, and
+// it exists to answer one question: the squadFour drill draws its labels - YOU
+// and the slot numbers - and no silhouettes at all. Is the texture failing to
+// resolve, or is the icon being drawn too small to see?
+//
+// The two are indistinguishable from the map. An icon and its label are the
+// same drawIcon call in STRAT_fnc_drawItems scaled by the same
+// STRAT_fnc_mapUnitMetres figure, and they differ in only two arguments -
+// the texture and the size - so a legible label beside an absent icon has
+// exactly two explanations and no way to tell them apart by looking.
+//
+// The probe removes one of them. A procedural colour is the one texture that
+// cannot fail to resolve, whatever the engine does with a path it dislikes,
+// so with this on:
+//
+//   white squares appear    the texture path was the fault. Look at
+//                           STRAT_fnc_mapIconTexture and its CfgMarkers lookup.
+//   still nothing           the texture was never the fault. The icons are
+//                           being drawn at a size that does not survive the
+//                           zoom, which is STRAT_drawIconScreenSize - flagged
+//                           UNTUNED where it is set, and due the eyeball pass
+//                           section 15 asks for.
+//
+// It works by priming STRAT_drawTextureCache rather than by editing the
+// resolver. STRAT_fnc_mapIconTexture answers out of that cache before it ever
+// reads config, so seeding the classes the command layer asks for overrides
+// them for the drill and for nothing else. The campaign layer's own draw is
+// untouched: TEST_fnc_endDrill removes exactly the keys the drill seeded, and
+// the next lookup resolves the real artwork again.
+//
+// Instrumentation, like the vehicle probe below. Set back to false the moment
+// the question is answered - a drill left running on white squares is testing
+// the probe rather than the interface.
+TEST_iconProbeEnabled = true;
+
+// The square itself. Fully opaque white, so the item's own colour comes
+// through it - a yellow commander and three blue riflemen still read as a
+// commander and three riflemen, which keeps the probe a texture test and not a
+// colour test as well.
+TEST_iconProbeTexture = "#(argb,8,8,3)color(1,1,1,1)";
+
+// Which classes the drill seeds, filled in by TEST_fnc_spawnDrill and read
+// back by TEST_fnc_endDrill so the teardown removes what was actually put in
+// rather than a list written twice.
+TEST_iconProbePrimed = [];
+
+// ------------------------------------------------------------------------- //
 // THE VEHICLE PROBE                                                          //
 // ------------------------------------------------------------------------- //
 // OFF by default, and settled. These are the instruments the side
