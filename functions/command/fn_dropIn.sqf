@@ -153,6 +153,16 @@ _unit addEventHandler ["Killed", {
 TACT_commandActive    = true;
 TACT_commandSelection = [];
 TACT_commandArmyId    = _army get "id";
+TACT_commandMenuOpen  = false;
+
+// A battle starts with no detachments and the naming starts at one. Both are
+// cleared HERE rather than in TACT_fnc_dropOut, because dropping out is not
+// the end of a detachment: a commander who is killed leaves his detachments
+// on the field, still his army's men, still counted, still fighting.
+// TACT_fnc_concludeBattle is what ends them, because that is what ends the
+// battle.
+TACT_commandDetachments = [];
+TACT_commandDetachCount = 0;
 
 
 diag_log format [

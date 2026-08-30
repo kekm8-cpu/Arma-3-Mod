@@ -60,6 +60,11 @@ if (!isNull TACT_campaignAvatar && {TACT_campaignAvatar != player}) then {
 TACT_commandSelection = [];
 TACT_commandArmyId    = "";
 
+// The context menu goes with the selection it addressed. The detachments do
+// NOT: they are the army's men and they outlive the commander - see
+// TACT_fnc_dropIn, which is where that list is cleared.
+TACT_commandMenuOpen  = false;
+
 // The squad bar was hidden for the map's command mode.
 [false] call TACT_fnc_setCommandHud;
 

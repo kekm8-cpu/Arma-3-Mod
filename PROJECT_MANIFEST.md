@@ -1211,6 +1211,33 @@ happening underneath interface work.
   `TACT_fnc_setCommandHud` hides the bar, the commanding menu and the engine's
   friendly map icons, and `TACT_fnc_onCommandClick` takes over: click an icon
   to select, CTRL to add or remove, click terrain to move the selection.
+  The RIGHT button asks what can be done with the selection instead of changing
+  it. `TACT_fnc_openContextMenu` opens a panel of rows at the click;
+  `TACT_fnc_runContextOption` runs one and closes it. Two options are always
+  there — **Stop** (`TACT_fnc_issueStopOrder`, `doStop`: hold here, out of
+  formation) and **Regroup** (`TACT_fnc_issueRegroup`, `doFollow`: resume your
+  place in the commander's formation, which also clears a standing `doMove`) —
+  and a third appears with two or more entities selected: **New Group**
+  (`TACT_fnc_splitGroup`), which splits them into a group of their own. Stop
+  and Regroup are a pair and neither is a toggle: the player says stop and the
+  unit is stopped, he says regroup and it is following, and there is no third
+  state where the same option means different things depending on what happened
+  last.
+  Right-click never changes the selection, on an icon or off one. Selection is
+  the left button's business, so a stray right-click cannot discard four
+  entities the player spent four clicks assembling, and an empty selection
+  opens nothing at all rather than a panel of dead rows.
+  The menu is **drawn from items, not built as a dialog** — rows sized and
+  placed in icon units off one world anchor, through `STRAT_fnc_drawItems` like
+  everything else, so it inherits the scaling law instead of reimplementing it
+  in a second coordinate space. Its geometry is two constants
+  (`TACT_commandMenuWidthUnits`, `TACT_commandMenuRowUnits`) with exactly two
+  readers: the draw in `fn_buildCommandList` and `TACT_fnc_contextMenuHit`,
+  which resolves both the click and the hover — so the row that lights up under
+  the pointer is provably the row that fires. While a menu is open it takes the
+  next click wherever it lands; a click away from it dismisses it and
+  deliberately does NOT fall through to a move order, because answering "not
+  that after all" by sending the men somewhere is the worst reading available.
   The layer draws four things: the player, each unit of his group, every other
   group on his side as one icon over its leader (`TACT_fnc_playerGroups`), and
   every allied group as one icon over its leader (`TACT_fnc_alliedGroups`).
@@ -1357,24 +1384,28 @@ the enforced one cannot drift apart.
   his record is dropped by sync-back like any other casualty. The army then has
   nobody flagged and its next battle runs watched from the map. Nothing
   promotes a replacement, because nothing should invent one.
-- Map command mode currently issues exactly one kind of order: send the
-  selection to a point. There are no chained waypoints, no held positions, and
-  no order at all for the group as a body. Chaining and holding were built
-  once, as a loop that watched for arrivals and re-issued `doMove`, and were
-  removed: the workaround needed guards against dragging men out of cover and
-  against overriding the stock squad bar, and every guard was another condition
-  under which commanding behaved differently. All three return as group-level
-  command, below, where the engine carries them natively.
+- Map command mode issues three orders to individuals — go to a point, hold
+  here, return to formation — and none at all to a body of men. Held ground for
+  one man is now real and is `doStop`, an engine state with `doFollow` as its
+  documented release, rather than the script that used to fake it: a loop that
+  watched for arrivals and re-issued `doMove`, removed because the workaround
+  needed guards against dragging men out of cover and against overriding the
+  stock squad bar, and every guard was another condition under which commanding
+  behaved differently. What is still missing is chained waypoints and any order
+  for a group as a body; both return with group-level command, below, where the
+  engine carries them natively.
 - Both collapsed-group passes draw nothing today, and that is a property of the
   battle model rather than of the passes. `fn_buildEngagement` takes exactly two
   armies, `fn_deployMen` spawns each as exactly one group, and contact detection
   requires hostility — so the only groups on a battlefield are the player's and
-  one enemy's, and both passes correctly emit nothing. Three things make
-  `fn_playerGroups` live, and the first is already planned: the detach that
-  group-level command needs anyway, where a half the player splits off stops
-  being command entities and becomes one icon the same frame; a second army of
-  his side arriving to reinforce; a garrison of his faction spawning into the
-  fight it is standing over. `fn_alliedGroups` goes live the day a battle can
+  one enemy's. `fn_alliedGroups` therefore still emits nothing.
+  `fn_playerGroups` no longer does: **"New Group" is the detach it was waiting
+  for**, and a detachment stops being command entities and becomes one collapsed
+  icon over its leader the same frame it is split — carrying the parent group's
+  `STRAT_faction` stamp, which `TACT_fnc_splitGroup` sets explicitly rather than
+  leaving to that pass's fallback. Two more cases will follow: a second army of
+  his side arriving to reinforce, and a garrison of his faction spawning into
+  the fight it is standing over. `fn_alliedGroups` goes live the day a battle can
   hold more than two armies and one of them is CSAT — which is also the day
   CSAT Favor buys something that shows up on the ground. The rule is encoded now
   because the detach lands into it for free, and because the alternative — every
@@ -1467,16 +1498,37 @@ the enforced one cannot drift apart.
   on the map, not implicit on ordering, so the split has a visible result and a
   stray click cannot fragment a squad.
 
-  Its prerequisite is a change to how a side's strength is measured.
-  `fn_resolveVictory` and `fn_concludeBattle` both read `units _attackerGroup` /
-  `units _defenderGroup`, so a detached squad silently stops being counted and
-  an army could be declared annihilated while a live detachment is still
-  fighting. Both must count living soldiers from the army record's `men` array
-  instead — which is what the "data records own the truth" invariant already
-  says, and is immune to regrouping. It is deliberately not done in advance:
-  with no detaching, the roster and the group are the same set, so changing the
-  victory logic today would be a no-op edit to the most consequence-heavy code
-  in the project.
+  **The detach itself is now built** — "New Group" on the context menu,
+  `TACT_fnc_splitGroup` — and what is left is the commanding of what it
+  produces. A detachment draws as one collapsed icon through `fn_playerGroups`,
+  and collapsed icons carry no hit area, so today it holds where it forms up
+  and takes no further orders: it is out of reach of the map, which cannot
+  click it, and out of reach of the stock F-key interface, which addresses one
+  group. **That is the one place the tactical layer is knowingly incomplete**,
+  and `fn_splitGroup` says so in `systemChat` at the moment of the split rather
+  than letting men quietly stop answering. Closing it is: a hit area on
+  `fn_playerGroups`' icons only — never `fn_alliedGroups`', which is the whole
+  reason the two lists are kept apart — a selection that can hold a group as
+  well as an object, `_group move` for a destination, waypoint chains for a
+  route, and Regroup extended to mean `join` back into the commander's group.
+
+  Its prerequisite is **done**. `fn_resolveVictory` and `fn_concludeBattle` both
+  read `units _attackerGroup` / `units _defenderGroup`, so a detached squad
+  silently stopped being counted and an army could be declared annihilated while
+  a live detachment was still fighting. Both now count living soldiers from the
+  army record's `men` array — an `obj` that is neither null nor dead — which is
+  what the "data records own the truth" invariant already said, is immune to
+  regrouping, and is the rule `fn_syncBack` had all along. A record with a null
+  `obj` was never deployed and is not counted: absent is not dead, the same
+  distinction sync-back makes. It was deliberately not done in advance, and it
+  landed with the detach that made it stop being a no-op.
+
+  Detachments are created `deleteWhenEmpty`, like a deployed army's group, so
+  the engine takes them the moment their last man dies or rejoins.
+  `TACT_commandDetachments` exists as the teardown backstop `fn_concludeBattle`
+  sweeps after sync-back, and it is cleared in `fn_dropIn` rather than
+  `fn_dropOut`: a commander who is killed leaves his detachments on the field,
+  still his army's men, still counted, still fighting.
 - Soldier names, progression, and loadout persistence.
 
 ---

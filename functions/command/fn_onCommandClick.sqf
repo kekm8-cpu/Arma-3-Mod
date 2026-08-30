@@ -11,6 +11,14 @@
 		  on terrain    - with units selected, a move order to exactly those
 		                  units. With nothing selected, nothing at all.
 
+		A third outcome sits in front of both: while the context menu is open
+		it takes the click wherever the click landed, running the row under it
+		or dismissing itself. A dismiss stops there and never falls through to
+		a move order - clicking away from a menu is how a player cancels, and
+		answering that with an order sends his men somewhere he was in the act
+		of not asking for. The menu is opened by the right button, through
+		TACT_fnc_openContextMenu, and this function only ever closes one.
+
 		A terrain click addresses whoever is selected, and an empty selection
 		addresses nobody. It does not fall back to the whole group: the player
 		leads that group, so the only order it can be given from the map is one
@@ -61,6 +69,29 @@ private _metresPerUnit = [_map] call STRAT_fnc_mapUnitMetres;
 if (_metresPerUnit <= 0) exitWith {
 	diag_log "TACT Command: click could not measure the map scale, ignored.";
 	false
+};
+
+// ------------------------------------------------------------------------ //
+// AN OPEN CONTEXT MENU TAKES THE CLICK, WHEREVER IT LANDED                  //
+// ------------------------------------------------------------------------ //
+// Before the hit test, and before the selection is touched. A menu is modal
+// over the map for exactly one click: it either runs a row or it is dismissed,
+// and it does neither and something else as well.
+//
+// The dismiss in particular does NOT fall through to the terrain click below.
+// Clicking away from a menu is how a player says "not that after all", and
+// answering it with a move order is the worst possible reading of it - the
+// units go somewhere he never asked for and the menu he was cancelling is what
+// told them to.
+if (!isNil "TACT_commandMenuOpen" && {TACT_commandMenuOpen}) exitWith {
+	private _row = [_position, _metresPerUnit] call TACT_fnc_contextMenuHit;
+
+	if (_row < 0) exitWith {
+		TACT_commandMenuOpen = false;
+		true
+	};
+
+	[(TACT_commandMenuOptions select _row) get "id"] call TACT_fnc_runContextOption
 };
 
 // One list, built once, used for the hit-test, the prune and the order. The

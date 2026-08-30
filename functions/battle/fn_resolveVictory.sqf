@@ -12,6 +12,11 @@
 		it has been repulsed. That is what makes withdrawal legible without a
 		separate "flee" mechanic.
 
+		Strength is read from each army's own `men` records rather than from
+		the group it deployed as, because those two are not the same set once
+		the player can detach men into a group of their own. See the counting
+		loop.
+
 		Conditions evaluated here: annihilation, breakthrough, repulse. The
 		battle clock is not read here - TACT_fnc_runBattle owns it and forces
 		the conclusion when a fight reaches its cap without either side
@@ -44,10 +49,9 @@ private _defender = _engagement get "defender";
 private _anchor   = _engagement get "boundaryAnchor";
 private _radius   = _engagement get "boundaryRadius";
 
-private _sides = [
-	[_attacker, _engagement get "attackerGroup"],
-	[_defender, _engagement get "defenderGroup"]
-];
+// The ARMIES, not their groups. Strength is counted off the record below and
+// the groups are not read here at all - see the loop for why.
+private _sides = [_attacker, _defender];
 
 // ------------------------------------------------------------------------ //
 // BATTLE CLOCK EXPIRY - MUTUAL DISENGAGE                                    //
@@ -76,9 +80,32 @@ private _alive = [];
 private _centroids = [];
 
 {
-	_x params ["_army", "_group"];
+	private _army = _x;
 
-	private _living = (units _group) select {alive _x};
+	// LIVING STRENGTH IS COUNTED OFF THE ARMY RECORD, not off the group it was
+	// deployed as. The two were the same set for as long as an army was one
+	// group; they stop being the same set the moment the player splits a
+	// detachment off on the map, and `units _group` would then miss every man
+	// in it. An army with half its men detached and fighting would read as half
+	// destroyed, and an army that detached everything would read as annihilated
+	// while it was winning.
+	//
+	// The record does not have that failure mode, because detaching does not
+	// touch it: a soldier record belongs to the army, and which group its body
+	// happens to be standing in is a fact about the battlefield rather than
+	// about the army. This is the "data records own the truth" invariant of
+	// section 12, and it is the same rule TACT_fnc_syncBack already reads by.
+	//
+	// A record with a null `obj` was never deployed - an infantry-only army
+	// that could not be placed, a man left behind - and is not on this field to
+	// be killed on it. Absent is not dead, which is exactly the distinction
+	// syncBack makes when it leaves those records untouched.
+	private _living = [];
+	{
+		private _obj = _x getOrDefault ["obj", objNull];
+		if (!isNull _obj && {alive _obj}) then { _living pushBack _obj };
+	} forEach (_army getOrDefault ["men", []]);
+
 	_alive pushBack (count _living);
 
 	// Centre of mass of what is still standing. An army with nobody left has
@@ -131,7 +158,7 @@ if (_attackerAlive == 0 || {_defenderAlive == 0}) exitWith {
 private _result = createHashMap;
 
 {
-	_x params ["_army", "_group"];
+	private _army = _x;
 	private _centroid = _centroids select _forEachIndex;
 
 	if (_centroid distance2D _anchor > _radius) exitWith {

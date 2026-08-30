@@ -24,13 +24,21 @@
 		  Draw            the campaign layer, which picks its own list by mode
 		  MouseButtonDown records where a press started
 		  MouseButtonUp   turns a press that did not travel into a click
+		  MouseMoving     tracks the cursor while a context menu is open
 
 		Mouse handling is split across down and up because the map's own
 		panning is a click and drag. Acting on the press would fire an order
 		every time the player grabbed the map to move it, so a click is a
 		release that landed close to where its press did. The handlers are also
 		where CTRL comes from: `onMapSingleClick` reports SHIFT and ALT and
-		nothing else, and command-mode selection needs CTRL.
+		nothing else, and command-mode selection needs CTRL - and where the
+		RIGHT button comes from, which `onMapSingleClick` does not report at
+		all. Both buttons go through the same press-and-travel test and then
+		split: left selects or orders, right opens the context menu.
+
+		The cursor handler writes one variable, and only while a menu is
+		open. It exists because a menu row that does not light up under the
+		pointer reads as a picture of a menu rather than as one.
 
 		While the map is open and the player is commanding, the stock squad bar
 		is hidden. It is checked every frame rather than switched once, so
@@ -85,7 +93,8 @@ STRAT_mapLayerRunning = true;
 		} forEach [
 			["Draw", "STRAT_campaignLayerEH"],
 			["MouseButtonDown", "STRAT_mapPressEH"],
-			["MouseButtonUp", "STRAT_mapReleaseEH"]
+			["MouseButtonUp", "STRAT_mapReleaseEH"],
+			["MouseMoving", "STRAT_mapMoveEH"]
 		];
 
 		private _drawId = _map ctrlAddEventHandler ["Draw", {
@@ -111,17 +120,28 @@ STRAT_mapLayerRunning = true;
 
 			private _commanding = !isNil "TACT_commandActive" && {TACT_commandActive};
 
-			// Left button only, command mode only, and only a release that
-			// landed on its own press - anything further is a pan, and a pan
-			// is not an order.
-			if (_commanding && {_button == 0} && {count _press == 3} && {(_press select 0) == 0}) then {
+			// Command mode only, the button it started on, and only a release
+			// that landed on its own press - anything further is a pan, and a
+			// pan is not an order. The travel guard covers the right button as
+			// well as the left: the map does not pan on the right today, but
+			// putting one button under a different law than the other is how
+			// the two end up behaving differently for reasons nobody
+			// remembers.
+			if (_commanding && {count _press == 3} && {(_press select 0) == _button}) then {
 				private _travel = sqrt (
 					(((_press select 1) - _x) ^ 2) + (((_press select 2) - _y) ^ 2)
 				);
 
 				if (_travel <= STRAT_mapClickSlop) then {
 					private _world = _control ctrlMapScreenToWorld [_x, _y];
-					[_world, _ctrl, _shift] call TACT_fnc_onCommandClick;
+
+					// The two buttons ask two different questions of the same
+					// selection: the left one changes it or orders it, the
+					// right one asks what can be done with it.
+					switch (_button) do {
+						case 0: { [_world, _ctrl, _shift] call TACT_fnc_onCommandClick };
+						case 1: { [_world] call TACT_fnc_openContextMenu };
+					};
 				};
 			};
 
@@ -129,7 +149,23 @@ STRAT_mapLayerRunning = true;
 		}];
 		_map setVariable ["STRAT_mapReleaseEH", _releaseId];
 
-		diag_log format ["STRAT Draw: map layer attached (draw %1, press %2, release %3).", _drawId, _pressId, _releaseId];
+		// Only while a menu is open, and only to write down where the
+		// pointer is. Which row lights up is not decided here -
+		// TACT_fnc_buildCommandList derives it every frame through
+		// TACT_fnc_contextMenuHit, the same function the click runs through,
+		// so the lit row and the fired row are one row.
+		private _moveId = _map ctrlAddEventHandler ["MouseMoving", {
+			params ["_control", "_x", "_y"];
+
+			if (!isNil "TACT_commandMenuOpen" && {TACT_commandMenuOpen}) then {
+				TACT_commandMenuCursor = _control ctrlMapScreenToWorld [_x, _y];
+			};
+
+			false
+		}];
+		_map setVariable ["STRAT_mapMoveEH", _moveId];
+
+		diag_log format ["STRAT Draw: map layer attached (draw %1, press %2, release %3, move %4).", _drawId, _pressId, _releaseId, _moveId];
 
 		// Hold here until the map closes, then go round and wait for the next
 		// opening. Nothing is detached on close - the control's handlers and
@@ -146,7 +182,11 @@ STRAT_mapLayerRunning = true;
 		};
 
 		// The map is closed: the stock commanding UI is the interface again,
-		// whether or not a battle is still running.
+		// whether or not a battle is still running. A context menu does not
+		// survive that - it is drawn on the map, so one left open is a menu
+		// the player cannot see, cannot dismiss, and would find waiting to
+		// eat his first click the next time he opened the map.
+		TACT_commandMenuOpen = false;
 		[false] call TACT_fnc_setCommandHud;
 	};
 };

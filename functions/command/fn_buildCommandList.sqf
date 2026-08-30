@@ -21,6 +21,13 @@
 		  his other groups    one icon over each leader, whole
 		  allied groups       one icon over each leader, whole
 
+		and, over all of it, the context menu when one is open - a panel of
+		rows drawn from items like everything else, so it inherits the scaling
+		law rather than reimplementing it as a dialog with its own coordinate
+		space. Its geometry is two constants, divided by in exactly one other
+		place: TACT_fnc_contextMenuHit, which is what makes the row that lights
+		up under the pointer the row that runs when it is pressed.
+
 		A group that is not his own collapses because its composition is not his
 		to arrange, and because forty other soldiers drawn man by man bury the
 		eight that are his. His own group is never collapsed - it is drawn as
@@ -308,5 +315,94 @@ private _playerAnchor = getPosATL (vehicle player);
 	["text", "YOU"],
 	["textSize", STRAT_drawLabelUnits]
 ]] call _fnc_item;
+
+// ------------------------------------------------------------------------ //
+// THE CONTEXT MENU                                                          //
+// ------------------------------------------------------------------------ //
+// Last, so it draws over everything including the commander. A menu with a
+// unit icon on top of it is a menu the player cannot read, and unlike every
+// other overlap on this map the answer is not "the more important one wins" -
+// the menu is a thing he opened deliberately and is looking straight at.
+//
+// It is built from items rather than as a dialog, so it inherits the whole of
+// the scaling law: rows are sized in icon units and positioned in icon units
+// off one anchor, exactly like a label or a selection ring, and hold their
+// size on screen at every zoom.
+//
+// Where a row IS comes from TACT_commandMenuWidthUnits and
+// TACT_commandMenuRowUnits and nothing else, which is the same pair
+// TACT_fnc_contextMenuHit divides by. There is one geometry and two readers of
+// it, so the drawn and the clickable cannot come apart - the same guarantee the
+// entity icons get from sharing _metresPerUnit with the hit test.
+if (!isNil "TACT_commandMenuOpen" && {TACT_commandMenuOpen} && {count TACT_commandMenuOptions > 0}) then {
+
+	private _anchor = TACT_commandMenuAnchor;
+	private _rows   = count TACT_commandMenuOptions;
+
+	// The hovered row, derived rather than stored, through the function the
+	// click itself runs through. Nothing caches which row is lit, so nothing
+	// can light a row the click would not take.
+	private _hover = -1;
+	private _map = (findDisplay 12) displayCtrl 51;
+	if (!isNull _map
+		&& {!isNil "TACT_commandMenuCursor"}
+		&& {count TACT_commandMenuCursor >= 2}) then {
+		_hover = [
+			TACT_commandMenuCursor,
+			[_map] call STRAT_fnc_mapUnitMetres
+		] call TACT_fnc_contextMenuHit;
+	};
+
+	private _height = _rows * TACT_commandMenuRowUnits;
+
+	// The backing, one margin larger than the rows on every side. Drawn first
+	// and pale, so what shows around the dark rows is a thin edge - the panel
+	// reads as one object rather than as a stack of separate rectangles.
+	["CMD_MENU", "contextMenu", createHashMap, _anchor, "panel", createHashMapFromArray [
+		["shape", "icon"],
+		["texture", STRAT_drawSolidTexture],
+		["colour", TACT_commandMenuEdgeColour],
+		["offset", [TACT_commandMenuWidthUnits / 2, 0 - (_height / 2)]],
+		["size", [
+			TACT_commandMenuWidthUnits + (2 * TACT_commandMenuEdgeUnits),
+			_height + (2 * TACT_commandMenuEdgeUnits)
+		]]
+	]] call _fnc_item;
+
+	{
+		private _option = _x;
+		private _row    = _forEachIndex;
+
+		// Row centres, measured down from the anchor. The anchor is the panel's
+		// TOP-LEFT rather than its centre: it is where the cursor was when the
+		// menu opened, and a menu centred on the cursor puts a row under the
+		// pointer before the player has chosen anything.
+		private _centre = 0 - (TACT_commandMenuRowUnits * (_row + 0.5));
+
+		["CMD_MENU", "contextMenu", createHashMap, _anchor, "row", createHashMapFromArray [
+			["shape", "icon"],
+			["texture", STRAT_drawSolidTexture],
+			["colour", if (_row == _hover) then {TACT_commandMenuHoverColour} else {TACT_commandMenuColour}],
+			["offset", [TACT_commandMenuWidthUnits / 2, _centre]],
+			["size", [TACT_commandMenuWidthUnits, TACT_commandMenuRowUnits]]
+		]] call _fnc_item;
+
+		// A label is a drawIcon call with no icon, the same as every other label
+		// on this map. The rise is the eye-set correction for drawIcon hanging
+		// its text below the position it is given - see init.sqf.
+		["CMD_MENU", "contextMenu", createHashMap, _anchor, "label", createHashMapFromArray [
+			["shape", "icon"],
+			["size", [0, 0]],
+			["offset", [
+				TACT_commandMenuWidthUnits / 2,
+				_centre + TACT_commandMenuTextRiseUnits
+			]],
+			["colour", TACT_commandMenuTextColour],
+			["text", _option get "label"],
+			["textSize", TACT_commandMenuTextUnits]
+		]] call _fnc_item;
+
+	} forEach TACT_commandMenuOptions;
+};
 
 _list

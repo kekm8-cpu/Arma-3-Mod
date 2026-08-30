@@ -9,7 +9,9 @@
 		the entities and the boundary, and clears `inBattle`.
 
 		Position is taken before sync-back, because sync-back deletes the
-		entities that hold it. An army whose record still claimed its pre-battle
+		entities that hold it. It is taken off each army's `men` records rather
+		than off its group, so a detachment the player split out on the map
+		still counts toward where the army ended up. An army whose record still claimed its pre-battle
 		position would teleport back onto the field it just left and re-engage.
 
 		What the outcome does to the order:
@@ -61,7 +63,21 @@ private _armiesRemoved = [];
 	// ------------------------------------------------------------------ //
 	// 1. STRATEGIC POSITION, READ OFF THE SURVIVORS BEFORE THEY ARE GONE  //
 	// ------------------------------------------------------------------ //
-	private _living = (units _group) select {alive _x};
+	// Off the ARMY RECORD, not off the group. A detachment the player split out
+	// on the map is a different group and the same army, so counting the group
+	// would leave its men out of the centre of mass the army's strategic
+	// position is taken from - and an army that detached a flanking element
+	// would come off the field standing wherever the rest of it happened to be.
+	// The same rule and the same reasoning as TACT_fnc_resolveVictory, which
+	// has the long version.
+	//
+	// This runs BEFORE sync-back, which is what makes it possible: sync-back
+	// nulls every `obj` on its way through.
+	private _living = [];
+	{
+		private _obj = _x getOrDefault ["obj", objNull];
+		if (!isNull _obj && {alive _obj}) then { _living pushBack _obj };
+	} forEach (_army getOrDefault ["men", []]);
 
 	if (count _living > 0) then {
 		private _sumX = 0;
@@ -115,6 +131,25 @@ private _armiesRemoved = [];
 		_armiesRemoved pushBack _army;
 	};
 } forEach _sides;
+
+// ------------------------------------------------------------------------ //
+// DETACHMENTS                                                               //
+// ------------------------------------------------------------------------ //
+// The groups the player split off with "New Group" are not either army's
+// deployed group, so the deleteGroup above does not reach them. They are
+// created deleteWhenEmpty and sync-back has just deleted every man in them, so
+// the engine takes them on its own; this is the backstop for the case where it
+// has not yet, and the one place the list is emptied.
+//
+// After sync-back, deliberately: deleteGroup on a group that still has men in
+// it is refused, and until sync-back runs these groups still have men.
+if (isNil "TACT_commandDetachments") then { TACT_commandDetachments = [] };
+
+{
+	if (!isNull _x) then { deleteGroup _x };
+} forEach TACT_commandDetachments;
+
+TACT_commandDetachments = [];
 
 // Removal happens after the pass over the engagement's sides, never inside it,
 // and is done by id: array subtraction would compare the army HashMaps by

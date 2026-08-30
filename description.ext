@@ -94,6 +94,12 @@ class CfgFunctions {
             class alliedGroups {};
             class onCommandClick {};
             class issueMoveOrder {};
+            class issueStopOrder {};
+            class issueRegroup {};
+            class splitGroup {};
+            class openContextMenu {};
+            class contextMenuHit {};
+            class runContextOption {};
             class buildCommandList {};
         };
     };

@@ -242,6 +242,26 @@ TACT_commandActive    = false;  // True only while the player holds a body on th
 TACT_commandSelection = [];     // Selected entity objects; empty means a terrain click orders nobody
 TACT_commandArmyId    = "";     // Which army record the player is currently leading
 
+// The right-click menu's whole state. It is open or it is not; everything else
+// is only read while it is open, so closing it is one assignment and there is
+// no second flag to leave disagreeing with the first.
+//
+// The hovered row is NOT stored. It is derived from the cursor every frame by
+// the same TACT_fnc_contextMenuHit the click runs through, so the row that
+// lights up and the row that fires cannot be two different rows.
+TACT_commandMenuOpen    = false; // True while the context menu is drawn
+TACT_commandMenuAnchor  = [];    // World position it hangs from - its top-left
+TACT_commandMenuOptions = [];    // Rows, fixed at open so they cannot renumber
+TACT_commandMenuCursor  = [];    // World position under the mouse, for the hover
+
+// Groups the player has split off with "New Group", so TACT_fnc_concludeBattle
+// can sweep them at teardown. They are created deleteWhenEmpty, so the engine
+// takes them on every ordinary path; this is the backstop, not the mechanism.
+// The counter names them and never resets within a battle - two detachments
+// called "Det 1" would be two icons the player cannot tell apart.
+TACT_commandDetachments = [];
+TACT_commandDetachCount = 0;
+
 // Click radius around a command icon, in the same icon units the draw layer
 // uses, so a unit is as easy to click zoomed out as zoomed in.
 TACT_commandHitUnits  = 0.60;
@@ -262,6 +282,43 @@ TACT_commandPlayerColour = [1, 0.85, 0.2, 1];
 // to "b_hq" and give TACT_fnc_buildCommandList's commander block the marker
 // resolver instead if the flag is wanted back.
 TACT_commandPlayerIcon = "b_inf";
+
+// ---------------------------------------------------------------------- //
+// THE CONTEXT MENU                                                        //
+// ---------------------------------------------------------------------- //
+// Right-clicking with units selected asks what can be done with them. The
+// panel is DRAWN ON THE MAP rather than built as a dialog, which is not a
+// shortcut: a dialog would be a second surface with its own coordinate space,
+// its own scaling and its own idea of where things are, sitting on top of a
+// map that already has all three. Drawn as items, it goes through
+// STRAT_fnc_drawItems like everything else and inherits the whole scaling law
+// for free.
+//
+// Sizes are in icon units, so a row is the same size to click at every zoom -
+// the same property TACT_commandHitUnits buys for a unit. Width is set against
+// the longest label ("New Group") rather than measured, because drawIcon gives
+// no way to measure text; a label that outgrows it will be visibly too wide,
+// which is the failure that gets noticed and fixed.
+TACT_commandMenuWidthUnits = 3.20;  // Panel width
+TACT_commandMenuRowUnits   = 0.62;  // One row's height
+TACT_commandMenuTextUnits  = 0.34;  // Row label, a shade over a unit's label
+TACT_commandMenuEdgeUnits  = 0.07;  // Backing panel's margin, read as a border
+
+// drawIcon hangs its text below the position it is given, so a label placed at
+// a row's centre sits low in it. This lifts it back. Set by eye against the row
+// height, the same way STRAT_drawTextArgScale was set by eye against the icon -
+// there is no measurement available to derive it from.
+TACT_commandMenuTextRiseUnits = 0.11;
+
+// Near-black rows on a pale backing, so the panel reads as one object with a
+// thin light edge rather than as a stack of separate rectangles. The hover is
+// the one place the layer uses a fill to mean "the pointer is here"; it is the
+// selection white at low alpha rather than a new colour, because it means the
+// same thing the selection ring means.
+TACT_commandMenuColour      = [0.04, 0.05, 0.07, 0.88];
+TACT_commandMenuHoverColour = [0.20, 0.28, 0.40, 0.94];
+TACT_commandMenuEdgeColour  = [0.85, 0.87, 0.90, 0.75];
+TACT_commandMenuTextColour  = [1, 1, 1, 1];
 
 // Everything else the battle map draws is coloured from STRAT_drawFactionColour,
 // the same table the campaign map reads. There is no battle-only palette. A
@@ -505,6 +562,13 @@ STRAT_drawSelectionColour = [1, 1, 1, 0.9];
 // empty string: a procedural colour is the one texture that cannot fail to
 // resolve, whatever the engine does with a blank path.
 STRAT_drawBlankTexture = "#(argb,8,8,3)color(0,0,0,0)";
+
+// A filled panel is the same call with the alpha the other way up: a texture
+// that is one opaque pixel, stretched into whatever box the item asks for and
+// tinted by the item's colour. Procedural for the reason above - it is the one
+// texture that cannot fail to resolve - and it is what the context menu's rows
+// and backing are made of.
+STRAT_drawSolidTexture = "#(argb,8,8,3)color(1,1,1,1)";
 
 // Presentation, derived from `faction` at draw time and stored on nothing.
 // `faction` is the source of truth for allegiance and colour is never read
