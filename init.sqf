@@ -514,6 +514,15 @@ TEST_rosters = createHashMapFromArray [
     ["mercFireteam", [
         ["B_T_Soldier_SL_F", "B_T_Soldier_F", "B_T_Soldier_AR_F", "B_T_Soldier_LAT_F"],
         []
+    ]],
+
+    // One man, who is the player. The side probe's roster rather than the
+    // interface's: with nobody else in the group there is nothing between the
+    // player and the question being asked, and no friendly AI to shoot at the
+    // hostile probe before it has decided whether to shoot back.
+    ["mercSolo", [
+        ["B_T_Soldier_SL_F"],
+        []
     ]]
 ];
 
@@ -602,7 +611,12 @@ TEST_defaultEngagement = "openField";
 // [name, faction, position, roster]. The position is a placeholder - the boot
 // drill below overrides it with wherever the player is standing.
 TEST_drills = createHashMapFromArray [
-    ["squadFour", ["BLU_Merc_Fireteam", "player", TEST_playerSpawn, "mercFireteam"]]
+    ["squadFour", ["BLU_Merc_Fireteam", "player", TEST_playerSpawn, "mercFireteam"]],
+
+    // The side probe's drill. One man, so that when the hostile probe does or
+    // does not open fire there is exactly one friendly body and one friendly
+    // vehicle it could have been reacting to.
+    ["solo", ["BLU_Merc_Solo", "player", TEST_playerSpawn, "mercSolo"]]
 ];
 
 // The rank anchor TEST_fnc_deployConverted spawns to carry a group's men onto
@@ -634,7 +648,8 @@ TEST_sideAnchorClass = createHashMapFromArray [
 // in one step rather than through a scenario, an order, a commit and a march.
 //
 // Set back to "" for strategic-layer work.
-TEST_bootDrill = "squadFour";
+// "solo" while the side question is open; "squadFour" for the interface work.
+TEST_bootDrill = "solo";
 
 // ------------------------------------------------------------------------- //
 // THE VEHICLE PROBE                                                          //
@@ -662,10 +677,28 @@ TEST_probeDistance = 45;
 // anything resolving side asynchronously has finished before it is read.
 TEST_probeSettleDelay = 5;
 
-// The probe currently on the ground. Held outside every army record on
-// purpose - see TEST_fnc_vehicleProbe - so nothing that manages a roster
-// manages this.
-TEST_drillProbe = objNull;
+// THE RECIPROCAL QUESTION. The probe above asks whether our own men shoot our
+// own transport. This asks the other direction, which is the one that decides
+// whether a battle happens at all: will a WEST unit engage the player when the
+// player is sitting in a BLUFOR-classed vehicle?
+//
+// If config side reaches the enemy's friend/foe test, a cartel rifleman looks
+// at a Hunter full of mercenaries and sees a friendly truck. Nothing shoots,
+// nothing resolves, and the battle layer quietly does nothing - a far worse
+// failure than the loud one that started this, because it looks like peace.
+//
+// So TEST_fnc_hostileProbe puts one genuine WEST soldier down at the distance
+// below and watches whether he fires within the window. He is given an AT
+// launcher because the thing he is being asked to shoot at is a vehicle.
+TEST_probeHostileClass    = "B_Soldier_LAT_F";
+TEST_probeHostileDistance = 100;   // Metres from the probe vehicle
+TEST_probeHostileWindow   = 30;    // Seconds to wait for him to open fire
+
+// The probe currently on the ground, and the hostile spawned to shoot at it.
+// Held outside every army record on purpose - see TEST_fnc_vehicleProbe - so
+// nothing that manages a roster manages these.
+TEST_drillProbe   = objNull;
+TEST_drillHostile = objNull;
 
 // The drill currently running, empty when none is. Declared here rather than
 // left to the function that first writes it, for the reason

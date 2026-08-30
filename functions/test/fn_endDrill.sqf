@@ -88,11 +88,22 @@ if (count (_army getOrDefault ["men", []]) == 0) then {
 	diag_log format ["TEST Harness: %1 has been removed from the map.", _army get "name"];
 };
 
-// The probe is instrumentation and belongs to no roster, so sync-back never
-// saw it and nothing else will remove it.
+// The probes are instrumentation and belong to no roster, so sync-back never
+// saw them and nothing else will remove them. The hostile takes his group with
+// him - it was created deleteWhenEmpty false so that it could not vanish
+// underneath the watcher.
 if (!isNil "TEST_drillProbe" && {!isNull TEST_drillProbe}) then {
 	deleteVehicle TEST_drillProbe;
 	TEST_drillProbe = objNull;
+};
+
+if (!isNil "TEST_drillHostile" && {!isNull TEST_drillHostile}) then {
+	private _hostileGroup = group TEST_drillHostile;
+	deleteVehicle TEST_drillHostile;
+	if (!isNull _hostileGroup && {count (units _hostileGroup) == 0}) then {
+		deleteGroup _hostileGroup;
+	};
+	TEST_drillHostile = objNull;
 };
 
 [[0,0,0], false] call TACT_fnc_drawBoundary;

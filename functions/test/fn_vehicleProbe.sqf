@@ -158,6 +158,11 @@ _veh addEventHandler ["GetIn", {
 
 		if (isNull _v) exitWith {};
 		[_v, "CREWED"] call TEST_fnc_probeReport;
+
+		// And then the reciprocal question, which is the one that decides
+		// whether a battle can happen: with the player in a BLUFOR-classed
+		// vehicle, will a genuine WEST soldier engage him?
+		[_v] call TEST_fnc_hostileProbe;
 	};
 }];
 

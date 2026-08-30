@@ -1489,6 +1489,24 @@ aiming at it rather than trusting `side` to answer. If vehicles do carry config
 side, the likely fix is the direct analogue of the anchor: `createVehicleCrew` on
 a correct-side group, then delete the crew.
 
+**And the reciprocal, which matters more: `TEST_fnc_hostileProbe`.** Our own men
+ignoring our own transport is the harmless direction. The dangerous one is whether
+the *enemy* will engage it — if config side reaches their friend/foe test, a
+cartel rifleman looks at a Hunter full of mercenaries and sees a friendly truck,
+nothing shoots, and the battle layer quietly does nothing. That failure looks like
+peace rather than like a bug, which is what makes it worse than the loud one that
+started this.
+
+Five seconds after the player mounts the probe vehicle, one genuine WEST soldier
+(a `B_` class in a WEST group, so nothing about him needs converting) is placed at
+`TEST_probeHostileDistance` and `reveal`ed to the target. He is revealed, never
+ordered — `doTarget` would force the shot and prove nothing. A `Fired` handler
+reports PASS; a silent window reports `knowsAbout` and `getFriend` for both the
+vehicle and the player, so "never spotted it" can be told apart from "saw it and
+did not care". The `solo` drill exists for this: one man in the army means there is
+exactly one friendly body and one friendly vehicle the hostile could be reacting
+to.
+
 Two things came out of it that were not harness work. `fn_beginPlanning`
 guarded on `STRAT_turnPhase == "resolving"` — the flag it is itself the only
 writer of back to `"planning"` — so it refused to reopen planning after the
