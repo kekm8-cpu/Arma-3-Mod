@@ -834,7 +834,8 @@ being made, across every force at once.
   `TACT_fnc_deployVehicles` places only as many vehicles as the roster can put
   drivers in, and continues the column along its last bearing past the end of
   the approach road, so an army out of road range deploys off-road rather than
-  not at all.
+  not at all. Vehicles deploy stationary and are held to foot pace when any of
+  the group is walking, so a column never outruns its own infantry.
 - Map battle boundary rendering.
 - Turn skeleton: planning → commit → resolve → advance, movement only.
   `STRAT_fnc_beginPlanning` opens the phase and retires finished orders;
@@ -954,13 +955,22 @@ the enforced one cannot drift apart.
 
 **Partial / needs work**
 - A partly mounted group is one group containing trucks and men on foot, and
-  the single `move` order `fn_initiateBattle` issues drives both. The mounted
-  element will outpace the foot element until Arma's formation logic reins it
-  in, and how badly has only been reasoned about, not played. The alternative —
-  a mounted group and a foot group per army — is rejected: `fn_resolveVictory`,
-  `fn_syncBack` and `fn_dropIn` all read one group per side, and splitting it
-  is the same change as the detach that group-level command needs, so it waits
-  for that and for counting strength off the `men` array.
+  the single `move` order `fn_initiateBattle` issues drives both. The trucks are
+  held to the foot element with `limitSpeed` at `TACT_deployFootPaceKmh` rather
+  than left to formation logic, and the cap stands for the battle: releasing it
+  on contact reads as buying back a breakthrough and does not, because
+  breakthrough is classified off the group's centroid and a mixed group's
+  centroid is pinned by the men on foot whatever the trucks do. The pace itself
+  is untuned. The alternative shape — a mounted group and a foot group per army
+  — is rejected: `fn_resolveVictory`, `fn_syncBack` and `fn_dropIn` all read one
+  group per side, and splitting it is the same change as the detach that
+  group-level command needs, so it waits for that and for counting strength off
+  the `men` array.
+- Whether `limitSpeed` binds a *player*-driven vehicle is not settled by the
+  wiki. `fn_dropIn` lifts the cap where the player turns out to be the driver,
+  which is the common case — he leads, the leader is placed first, and
+  `moveInAny` fills the driver's seat first — so the question only bites if he
+  changes seats mid-battle into a capped truck. Untested either way.
 - Deployment geometry is still `midpointConverge`: each army is placed where it
   already stands, facing the anchor. `fn_initiateBattle` computes one point and
   one bearing per army and hands them to both deployment routines, so edge
@@ -1366,6 +1376,18 @@ an empty path (both ends more than 150 m from a road) dropped all of it. That
 last case produced exactly the symptom this item is about, from a different
 cause. `fn_initiateBattle` computes one deployment point and one bearing per
 army and hands them to both routines, which is the seam 2.1 moves.
+
+Deployment velocity went with it. Vehicles were injected with 30 km/h along the
+column to read as a force caught mid-march, and that stopped being safe once
+part of a roster could be on foot and once a column could be laid out off-road:
+the trucks pulled away from their own infantry before the AI had an order to
+obey, and an off-road column placed with `CAN_COLLIDE` drove into the scrub at
+speed before it had settled on terrain. They deploy stationary, and the group
+`move` order `fn_initiateBattle` issues a frame later has them rolling under AI
+control — the mid-march read was carried by the column geometry and the facing,
+not by the velocity. A group that ends up mixed then has its vehicles held to
+`TACT_deployFootPaceKmh` with `limitSpeed`, per object because `setSpeedMode` is
+group-level and would slow the infantry that is being matched to.
 
 Harness: `infantryOnly` and `combinedArms` join `openField` in
 `TEST_engagements`, over three new rosters.

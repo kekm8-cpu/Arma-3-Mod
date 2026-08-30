@@ -27,6 +27,22 @@
 		fn_deployVehicles lays its column out forward from the same point, so
 		the infantry falls in behind its own transport rather than inside it.
 
+		A group that ends up carrying both trucks and men on foot has its
+		vehicles capped to foot pace with `limitSpeed`, because one group gets
+		one `move` order and an uncapped truck answers it at four times the
+		speed of the men walking behind it. The rule is that the column moves
+		at the pace of the slowest thing in the group, which is why this is not
+		a branch on deployment type: a fully mounted group's slowest thing is a
+		vehicle, so it is capped by nothing and behaves exactly as before.
+
+		The cap stands for the battle rather than being lifted on contact.
+		Letting the trucks off the leash once shooting starts sounds like it
+		would buy back a breakthrough, and it does not - breakthrough is
+		classified off the group's centroid crossing the boundary, and in a
+		mixed group the centroid is pinned by the foot element whatever the
+		trucks do. An uncapped truck produces a truck outside the boundary and
+		a centroid still inside it.
+
 		Deployment point and bearing are parameters rather than derived here.
 		Today fn_initiateBattle passes the army's own position and the bearing
 		to the anchor, which is what `midpointConverge` means; edge deployment
@@ -79,13 +95,18 @@ if (count _menArray == 0) exitWith { _grp };
 // first. fn_deployVehicles leaves `obj` null for anything it did not place -
 // a vehicle the roster has no driver for - so this reads what is there rather
 // than what was ordered.
-private _rotation = [];
+private _deployed = [];
 {
 	private _vehObj = _x getOrDefault ["obj", objNull];
 	if (!isNull _vehObj && {alive _vehObj}) then {
-		_rotation pushBack _vehObj;
+		_deployed pushBack _vehObj;
 	};
 } forEach (_army getOrDefault ["vehicles", []]);
+
+// The rotation is consumed as vehicles fill up, so the full list is kept
+// separately - the speed cap below has to reach every vehicle, including the
+// ones that filled and left the rotation early.
+private _rotation = +_deployed;
 
 // Spawned back-to-front along the approach, so the last placed is the head of
 // the column and the first to be filled.
@@ -179,7 +200,21 @@ private _mounted = 0;
 	};
 } forEach _ordered;
 
-// 7. Leader and facing. setFormDir gives the group a front to form on, which
+// 7. Hold the column to its foot element. limitSpeed is in km/h and per
+// object, which is what is wanted here - setSpeedMode is group-level and would
+// slow the infantry too, and the infantry is already the pace being matched.
+//
+// Applied only when somebody actually walked. With nobody on foot the slowest
+// thing in the group is a vehicle and there is nothing to hold the column back
+// to, so a fully mounted army is left uncapped and unchanged.
+private _onFoot = (count _ordered) - _mounted;
+
+if (_onFoot > 0 && {count _deployed > 0}) then {
+	private _pace = if (isNil "TACT_deployFootPaceKmh") then {10} else {TACT_deployFootPaceKmh};
+	{ _x limitSpeed _pace } forEach _deployed;
+};
+
+// 8. Leader and facing. setFormDir gives the group a front to form on, which
 // otherwise defaults to whatever bearing the engine picks off the leader.
 if (!isNull _physicalLeader) then {
 	_grp selectLeader _physicalLeader;
@@ -188,11 +223,12 @@ if (!isNull _physicalLeader) then {
 _grp setFormDir _deployDir;
 
 diag_log format [
-	"TACT Deploy: %1 put %2 men on the ground - %3 mounted, %4 on foot.",
+	"TACT Deploy: %1 put %2 men on the ground - %3 mounted, %4 on foot%5.",
 	_army getOrDefault ["name", "?"],
 	count _ordered,
 	_mounted,
-	(count _ordered) - _mounted
+	_onFoot,
+	(if (_onFoot > 0 && {count _deployed > 0}) then {", column held to foot pace"} else {""})
 ];
 
 _grp

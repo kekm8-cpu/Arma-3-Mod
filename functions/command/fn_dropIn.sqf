@@ -23,6 +23,12 @@
 		same man; when they are not, the player takes command anyway - there is
 		no version of this interface that works from inside the ranks.
 
+		The one thing it touches beyond the body is the speed cap deployment
+		puts on a partly mounted column, which is lifted where the player turns
+		out to be the driver. That is not a special case in the battle layer -
+		the cap exists to hold an AI driver to the men on foot, and where the
+		player is driving there is no AI driver to hold.
+
 		The avatar the player came from is left standing on the campaign map,
 		hidden and out of harm's way, because that is the body
 		TACT_fnc_dropOut gives back when the battle ends.
@@ -98,6 +104,27 @@ if (!isNull _avatar && {_avatar != _unit}) then {
 	_avatar hideObject true;
 	_avatar allowDamage false;
 	_avatar enableSimulation false;
+};
+
+// Deployment caps a partly mounted column at foot pace so its trucks stay with
+// the men walking behind them (TACT_fnc_deployMen). That cap is meant for an AI
+// driver. Whether limitSpeed binds a player-driven vehicle is not something the
+// wiki settles, so the cap is lifted where he is the one driving rather than
+// left to be discovered as a truck that will not go over 10 km/h with no visible
+// reason why.
+//
+// Only where he drives. A player riding as a passenger leaves an AI at the
+// wheel, and that AI should still be holding the truck to the foot element.
+private _playerVehicle = objectParent _unit;
+
+if (!isNull _playerVehicle && {driver _playerVehicle == _unit}) then {
+	// The documented way to remove a limit: the engine default is twice the
+	// vehicle's configured maxSpeed. Guarded because a config that does not
+	// declare one would otherwise cap him at zero.
+	private _configMax = getNumber (configOf _playerVehicle >> "maxSpeed");
+	private _noLimit = if (_configMax > 0) then {2 * _configMax} else {1e10};
+
+	_playerVehicle limitSpeed _noLimit;
 };
 
 // If the body dies, control goes back to the campaign avatar rather than to

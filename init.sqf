@@ -166,6 +166,17 @@ TACT_deployFootWidth     = 2;   // Men abreast in the dismounted file
 TACT_deployFootSpacing   = 6;   // Between files, across the bearing
 TACT_deployFootDepth     = 8;   // Between ranks, back along the bearing
 
+// What a partly mounted column is held to, in km/h, so its trucks do not
+// answer the group's move order at four times the pace of the men walking
+// behind them. Applied per vehicle with limitSpeed, and only when somebody is
+// actually on foot - a fully mounted army is capped by nothing.
+//
+// A jog rather than a walk. The BIKI's own limitSpeed example uses 5 km/h for
+// "walking speed", but AI infantry given a move order in AWARE jog rather than
+// walk, and 5 would leave the trucks crawling behind their own escort. Untuned
+// like the rest of these - it wants an eyeball pass against a played battle.
+TACT_deployFootPaceKmh   = 10;
+
 // ------------------------------------------------------------------------- //
 // BATTLE COMMAND MODE                                                        //
 // ------------------------------------------------------------------------- //

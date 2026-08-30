@@ -23,6 +23,17 @@
 		fn_deployMen lays its foot formation out *behind* the same deployment
 		point, so the two do not contest the same ground.
 
+		Vehicles are placed stationary. They used to be injected with 30 km/h
+		of velocity along the column to read as a force caught mid-march, and
+		that stopped being safe: a partly mounted army's trucks pull away from
+		their own foot element before the AI has an order to obey, and an
+		off-road column - which is now a thing that happens - drives into the
+		scrub at speed, on ground it was placed on with CAN_COLLIDE and before
+		it has settled. fn_initiateBattle issues the group `move` in the same
+		frame, so the AI has them rolling within a second under its own
+		control; the mid-march read is carried by the column geometry and the
+		facing, which are still here.
+
 	Parameters:
 		0: HASHMAP - army object
 		1: ARRAY   - road nodes to deploy along; may be empty or short
@@ -101,14 +112,13 @@ for "_i" from 0 to (_deployable - 1) do {
 	// Compute precise spawning orientation vector along the column
 	private _azimuth = (_dirVector select 0) atan2 (_dirVector select 1);
 
-	// Instantiate the physical asset onto the tactical grid
+	// Instantiate the physical asset onto the tactical grid, stationary and
+	// facing along the column. See the header: the velocity injection this
+	// replaces made an off-road or partly mounted deployment worse, and the
+	// group's move order supersedes it a frame later regardless.
 	private _vehObj = createVehicle [_className, _startPos, [], 0, "CAN_COLLIDE"];
 	_vehObj setDir _azimuth;
 	_vData set ["obj", _vehObj];
-
-	// Inject velocity matrix (30 km/h = 8.33 m/s) oriented along the path
-	private _velocityVector = _dirVector vectorMultiply 8.33333;
-	_vehObj setVelocity _velocityVector;
 
 	// --- DEGRADED STATE RESTORATION (DAMAGE & HITBOXES) ---
 	// 1. Restore component-level hitbox damage
