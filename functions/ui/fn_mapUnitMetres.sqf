@@ -4,45 +4,66 @@
 	Description:
 		Returns how many world metres one *icon unit* currently covers on the
 		given map control. Everything the campaign layer draws is sized and
-		positioned in icon units, and this is the single conversion between
-		that space and the world coordinates the draw commands take.
+		placed in icon units, and this is the single conversion between that
+		space and the world coordinates the draw commands take.
 
-		Section 11's problem is that a marker's rendered extent cannot be
-		queried - `getMarkerSize` returns the multiplier that was set, not an
-		extent, and the base dimensions sit in `CfgMarkers` behind an engine
-		constant. This sidesteps it rather than fitting it: map screen space
-		runs 0..1 across the control, so two points a known screen distance
-		apart give metres-per-screen-unit exactly, at whatever zoom the player
-		is at right now. Nothing here depends on knowing what `ctrlMapScale`'s
-		number means.
+		THIS IS THE SCALING MODE SWITCH. It is the one place that decides how
+		icons behave as the player zooms, and it is the only place that needs
+		to, because every element of every group - hit radius, label offset,
+		ring radius, arrow origin, arrowhead barb, and the icon itself - reads
+		its figure from this call. STRAT_drawIconScaleMode picks between:
 
-		One icon unit is STRAT_drawIconScreenSize of the screen's width, so an
-		icon holds a constant size on screen as the player zooms. That is a
-		choice, not a law: multiplying by nothing and returning a fixed metre
-		figure instead would make icons scale with zoom the way markers do, and
-		it is a one-line change here because every element of every group reads
-		its placement from this one call.
+		  0  SCREEN-FIXED. One icon unit is STRAT_drawIconScreenSize of the
+		     screen's width, whatever the zoom. An icon holds a constant size
+		     on screen and a constant click area with it, so a unit is as easy
+		     to hit zoomed out as zoomed in. Its failure is collision: the
+		     world separation between two men shrinks as the player zooms out
+		     while their icons do not, so a squad eventually stacks into one
+		     unclickable pile.
 
-		WHAT THIS IS FOR, since it no longer covers everything it once did.
-		This is the WORLD-SPACE conversion: distances and positions on the
-		ground. Hit radii, label offsets, ring radii, arrow origins and
-		arrowhead barbs. It is not what sizes an icon - drawIcon's width,
-		height and text size are screen space, and STRAT_fnc_drawItems converts
-		those through STRAT_drawIconUiScale and STRAT_drawTextUiScale instead.
-		Feeding this figure to them is what made icons grow as the player
-		zoomed out; the reasoning is in init.sqf beside those two constants.
+		  1  WORLD-FIXED. One icon unit is STRAT_drawIconWorldMetres, full
+		     stop. Icons are pinned to the terrain like markers, so they
+		     overlap exactly as much as the men themselves do and never more,
+		     at any zoom. Its failure is the opposite one: zoom out far enough
+		     and an icon is a pixel.
+
+		  2  CLAMPED. Mode 0 until the map is showing more than
+		     STRAT_drawIconClampScreenMetres across, mode 1 beyond it. Constant
+		     on screen through the zoom range the player works in, and capped
+		     once he is far enough out that collision, rather than legibility,
+		     is the thing to protect against. Both behaviours with the
+		     crossover where he puts it.
+
+		The three are one expression with one term differing, which is the
+		point. There is no per-mode branch anywhere else in the layer.
+
+		WHAT THIS IS FOR, since it does not cover everything it once did. This
+		is the WORLD-SPACE conversion: distances and positions on the ground.
+		It is not what sizes an icon - drawIcon's width, height and text size
+		are screen space, and STRAT_fnc_drawItems converts a world size into a
+		screen fraction by dividing this figure by STRAT_fnc_mapScreenMetres.
+		Handing this figure straight to drawIcon is what once made icons grow
+		as the player zoomed out; the reasoning is in init.sqf beside
+		STRAT_drawIconArgScale.
 
 		The split does not put the drawn and the clickable at risk, which is
-		the thing this function exists to protect. Both sides still start from
-		the same icon-unit numbers and both still come out as a fixed fraction
-		of the screen - a hit radius of 0.60 units is 0.60 x
-		STRAT_drawIconScreenSize of screen width at every zoom, exactly as the
-		icon drawn at 0.85 units is. What differs is only which arithmetic
-		reaches the engine.
+		the thing this function exists to protect. Both sides still read this
+		one figure, so they move together in every mode: a hit radius of 0.60
+		units and an icon of 0.85 units are in that proportion at every zoom
+		under 0, under 1 and under 2 alike, because neither one knows which
+		mode is running.
 
 		Both the renderer and the click hit-test call this. If they computed
 		the conversion separately they would drift, and the drift is invisible
 		until a player clicks something that is not where it was drawn.
+
+		ONE SWITCH FOR BOTH LAYERS, which is a caveat and not a feature. The
+		strategic map reads this too, and its zoom range is the whole island
+		rather than a battle's 1500 metres. At Tanoa's full extent a
+		mode 1 army icon is a couple of pixels. If the tactical map settles on
+		1 or 2 and the campaign map wants 0, this is where that split goes -
+		the mode would be chosen from TACT_commandActive here rather than read
+		from the global, and nothing else in the layer would change.
 
 	Parameters:
 		0: CONTROL - the map control (display 12, control 51)
@@ -56,26 +77,41 @@ params [
 	["_map", controlNull, [controlNull]]
 ];
 
-if (isNull _map) exitWith { 0 };
+private _metresPerScreen = [_map] call STRAT_fnc_mapScreenMetres;
 
-// Sampled across a fifth of the screen rather than a hair's width: a short
-// baseline would put the whole scale at the mercy of float noise in the
-// projection.
-private _sample = 0.2;
-
-private _a = _map ctrlMapScreenToWorld [0.4, 0.5];
-private _b = _map ctrlMapScreenToWorld [0.4 + _sample, 0.5];
-
-if (count _a < 2 || {count _b < 2}) exitWith { 0 };
-
-private _dx = (_b select 0) - (_a select 0);
-private _dy = (_b select 1) - (_a select 1);
-
-private _metresPerScreen = (sqrt ((_dx * _dx) + (_dy * _dy))) / _sample;
-
-// A degenerate control (zero width, not yet laid out) measures as nothing.
-// Returning 0 tells the caller to skip the pass rather than draw everything
-// on top of itself at the origin.
 if (_metresPerScreen <= 0) exitWith { 0 };
 
-_metresPerScreen * STRAT_drawIconScreenSize
+// Mode 0's figure, and the base every mode starts from. Mode 1 replaces it and
+// mode 2 caps it, so the screen-fixed law is what the other two are stated
+// against rather than three unrelated formulas.
+private _metresPerUnit = _metresPerScreen * STRAT_drawIconScreenSize;
+
+private _mode = if (isNil "STRAT_drawIconScaleMode") then { 0 } else { STRAT_drawIconScaleMode };
+
+switch (_mode) do {
+
+	// World-fixed: the measurement is thrown away entirely. Kept as a switch
+	// rather than an early return so all three modes read side by side.
+	case 1: {
+		_metresPerUnit = STRAT_drawIconWorldMetres;
+	};
+
+	// Clamped. The threshold is stated in metres across the SCREEN because
+	// that is the number the player can read off the map and reason about -
+	// "stop growing once I can see the whole battle" - so it is converted into
+	// a cap on metres per icon unit here rather than being stored as one.
+	//
+	// `min` and not a conditional: below the threshold the measured figure is
+	// already the smaller of the two, so the same expression gives mode 0's
+	// behaviour without asking which side of the crossover it is on.
+	case 2: {
+		_metresPerUnit = _metresPerUnit min
+			(STRAT_drawIconClampScreenMetres * STRAT_drawIconScreenSize);
+	};
+
+	// Mode 0, and anything unrecognised, falls through on the base figure. An
+	// unknown mode drawing a working map is the right failure: the map is how
+	// this is being tested, and a typo in the switch should not take it away.
+};
+
+_metresPerUnit

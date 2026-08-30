@@ -809,22 +809,46 @@ figure, zooming out made every icon and label *grow*, until a rifleman covered
 two hundred metres of map; zooming in shrank them to nothing. That is the
 signature of handing a screen-space argument a metres-per-screen figure: the
 factor meant to cancel the zoom compounds it. Icon units reach `drawIcon`
-through `STRAT_drawIconUiScale` and `STRAT_drawTextUiScale` instead, and two
+through `STRAT_drawIconArgScale` and `STRAT_drawTextArgScale` instead, and two
 constants are needed rather than one because width/height and text size are
 separate arguments with separate base scales — trying to serve both from one
 factor is why labels came out several times the size of the icons they
 belonged to.
 
-An icon is fixed on screen and that is the right law here, independently of the
-bug. A command icon is a click target and a piece of symbology; neither has a
-footprint. A NATO silhouette says *a man is here*, not *the man is three metres
-wide*, and a click target that changes size with zoom is harder to hit. The
-things that genuinely do have an extent stay in world metres and go on scaling.
+**How icons behave with zoom is one switch**, `STRAT_drawIconScaleMode`, read
+only by `STRAT_fnc_mapUnitMetres`. Three modes are on trial and their failures
+are opposite:
 
-The invariant survives the split intact, because both spaces are driven by the
-same icon-unit numbers. A hit radius of 0.60 units is `0.60 ×
-STRAT_drawIconScreenSize` of screen width at every zoom, exactly as an icon
-drawn at 0.85 units is. What differs is only the arithmetic that reaches the
+| | law | fails by |
+|---|---|---|
+| **0** screen-fixed | one icon unit is `STRAT_drawIconScreenSize` of screen width | **collision** — men 10 m apart converge to 13 px at boundary-wide zoom while icons stay 51 px, so a squad stacks into one pile you cannot aim at |
+| **1** world-fixed | one icon unit is `STRAT_drawIconWorldMetres` | **vanishing** — zoom out far and an icon is a pixel |
+| **2** clamped | 0 until the map shows more than `STRAT_drawIconClampScreenMetres` across, 1 past it | neither, within the range the crossover is set for |
+
+Mode 1's metre figure must be comparable to the spacing between men or icons
+self-overlap at *every* zoom and the mode solves nothing; a column sits 5–10 m
+apart. Mode 2's threshold is stated in metres across the screen rather than as
+a cap on icon size, because that is the number a player can read off the map
+and reason about.
+
+The branch exists in exactly one function. `STRAT_fnc_drawItems` divides
+whatever it is given by the measured span and draws, and would not behave
+differently if a fourth mode arrived. **One switch serves both layers, which is
+a caveat rather than a feature**: the strategic map's zoom range is the island
+and not a battle's 1500 m, so a mode 1 army icon at Tanoa's full extent is a
+couple of pixels. If the tactical map settles on 1 or 2 and the campaign map
+wants 0, the split goes in `STRAT_fnc_mapUnitMetres` — chosen from
+`TACT_commandActive` rather than read from the global — and nothing else moves.
+
+A command icon is a click target and a piece of symbology; neither has a
+footprint. A NATO silhouette says *a man is here*, not *the man is three metres
+wide*. The things that genuinely do have an extent — the boundary, where an
+order arrow points — stay in world metres and go on scaling in every mode.
+
+The invariant survives all of this intact, because both spaces are driven by the
+one icon-unit figure. A hit radius of 0.60 units and an icon of 0.85 units stay
+in that proportion at every zoom under every mode, because neither one knows
+which mode is running. What differs is only the arithmetic that reaches the
 engine — every element of an army is still drawn by one pass off one set of
 figures, so they cannot drift apart. Detail can also be varied by zoom,
 strongholds and front lines when zoomed out against per-army adornment when
@@ -1327,20 +1351,19 @@ the enforced one cannot drift apart.
   armies it costs a few HashMaps a frame. It is the first thing to look at if
   the map ever gets heavy, and the fix is a dirty flag on the list, not two
   lists.
-- `STRAT_drawIconUiScale` and `STRAT_drawTextUiScale` are a FIRST PASS, taken
-  off measuring the drill's probe squares in a screenshot. They are the right
-  order of magnitude and no better. The selection ring is the ruler that
-  settles them — `drawEllipse` in true world coordinates at
-  `STRAT_drawRingUnits`, which is the same 0.85 as `TACT_commandIconUnits`, so
-  a selected unit's ring and its icon should very nearly coincide. Check at two
-  zoom levels: getting it right at one zoom is what the old arithmetic could
-  also do, and holding across the range is the property that was missing.
-- Whether the CfgMarkers artwork resolves at all is still formally open. The
-  icon probe was pointed at that question and answered a different one — the
-  square it drew was present but wildly mis-sized, so nothing at that zoom
-  would have been visible whatever its texture. Turning `TEST_iconProbeEnabled`
-  off at a zoom where the square is legible is what actually puts the question,
-  and it is one screenshot's work once the scale is settled.
+- `STRAT_drawIconScaleMode` is an open decision, not a setting. Modes 1 and 2
+  are built and untried; 0 is what shipped and remains the default. Which
+  failure matters depends on how much of a fight the player wants on screen at
+  once, which is a question for playing rather than for arguing. Mode 2's
+  `STRAT_drawIconClampScreenMetres` wants tuning in game whichever way it goes.
+- `STRAT_drawIconArgScale` and `STRAT_drawTextArgScale` are engine calibration
+  carried over from an eyeballed pass, restated against a screen fraction so
+  mode 0 reproduces it digit for digit. The selection ring is the ruler if they
+  need touching up — `drawEllipse` in true world coordinates at
+  `STRAT_drawRingUnits`, the same 0.85 as `TACT_commandIconUnits`, so a
+  selected unit's ring and its icon should very nearly coincide, in every mode.
+  Check at two zoom levels: getting it right at one zoom is what the broken
+  arithmetic could also do.
 
 **Not started**
 - Post-battle march for a repulsed army. Survivors of every other outcome

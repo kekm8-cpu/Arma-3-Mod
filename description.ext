@@ -39,6 +39,7 @@ class CfgFunctions {
         class UI {
             file = "functions\ui";
             class onMapClick {};
+            class mapScreenMetres {};
             class mapUnitMetres {};
             class mapIconTexture {};
             class buildDrawList {};

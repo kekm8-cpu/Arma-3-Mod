@@ -14,13 +14,18 @@
 		up, so a label, a ring and an order arrow cannot drift off the icon
 		they belong to at any zoom.
 
-		Every item is SIZED through the UI scales instead, because drawIcon's
-		width, height and text size are screen space rather than world metres.
-		Both spaces are still driven by the same icon-unit numbers, so the two
-		agree by construction: an icon drawn at 0.85 units and a hit radius of
-		0.60 units are both a fixed fraction of the screen, and the drawn and
-		the clickable cannot come apart. What changed is only the arithmetic
-		that reaches the engine, not the law above it.
+		Every item is SIZED by turning that same figure into a fraction of the
+		screen and handing it to drawIcon, because drawIcon's width, height and
+		text size are screen space rather than world metres. Both spaces are
+		driven by the one icon-unit figure, so they agree by construction: an
+		icon drawn at 0.85 units and a hit radius of 0.60 units stay in that
+		proportion under every scaling mode, and the drawn and the clickable
+		cannot come apart.
+
+		Which is also why no scaling mode appears in this function. Mode 0, 1
+		and 2 differ only in what STRAT_fnc_mapUnitMetres returns; the renderer
+		divides by the measured span and draws, and would not behave any
+		differently if a fourth mode arrived.
 
 		Anything with a real extent on the ground - the boundary circle, where
 		an order arrow points, how far a shaft stands off an icon's edge - stays
@@ -47,6 +52,21 @@ if (isNull _map || {count _list == 0}) exitWith {};
 
 private _metresPerUnit = [_map] call STRAT_fnc_mapUnitMetres;
 if (_metresPerUnit <= 0) exitWith {};
+
+// The raw measurement as well as the icon-unit figure, because drawIcon's size
+// arguments are screen space and the only way to turn a world size into a
+// screen fraction is to divide by this. Read once for the whole pass, like the
+// figure above, so every item is sized off one number.
+private _metresPerScreen = [_map] call STRAT_fnc_mapScreenMetres;
+if (_metresPerScreen <= 0) exitWith {};
+
+// One icon unit as a fraction of the screen's width, right now. This is where
+// the three scaling modes actually become visible: under mode 0 it is the
+// constant STRAT_drawIconScreenSize, under mode 1 it falls as the player zooms
+// out, and under mode 2 it is the first until the clamp bites and the second
+// after. The renderer does not know which - it divides, and the mode is
+// STRAT_fnc_mapUnitMetres's business.
+private _screenPerUnit = _metresPerUnit / _metresPerScreen;
 
 // Draws a shaft between two world positions and a two-barb head at the far
 // end. Shared by the single-leg "arrow" shape and the last leg of a
@@ -95,31 +115,35 @@ private _fnc_head = {
 		case "icon": {
 			(_item get "size") params [["_w", 1, [0]], ["_h", 1, [0]]];
 
-			// SIZE goes through the UI scales; POSITION went through
-			// _metresPerUnit above. That split is the whole of the scaling law
-			// and it is not a compromise - the two arguments live in two
-			// different spaces, and this is the one place that knows it.
+			// SIZE is icon units -> screen fraction -> drawIcon argument.
+			// POSITION went through _metresPerUnit above. That split is the
+			// whole of the scaling law and it is not a compromise: the two
+			// arguments live in two different spaces, and this is the one
+			// place that knows it.
 			//
 			// drawIcon's width, height and text size are screen space. They
-			// were multiplied by _metresPerUnit here on the assumption they
+			// were once multiplied by _metresPerUnit on the assumption they
 			// were world metres, which is what made an icon grow as the player
 			// zoomed out - the factor that was supposed to cancel the zoom
-			// compounded it instead. See STRAT_drawIconUiScale in init.sqf.
+			// compounded it instead.
 			//
-			// Two scales rather than one because width/height and text size do
-			// not share a base. A label is 0.30 icon units against an icon's
-			// 0.85 by the constants, and those two only come out in that
-			// proportion on screen if each is converted through its own figure.
+			// The two Arg scales are pure engine calibration: what number
+			// drawIcon wants for a given fraction of the screen. They carry no
+			// policy, which is why the scaling mode does not appear here. Two
+			// of them rather than one because width/height and text size do not
+			// share a base - a label is 0.30 icon units against an icon's 0.85
+			// by the constants, and those two only come out in that proportion
+			// on screen if each is converted through its own figure.
 			_map drawIcon [
 				_item get "texture",
 				_colour,
 				_pos,
-				_w * STRAT_drawIconUiScale,
-				_h * STRAT_drawIconUiScale,
+				_w * _screenPerUnit * STRAT_drawIconArgScale,
+				_h * _screenPerUnit * STRAT_drawIconArgScale,
 				0,
 				_item get "text",
 				1,                                          // 1 = drop shadow
-				(_item get "textSize") * STRAT_drawTextUiScale,
+				(_item get "textSize") * _screenPerUnit * STRAT_drawTextArgScale,
 				"PuristaMedium",
 				"center"
 			];
