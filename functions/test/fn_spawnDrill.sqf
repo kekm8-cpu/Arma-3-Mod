@@ -163,10 +163,17 @@ _group setFormation "COLUMN";
 _group setBehaviour "AWARE";
 _group setCombatMode "RED";
 
-// The vehicle probe, placed after the posture so the squad is already AWARE
-// and weapons free when it appears - a probe put down in front of men who are
-// not yet allowed to engage would answer the question with "they never tried".
-[_position, _bearing] call TEST_fnc_vehicleProbe;
+// The side probes, off unless TEST_probeEnabled says otherwise. They end with
+// a live WEST soldier shooting at the player, which is the right answer to the
+// question they ask and the wrong thing to have happening underneath a
+// selection test.
+//
+// Placed after the posture, so the squad is already AWARE and weapons free
+// when the probe appears - a probe put down in front of men not yet allowed to
+// engage would answer the question with "they never tried".
+if (!isNil "TEST_probeEnabled" && {TEST_probeEnabled}) then {
+	[_position, _bearing] call TEST_fnc_vehicleProbe;
+};
 
 // ------------------------------------------------------------------------ //
 // 5. OPEN COMMAND MODE                                                      //
@@ -235,7 +242,7 @@ systemChat format [
 // than as a status line: a drill is opened to try the interface out, and the
 // interface is what it should be telling you.
 hint format [
-	"DRILL - %1\n\nM opens the map. With it closed the stock squad bar and commanding menu are the interface; with it open they go away and the command map is. Nothing is switched by hand.\n\nOn the map:\n  click a unit       select it\n  CTRL + click       add one, or take one back out\n  click the ground   move the selection\n\nYou are the yellow icon, and are never selectable. SHIFT+B ends the drill and hands the map back to the campaign layer.\n\nAn empty BLUFOR truck sits ahead as a side probe. Get in: five seconds later a WEST AT soldier is placed 100 m out and revealed. He should shoot you. If he does not, config side is reaching his friend/foe test - get out and stand in the open to tell the truck apart from you. Results go to chat and the log.",
+	"DRILL - %1\n\nM opens the map. With it closed the stock squad bar and commanding menu are the interface; with it open they go away and the command map is. Nothing is switched by hand.\n\nOn the map:\n  click a unit       select it\n  CTRL + click       add one, or take one back out\n  click the ground   move the selection\n\nYou are the yellow icon, and are never selectable. SHIFT+B ends the drill and hands the map back to the campaign layer.",
 	_army get "name"
 ];
 

@@ -995,7 +995,11 @@ should be carrying.
 itself or a battle where nothing shoots. `TACT_fnc_deployMen` logs
 `UNCONVERTED` when the anchor could not be created, which is the one loud case;
 everything else needs the drill. `TEST_fnc_vehicleProbe` and
-`TEST_fnc_hostileProbe` in the harness re-run both directions on demand.
+`TEST_fnc_hostileProbe` re-run both directions on demand: set
+`TEST_probeEnabled = true` and `TEST_bootDrill = "solo"`. They are off by
+default because the second one ends with a live WEST soldier killing the player,
+which is the right answer to the question it asks and the wrong thing to have
+happening underneath interface work.
 
 ---
 
@@ -1514,8 +1518,9 @@ an empty record rather than a missing key.
 
 A drill has no victory condition and never ends on its own. SHIFT+B ends it,
 SHIFT+N opens it again. `TEST_bootDrill` names the drill a session opens into —
-`squadFour` ships, four men over the `mercFireteam` roster, deployed around
-wherever the mission put the player — or `""` to boot onto the strategic map as
+`squadFour` ships, four men over the `mercFireteam` roster — AAF classes, so
+contractors in contractor kit rather than mercenaries wearing NATO's — deployed
+around wherever the mission put the player — or `""` to boot onto the strategic map as
 normal. The roster carries no vehicle on purpose: a mounted man resolves to his
 vehicle in `fn_commandEntities`, so a truck in the roster would draw fewer
 icons than there are men and make the mounting rule the first thing a selection

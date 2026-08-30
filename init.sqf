@@ -466,17 +466,18 @@ TEST_scenario = "sandbox";
 // while fighting for the player on INDEPENDENT. That was recorded here as
 // cosmetic only, on the grounds that createUnit takes the group's side.
 //
-// THAT CLAIM IS UNDER TEST AND MAY BE WRONG. The first drill run put four
-// B_T_ men in an INDEPENDENT group with nothing hostile anywhere on the map
-// and they opened fire on each other. If the engine reads config side
-// anywhere in the friend/foe path, `independent setFriend [west, 0]` at the
-// top of this file makes a B_-classed merc squad hostile to itself, and the
-// same reasoning makes an O_-classed cartel squad on WEST hostile to itself.
+// THAT CLAIM WAS WRONG, and finding out cost a day. A B_-classed man in an
+// INDEPENDENT group is hostile to his own squad, and the first drill run ended
+// with four of them shooting each other. It is worked around now on every
+// deployment - TACT_fnc_deployMen spawns each man into a holding group on his
+// class's own side and joins the lot across under a rank anchor - and the
+// whole finding is written up under SQF Quirks and Workarounds (13.1) in
+// PROJECT_MANIFEST.md.
 //
-// mercFireteam below is the control: it is the one roster whose classes match
-// the side its group is created on. If the drill is quiet with it and loud
-// with B_T_, every roster here needs its classes moved onto its own side, and
-// loadout flavour (phase 3.11) becomes the only thing kit should be carrying.
+// So the mismatches below are survivable rather than correct, and they stay
+// for now because they are also the only thing exercising the workaround in a
+// real battle. Matching a roster's classes to its side is tidiness, not a
+// requirement: kit is a loadout question (phase 3.11), not a side question.
 TEST_rosters = createHashMapFromArray [
     ["mercVanguard", [
         ["B_T_Soldier_SL_F", "B_T_Soldier_F", "B_T_Soldier_AR_F"],
@@ -523,27 +524,19 @@ TEST_rosters = createHashMapFromArray [
     // testing is the mounting rule. Dismounted, the map draws one icon per man
     // and a click means the man it landed on.
     //
-    // B_T_ CLASSES, ON PURPOSE, ON INDEPENDENT. Swapping these to I_ classes
-    // silenced the friendly fire and settled the question above: createUnit
-    // does NOT fully carry a unit onto its group's side, and a B_-classed man
-    // in an INDEPENDENT group is hostile to his own squad.
+    // AAF classes, on INDEPENDENT, which is the side the player's faction is
+    // packed onto - contractors in contractor kit rather than mercenaries
+    // wearing NATO's. The interface drill is not the place to be exercising
+    // the side workaround: what is under test here is what the map draws and
+    // what a click selects, and a roster that agrees with its own side is one
+    // fewer thing between the tester and that.
     //
-    // Matching the classes to the side is a fix that costs the project every
-    // unit class it does not own. The cartel is the case that makes it hurt:
-    // drugLords sits on WEST and wants Syndikat, which is configured
-    // INDEPENDENT, and there is no WEST-configured cartel in the game.
-    //
-    // So this roster stays on the broken combination, because that is now the
-    // combination the shipping code is built to survive: TACT_fnc_deployMen
-    // spawns every man into a holding group on the side his class is
-    // configured on and joins the lot across under a rank anchor. A roster
-    // that avoided the mismatch would stop exercising the workaround.
-    //
-    // Proven in both directions. The squad deploys quiet, and a WEST soldier
-    // put down next to a mercenary in a BLUFOR-classed Hunter shot him. Class
-    // choice is free: Syndikat for the cartel on WEST included.
+    // The workaround still gets exercised where it matters. mercVanguard,
+    // mercMotorised and both cartel rosters keep their mismatches, so any
+    // SHIFT+B engagement runs deployment through the conversion with vehicles
+    // in the mix, which is the case a dismounted drill never reaches anyway.
     ["mercFireteam", [
-        ["B_T_Soldier_SL_F", "B_T_Soldier_F", "B_T_Soldier_AR_F", "B_T_Soldier_LAT_F"],
+        ["I_Soldier_SL_F", "I_Soldier_F", "I_Soldier_AR_F", "I_Soldier_LAT_F"],
         []
     ]],
 
@@ -642,7 +635,7 @@ TEST_defaultEngagement = "openField";
 // [name, faction, position, roster]. The position is a placeholder - the boot
 // drill below overrides it with wherever the player is standing.
 TEST_drills = createHashMapFromArray [
-    ["squadFour", ["BLU_Merc_Fireteam", "player", TEST_playerSpawn, "mercFireteam"]],
+    ["squadFour", ["IND_Merc_Fireteam", "player", TEST_playerSpawn, "mercFireteam"]],
 
     // The side probe's drill. One man, so that when the hostile probe does or
     // does not open fire there is exactly one friendly body and one friendly
@@ -660,20 +653,33 @@ TEST_drills = createHashMapFromArray [
 // in one step rather than through a scenario, an order, a commit and a march.
 //
 // Set back to "" for strategic-layer work.
-// "solo" while the side question is open; "squadFour" for the interface work.
-TEST_bootDrill = "solo";
+// "squadFour" for the interface work - the player and three squadmates, which
+// is what selection needs. "solo" is the side probes' rig and wants
+// TEST_probeEnabled set with it; see the probe block above.
+TEST_bootDrill = "squadFour";
 
 // ------------------------------------------------------------------------- //
 // THE VEHICLE PROBE                                                          //
 // ------------------------------------------------------------------------- //
-// The infantry fix left one question open: does a VEHICLE carry its config
-// side the way a soldier did? Nothing has tested it - every drill so far has
-// been dismounted by design - and the anchor trick does not transfer, because
-// a vehicle reports grpNull and there is no group to be carried into.
+// OFF by default, and settled. These are the instruments the side
+// investigation ran on, kept because the finding they proved is the kind that
+// regresses silently - see SQF Quirks and Workarounds (13.1) in
+// PROJECT_MANIFEST.md - and re-proving it should not mean writing them again.
 //
-// So a drill places one empty BLUFOR-classed vehicle in front of the squad and
-// reads it three times: empty at spawn, crewed after the settle below, and
-// again the moment anything shoots it. See TEST_fnc_vehicleProbe.
+// They answer two questions. Does a VEHICLE carry its config side the way a
+// soldier did (it does not, and the anchor trick could not have helped anyway:
+// a vehicle reports grpNull, so there is no group to be carried into). And
+// will an enemy engage a man sitting in a vehicle of the enemy's own class -
+// which is the direction that decides whether a battle happens at all. Both
+// came back clean: a WEST AT soldier put down beside a mercenary in a
+// BLUFOR-classed Hunter killed him.
+//
+// Turned on, a drill places one empty BLUFOR-classed vehicle in front of the
+// squad, reads it empty, reads it again after the settle below once somebody
+// climbs in, and then puts a live WEST soldier down to shoot at whoever is in
+// it. That last part will kill the player, which is why this is not something
+// to leave on underneath interface work. Pair it with TEST_bootDrill = "solo".
+TEST_probeEnabled = false;
 //
 // A base-game class on purpose. The campaign's transport is B_T_ (Apex), but
 // both are configured WEST and only the config side is under test, so the
