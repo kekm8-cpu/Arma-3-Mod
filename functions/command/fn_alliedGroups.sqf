@@ -53,11 +53,13 @@
 		leader  OBJECT - what the icon is drawn over
 		anchor  ARRAY  - the leader's position, read once for the frame
 		men     ARRAY  - its living members
-		faction STRING - allegiance, for the icon silhouette and labels. NOT the
-		                 colour source: the command layer colours by role. An
-		                 ally always comes from TACT_fnc_deployMen and so always
-		                 carries a stamp; the empty fallback draws the unknown
-		                 silhouette rather than asserting a faction that was
+		faction STRING - allegiance, and the key both draw tables are read with:
+		                 STRAT_drawFactionColour and STRAT_drawFactionIcon, the
+		                 same two the campaign map uses, so a CSAT army is the
+		                 same green here as it was when he watched it march.
+		                 An ally always comes from TACT_fnc_deployMen and so
+		                 always carries a stamp; the empty fallback draws the
+		                 unknown grey rather than asserting a faction that was
 		                 never recorded.
 
 	Parameters:

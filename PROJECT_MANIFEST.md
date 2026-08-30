@@ -664,6 +664,59 @@ Hence the governing rule:
 drawn wholesale by one renderer.** Composition across the layer boundary is not
 available, at any zoom, for any pair of elements.
 
+### 11.1 One palette, both layers
+
+`STRAT_drawFactionColour` and `STRAT_drawFactionIcon` in `init.sqf` are the only
+colour and silhouette tables in the mission, and both the campaign map and the
+battle command map read them. An army the player watched march across the
+strategic map is the same colour and the same shape as the men he is standing
+among after he drops into the fight it walked into. The battle layer briefly had
+its own pair of role colours and they are gone: a colour that changes meaning
+when the map changes is a colour that has to be re-learned on every drop-in.
+
+The scheme is two-level, and the second level is what lets one table serve both
+maps.
+
+| Faction | Colour | Silhouette | Bloc |
+|---|---|---|---|
+| `player` | Blue | `b_inf` | contractors |
+| `csat` | Green | `b_inf` | contractors |
+| `drugLords` | Red | `o_inf` | cartel |
+| `nato` | Orange | `o_inf` | cartel |
+| `civilian` | Purple | `n_inf` | neither |
+
+**Hue family carries the bloc; hue within it carries the faction.** Cool is with
+you, warm is against you, purple is neither. So one glance answers *friend or
+enemy* from the family and *which one* from the hue — and the strategic map
+keeps the distinction it genuinely needs, because the cartel and NATO mean
+different things to the player even though they fight as one Arma side.
+
+**NATO is deliberately not blue.** It is the obvious choice from the real world
+and the wrong one here: blue is what every player reads as friendly before they
+have finished looking, and NATO is an enemy sharing WEST with the cartel it
+backs. Orange keeps it warm, hostile, and unmistakably not the druglords.
+
+**Silhouette repeats the bloc, and that redundancy is the accessibility floor.**
+Red against orange, and blue against green, are the two pairs a colour-blind
+player is least able to split; the shape still says who to shoot. CSAT takes the
+`b_inf` silhouette despite being EAST, because this table answers to the bloc
+and not to the Arma side. The rule for anything added later: **a faction's
+silhouette is its bloc, its colour is itself.**
+
+`civilian` is a presentation-only key. It is not a story faction — it is in
+neither `STRAT_fnc_areHostile`'s bloc table nor `STRAT_fnc_factionSide`'s map,
+and section 8 keeps it outside on purpose. It is here so civilians and the
+campaign avatar draw as themselves instead of falling through to the unknown
+grey, and the three tables must not be assumed to share a key set.
+
+One collision is accepted knowingly. The engine paints INDEPENDENT green in its
+own UI — the squad bar, and map unit icons outside command mode, since
+`disableMapIndicators` only fires while commanding — so the engine says the
+player is green in places where this scheme says green is CSAT. The alternative,
+player-green and CSAT-blue, costs the blue-is-you convention and gives CSAT a
+thematically wrong colour. The collision lives on a different surface, and on
+the squad bar the slot number is the identifier rather than the colour.
+
 ### The split
 
 **Armies and locations render entirely in the Draw layer.** They are precisely
@@ -945,18 +998,17 @@ being made, across every force at once.
   `TACT_fnc_setCommandHud` hides the bar, the commanding menu and the engine's
   friendly map icons, and `TACT_fnc_onCommandClick` takes over: click an icon
   to select, CTRL to add or remove, click terrain to move the selection.
-  The layer draws four things: the player in yellow, each unit of his group in
-  green, every other group on his side as one green icon over its leader
-  (`TACT_fnc_playerGroups`), and every allied group as one red icon over its
-  leader (`TACT_fnc_alliedGroups`). Neither collapsed list carries a hit area,
-  because neither is his to order and a dead click target over live ones loses
-  orders. No group icon is drawn for his own group — its units are already
-  there individually. Green and red are Arma's INDEPENDENT and EAST, which
-  section 8 puts the player and CSAT on, so the command layer agrees with the
-  stock squad bar rather than arguing with it; the colours come from
-  `TACT_commandFriendlyColour` and `TACT_commandAlliedColour` and never from
-  the campaign layer's `STRAT_drawFactionColour`, which is a different surface
-  with different needs and is unchanged.
+  The layer draws four things: the player, each unit of his group, every other
+  group on his side as one icon over its leader (`TACT_fnc_playerGroups`), and
+  every allied group as one icon over its leader (`TACT_fnc_alliedGroups`).
+  Neither collapsed list carries a hit area, because neither is his to order and
+  a dead click target over live ones loses orders. No group icon is drawn for
+  his own group — its units are already there individually. Colour and
+  silhouette come from `STRAT_drawFactionColour` and `STRAT_drawFactionIcon`,
+  the campaign layer's own tables, read here unchanged — see section 11.1. The
+  commander is the one thing on this map coloured by role instead: yellow,
+  `TACT_commandPlayerColour`, because his force is blue and he is not his
+  force.
   The two collapsed lists are split on **control, not allegiance**. Both are
   friendly and neither is drawn man by man; what separates them is that
   `fn_playerGroups` holds groups the command layer could one day order — a

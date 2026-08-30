@@ -16,10 +16,10 @@
 		Four things are drawn, and the split between them is the tactical
 		map's visibility rule:
 
-		  the player          one icon, his own, yellow
-		  his group's units   one icon each, green - these are what he selects
-		  his other groups    one icon over each leader, green, whole
-		  allied groups       one icon over each leader, red, whole
+		  the player          one icon, his own
+		  his group's units   one icon each - these are what he selects
+		  his other groups    one icon over each leader, whole
+		  allied groups       one icon over each leader, whole
 
 		A group that is not his own collapses because its composition is not his
 		to arrange, and because forty other soldiers drawn man by man bury the
@@ -27,14 +27,25 @@
 		its units, and no group icon is emitted for it, because one would draw
 		the same men a second time as a body he does not command.
 
-		Colour is ROLE ON THE FIELD, from TACT_commandFriendlyColour and
-		TACT_commandAlliedColour, and never the campaign layer's faction table.
-		Green and red are Arma's own INDEPENDENT and EAST, which section 8 puts
-		the player and CSAT on, so the map agrees with the stock squad bar and
-		the engine icons the player already reads. It also draws a detached
-		group correctly: that group carries no faction stamp and never will, so
-		a faction lookup would fall through to unknown for the exact case this
-		layer exists for.
+		Colour and silhouette come from STRAT_drawFactionColour and
+		STRAT_drawFactionIcon - the CAMPAIGN layer's tables, read here
+		unchanged. There is no battle-only palette. An army the player watched
+		march across the strategic map is the same colour and the same shape as
+		the men he is now standing among, which is the whole reason the two
+		maps can be looked at as one system. The scheme and the reasoning behind
+		it are in init.sqf, beside the tables.
+
+		The commander is the one thing on this map coloured by role rather than
+		by faction: TACT_commandPlayerColour, yellow. His force is blue and he
+		is yellow, and the distinction is deliberate - one is his army and the
+		other is him, and confusing the two is how a commander gets ordered
+		about like a rifleman.
+
+		A group with no faction stamp still colours correctly. The half the
+		player detaches is created by the engine and will never carry one, but
+		TACT_fnc_playerGroups resolves it to the stamp of the group it came out
+		of before the draw sees it, so the case with no identity of its own
+		inherits the right one.
 
 		The player is drawn and never hit-tested. A commander is worth seeing
 		on the map, and is not something to select and order.
@@ -97,7 +108,11 @@ private _fnc_item = {
 	_item
 };
 
-private _friendly = TACT_commandFriendlyColour;
+// The player's own force colour, from the shared table by way of his group's
+// stamp rather than a literal "player", so it follows whoever he is instead of
+// asserting who he must be.
+private _playerFaction = (group player) getVariable ["STRAT_faction", "player"];
+private _friendly = STRAT_drawFactionColour getOrDefault [_playerFaction, [0.25, 0.45, 0.95, 1]];
 
 // ------------------------------------------------------------------------ //
 // COLLAPSED GROUPS                                                          //
@@ -115,7 +130,7 @@ private _friendly = TACT_commandFriendlyColour;
 // Allies are emitted before his own groups so that where the two overlap, his
 // reads on top.
 private _fnc_groupIcons = {
-	params ["_record", "_kind", "_colour"];
+	params ["_record", "_kind"];
 
 	private _group   = _record get "group";
 	private _faction = _record get "faction";
@@ -124,12 +139,11 @@ private _fnc_groupIcons = {
 
 	private _id = format ["GRP_%1", groupId _group];
 
-	// Colour is the role passed in, not a faction lookup - see the header. The
-	// silhouette still comes from the campaign table, because that is a
-	// statement about what kind of force this is rather than about whose side
-	// it is on, and an ally with no stamp draws as unknown rather than as a
-	// faction nobody recorded.
-	private _icon = STRAT_drawFactionIcon getOrDefault [_faction, "b_unknown"];
+	// The campaign layer's tables, with the campaign layer's own fallbacks, so
+	// an unstamped group draws as unknown here exactly as it would there rather
+	// than as a faction nobody recorded.
+	private _colour = STRAT_drawFactionColour getOrDefault [_faction, [0.8, 0.8, 0.8, 1]];
+	private _icon   = STRAT_drawFactionIcon getOrDefault [_faction, "b_unknown"];
 
 	[_id, _kind, _record, _anchor, "icon", createHashMapFromArray [
 		["shape", "icon"],
@@ -149,11 +163,11 @@ private _fnc_groupIcons = {
 };
 
 {
-	[_x, "alliedGroup", TACT_commandAlliedColour] call _fnc_groupIcons;
+	[_x, "alliedGroup"] call _fnc_groupIcons;
 } forEach (call TACT_fnc_alliedGroups);
 
 {
-	[_x, "playerGroup", _friendly] call _fnc_groupIcons;
+	[_x, "playerGroup"] call _fnc_groupIcons;
 } forEach (call TACT_fnc_playerGroups);
 
 // ------------------------------------------------------------------------ //

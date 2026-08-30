@@ -227,28 +227,13 @@ TACT_commandGroupIconUnits = 1.00;
 // as one.
 TACT_commandPlayerColour = [1, 0.85, 0.2, 1];
 
-// The battle UI colours by ROLE ON THE FIELD, not by faction, and the roles are
-// the two group lists the command layer builds: TACT_fnc_playerGroups and
-// TACT_fnc_alliedGroups. Green for his own, red for an ally he does not
-// command.
-//
-// Those are Arma's own side colours - INDEPENDENT green, EAST red - and that is
-// the point. The stock squad bar, the engine's own icons and every HUD element
-// the player has ever seen in this game already speak that language, and the
-// command layer sits on top of them rather than arguing with them. Section 8
-// puts the player on INDEPENDENT and CSAT on EAST, so the convention and the
-// side allocation agree by construction.
-//
-// Role rather than faction is also what makes a detached group draw correctly.
-// It carries no STRAT_faction stamp and never will - it was made by the engine
-// when the player split it - so a faction lookup would fall through to the
-// unknown colour for exactly the group this layer exists to draw.
-//
-// Separate from STRAT_drawFactionColour, which is the CAMPAIGN layer's table
-// and stays as it is. That map draws four factions as four blocs and has no
-// sides on the ground to agree with; this one draws one battle and does.
-TACT_commandFriendlyColour = [0.20, 0.70, 0.35, 1];   // Green - his own side
-TACT_commandAlliedColour   = [0.90, 0.20, 0.20, 1];   // Red   - CSAT, not his
+// Everything else the battle map draws is coloured from STRAT_drawFactionColour,
+// the same table the campaign map reads. There is no battle-only palette. A
+// group with no STRAT_faction stamp - the half the player detaches, which the
+// engine creates and which will never carry one - takes the stamp of the group
+// it came out of, resolved in TACT_fnc_playerGroups before the draw ever sees
+// it, so identity colouring reaches the one case that has no identity of its
+// own.
 
 // ------------------------------------------------------------------------- //
 // THE CAMPAIGN AVATAR                                                        //
@@ -347,22 +332,68 @@ STRAT_drawBlankTexture = "#(argb,8,8,3)color(0,0,0,0)";
 // Presentation, derived from `faction` at draw time and stored on nothing.
 // `faction` is the source of truth for allegiance and colour is never read
 // back - hostility comes from STRAT_fnc_areHostile, which reads faction
-// strings. These carry over the colours the armies had as markers.
+// strings.
+//
+// ONE TABLE FOR BOTH LAYERS. The campaign map and the battle command map read
+// these same two hashmaps, so an army drawn as a marker on the strategic map
+// and the same men drawn as icons in the fight they walked into are the same
+// colour and the same silhouette. The battle layer briefly had its own pair of
+// role colours - green for the player's, red for an ally - and they are gone:
+// a colour that changes meaning when the map changes is a colour the player
+// has to re-learn every time he drops in.
+//
+// The scheme is two-level, and the second level is what makes one table serve
+// both maps:
+//
+//   HUE FAMILY carries the bloc.  Cool is with you, warm is against you.
+//   HUE WITHIN it carries the faction.
+//
+//     player      blue     cool - contractors
+//     csat        green    cool - contractors
+//     drugLords   red      warm - cartel
+//     nato        orange   warm - cartel
+//     civilian    purple   neither
+//
+// So a glance answers "friend or enemy" from the family and "which one" from
+// the hue, and the strategic map keeps the distinction it actually needs -
+// cartel and NATO mean different things even though they fight as one side.
+//
+// NATO is deliberately NOT blue. It is the obvious choice from the real world
+// and it is the wrong one here: blue is the colour every player reads as
+// friendly before they have finished looking, and in this campaign NATO is an
+// enemy sharing WEST with the cartel it backs. Orange keeps it warm, hostile
+// and unmistakably not the druglords.
+//
+// `civilian` is presentation only. It is NOT a story faction: it appears in
+// neither STRAT_fnc_areHostile's bloc table nor STRAT_fnc_factionSide's map,
+// and section 8 keeps it outside on purpose. It is a key here so that
+// civilians and the campaign avatar draw as themselves rather than falling
+// through to the unknown grey.
 STRAT_drawFactionColour = createHashMapFromArray [
-    ["player",    [0.25, 0.45, 0.95, 1]],
-    ["csat",      [0.20, 0.70, 0.35, 1]],
-    ["drugLords", [0.90, 0.20, 0.20, 1]],
-    ["nato",      [0.95, 0.55, 0.15, 1]]
+    ["player",    [0.25, 0.45, 0.95, 1]],   // Blue
+    ["csat",      [0.20, 0.70, 0.35, 1]],   // Green
+    ["drugLords", [0.90, 0.20, 0.20, 1]],   // Red
+    ["nato",      [0.95, 0.55, 0.15, 1]],   // Orange
+    ["civilian",  [0.65, 0.35, 0.85, 1]]    // Purple
 ];
 
 // CfgMarkers classes, used for their artwork only. Reading the texture out of
 // the same config the engine draws markers from is what keeps a drawn army and
 // an authoring marker looking like one system.
+//
+// SILHOUETTE CARRIES THE BLOC, and does so redundantly with colour's hue
+// family: b_ for the contractors, o_ for the cartel, n_ for neither. CSAT takes
+// the b_ silhouette despite being EAST, because this table answers to the bloc
+// and not to the Arma side. That redundancy is the accessibility floor - red
+// and orange, or blue and green, are the two pairs a colour-blind player is
+// least able to split, and the shape still tells him who to shoot. A new
+// faction's silhouette is its bloc; its colour is itself.
 STRAT_drawFactionIcon = createHashMapFromArray [
     ["player",    "b_inf"],
     ["csat",      "b_inf"],
     ["drugLords", "o_inf"],
-    ["nato",      "o_inf"]
+    ["nato",      "o_inf"],
+    ["civilian",  "n_inf"]
 ];
 
 // One silhouette for every location type, with ownership carried by colour and

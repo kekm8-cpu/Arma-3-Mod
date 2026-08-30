@@ -60,10 +60,14 @@
 		leader  OBJECT - what the icon is drawn over
 		anchor  ARRAY  - the leader's position, read once for the frame
 		men     ARRAY  - its living members
-		faction STRING - allegiance, for the icon silhouette and labels. NOT the
-		                 colour source: the command layer colours by role, in
-		                 TACT_fnc_buildCommandList, so a detached group with no
-		                 stamp is still drawn as one of his.
+		faction STRING - allegiance, and the key both draw tables are read with:
+		                 STRAT_drawFactionColour for the colour and
+		                 STRAT_drawFactionIcon for the silhouette, the same two
+		                 the campaign map uses. Resolved here rather than at
+		                 draw time so the detached group - which the engine
+		                 creates and which carries no stamp of its own - reaches
+		                 the draw already wearing the faction of the group it
+		                 came out of.
 
 	Parameters:
 		none
@@ -84,7 +88,7 @@ private _playerSide = side _playerGroup;
 // A detached group has no stamp of its own and takes the player's, which is
 // correct by construction - it came out of his group - and is the fallback
 // rather than the rule, so a reinforcing army that carries its own stamp keeps
-// its own silhouette.
+// its own colour and silhouette.
 private _playerFaction = _playerGroup getVariable ["STRAT_faction", "player"];
 
 {
