@@ -325,12 +325,49 @@ TACT_lastBattleReport        = "";  // Shown by the block readout and the planni
 // One icon unit as a fraction of the screen's width. This is the scaling law:
 // an icon holds a constant size on screen while the player zooms. Making it a
 // fixed number of metres instead would scale icons with zoom the way markers
-// do - a one-line change in STRAT_fnc_mapUnitMetres, because there is only one
-// place the conversion happens.
+// do.
 //
-// UNTUNED, like the fatigue curve. It wants an eyeball pass in game against a
-// real zoom range, not a decision in the abstract.
+// It is a fraction of the SCREEN and not a number of metres because a command
+// icon is a click target and a piece of symbology, and neither has a footprint
+// on the ground. A NATO silhouette says "a man is here"; it does not say the
+// man is three metres wide. An icon that grew with the terrain would assert an
+// extent it does not have, and would change the size of the thing the player is
+// aiming at every time he zoomed.
+//
+// The two figures below carry that law into drawIcon, and the reason they exist
+// is written above them.
 STRAT_drawIconScreenSize = 0.030;
+
+// drawIcon's SIZE arguments - width, height and text size - are in screen
+// space, not world metres. This contradicts what section 11 originally assumed
+// and the drill proved it: with the icon size multiplied by
+// STRAT_fnc_mapUnitMetres, zooming OUT made every icon and label grow until a
+// rifleman covered two hundred metres of map, and zooming in shrank them to
+// nothing. That is the signature of feeding a screen-space argument a
+// metres-per-screen figure - the two compound instead of cancelling.
+//
+// So icon units reach drawIcon through these constants rather than through
+// STRAT_fnc_mapUnitMetres, and the result is fixed on screen at every zoom,
+// which is what the law above says it should have been all along.
+//
+// Two constants and not one because width/height and text size are separate
+// arguments with separate base scales - a single factor cannot serve both, and
+// trying to make it was why labels came out several times the size of the icons
+// they belonged to.
+//
+// FIRST PASS. These came off measuring the drill's probe squares in a
+// screenshot, so they are the right order of magnitude and no better. The
+// selection ring is the ruler that settles them: it is drawn by drawEllipse in
+// true world coordinates at STRAT_drawRingUnits, which is 0.85 - the same
+// figure as TACT_commandIconUnits. So click a unit, and the ring and the icon
+// should very nearly coincide. Square spilling past the ring means this is too
+// big; rattling around inside it means too small.
+STRAT_drawIconUiScale = 1.90;
+
+// The same, for text. Tuned by eye against the icon once the icon is right -
+// STRAT_drawLabelUnits is 0.30 against the icon's 0.85, so a label should read
+// at roughly a third of the icon's height.
+STRAT_drawTextUiScale = 0.50;
 
 // These four are a set and are chosen against each other. A 1x1 icon reaches
 // 0.5 units to its edge and 0.71 to its corner, so the hit radius sits just
@@ -661,29 +698,37 @@ TEST_bootDrill = "squadFour";
 // ------------------------------------------------------------------------- //
 // THE ICON PROBE                                                             //
 // ------------------------------------------------------------------------- //
-// ON, because the question it answers is open. Turned on, a drill draws its
-// command icons as plain white squares instead of the CfgMarkers artwork, and
-// it exists to answer one question: the squadFour drill draws its labels - YOU
-// and the slot numbers - and no silhouettes at all. Is the texture failing to
-// resolve, or is the icon being drawn too small to see?
+// ON, and now a ruler rather than a question. Turned on, a drill draws its
+// command icons as plain white squares instead of the CfgMarkers artwork.
 //
-// The two are indistinguishable from the map. An icon and its label are the
-// same drawIcon call in STRAT_fnc_drawItems scaled by the same
-// STRAT_fnc_mapUnitMetres figure, and they differ in only two arguments -
-// the texture and the size - so a legible label beside an absent icon has
-// exactly two explanations and no way to tell them apart by looking.
+// It was built to ask whether the missing silhouettes were a texture that
+// would not resolve or an icon drawn too small to see, and it answered by
+// overshooting: the square was there, two hundred metres wide at one zoom and
+// gone at the next. That is the scale, and the scale is fixed - see
+// STRAT_drawIconUiScale. The texture question it was pointed at was never
+// actually put, because nothing at that zoom would have been visible whatever
+// its texture. Turning this off at a zoom where the square is legible is what
+// puts it, and it is worth doing once.
 //
-// The probe removes one of them. A procedural colour is the one texture that
-// cannot fail to resolve, whatever the engine does with a path it dislikes,
-// so with this on:
+// What it is for now is calibrating those two constants, because a square is a
+// better ruler than a silhouette: it has hard edges, it fills its box exactly,
+// and there is no artwork padding to argue about. To read one off:
 //
-//   white squares appear    the texture path was the fault. Look at
-//                           STRAT_fnc_mapIconTexture and its CfgMarkers lookup.
-//   still nothing           the texture was never the fault. The icons are
-//                           being drawn at a size that does not survive the
-//                           zoom, which is STRAT_drawIconScreenSize - flagged
-//                           UNTUNED where it is set, and due the eyeball pass
-//                           section 15 asks for.
+//   1. Open the map on a drill and click a unit.
+//   2. The white selection ring is the reference. It is drawn by drawEllipse
+//      in true world coordinates at STRAT_drawRingUnits - 0.85, the same
+//      figure as TACT_commandIconUnits - so it is the size the icon is
+//      supposed to be, arrived at by the one path that was never in doubt.
+//   3. Square spilling past the ring, STRAT_drawIconUiScale is too big.
+//      Rattling around inside it, too small. Scale it by roughly the ratio you
+//      see and go again; it converges in two passes.
+//   4. Then set STRAT_drawTextUiScale against the icon by eye. A label is 0.30
+//      icon units against 0.85, so it should read at about a third of the
+//      icon's height.
+//
+// Check it at two zoom levels before believing it. Getting it right at one
+// zoom is what the old arithmetic could also do; holding across the range is
+// the thing that was broken.
 //
 // It works by priming STRAT_drawTextureCache rather than by editing the
 // resolver. STRAT_fnc_mapIconTexture answers out of that cache before it ever
@@ -692,9 +737,9 @@ TEST_bootDrill = "squadFour";
 // untouched: TEST_fnc_endDrill removes exactly the keys the drill seeded, and
 // the next lookup resolves the real artwork again.
 //
-// Instrumentation, like the vehicle probe below. Set back to false the moment
-// the question is answered - a drill left running on white squares is testing
-// the probe rather than the interface.
+// Instrumentation, like the vehicle probe below. Set back to false once the
+// constants are settled - a drill left running on white squares is testing the
+// probe rather than the interface.
 TEST_iconProbeEnabled = true;
 
 // The square itself. Fully opaque white, so the item's own colour comes

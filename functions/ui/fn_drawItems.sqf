@@ -7,10 +7,25 @@
 		through here, so a strategic order arrow and a tactical route arrow
 		cannot be drawn by two different laws.
 
-		Every item is scaled and positioned through one metres-per-icon-unit
-		figure, resolved once for the whole pass. That is what makes an entity
-		and its adornments a single object rather than several icons that agree
-		by coincidence: there is only one scale factor to pick up.
+		Every item is POSITIONED through one metres-per-icon-unit figure,
+		resolved once for the whole pass. That is what makes an entity and its
+		adornments a single object rather than several icons that agree by
+		coincidence: there is only one anchor and one placement factor to pick
+		up, so a label, a ring and an order arrow cannot drift off the icon
+		they belong to at any zoom.
+
+		Every item is SIZED through the UI scales instead, because drawIcon's
+		width, height and text size are screen space rather than world metres.
+		Both spaces are still driven by the same icon-unit numbers, so the two
+		agree by construction: an icon drawn at 0.85 units and a hit radius of
+		0.60 units are both a fixed fraction of the screen, and the drawn and
+		the clickable cannot come apart. What changed is only the arithmetic
+		that reaches the engine, not the law above it.
+
+		Anything with a real extent on the ground - the boundary circle, where
+		an order arrow points, how far a shaft stands off an icon's edge - stays
+		in world metres and goes on scaling with the terrain, because those are
+		distances and not symbols.
 
 		Runs inside a Draw event handler, so it must not sleep, spawn, or
 		mutate state.
@@ -80,19 +95,31 @@ private _fnc_head = {
 		case "icon": {
 			(_item get "size") params [["_w", 1, [0]], ["_h", 1, [0]]];
 
-			// drawIcon takes width, height and text size in world metres, so
-			// feeding it icon units times the pass factor is the whole of the
-			// scaling law.
+			// SIZE goes through the UI scales; POSITION went through
+			// _metresPerUnit above. That split is the whole of the scaling law
+			// and it is not a compromise - the two arguments live in two
+			// different spaces, and this is the one place that knows it.
+			//
+			// drawIcon's width, height and text size are screen space. They
+			// were multiplied by _metresPerUnit here on the assumption they
+			// were world metres, which is what made an icon grow as the player
+			// zoomed out - the factor that was supposed to cancel the zoom
+			// compounded it instead. See STRAT_drawIconUiScale in init.sqf.
+			//
+			// Two scales rather than one because width/height and text size do
+			// not share a base. A label is 0.30 icon units against an icon's
+			// 0.85 by the constants, and those two only come out in that
+			// proportion on screen if each is converted through its own figure.
 			_map drawIcon [
 				_item get "texture",
 				_colour,
 				_pos,
-				_w * _metresPerUnit,
-				_h * _metresPerUnit,
+				_w * STRAT_drawIconUiScale,
+				_h * STRAT_drawIconUiScale,
 				0,
 				_item get "text",
 				1,                                          // 1 = drop shadow
-				(_item get "textSize") * _metresPerUnit,
+				(_item get "textSize") * STRAT_drawTextUiScale,
 				"PuristaMedium",
 				"center"
 			];

@@ -21,7 +21,24 @@
 		choice, not a law: multiplying by nothing and returning a fixed metre
 		figure instead would make icons scale with zoom the way markers do, and
 		it is a one-line change here because every element of every group reads
-		its scale from this one call.
+		its placement from this one call.
+
+		WHAT THIS IS FOR, since it no longer covers everything it once did.
+		This is the WORLD-SPACE conversion: distances and positions on the
+		ground. Hit radii, label offsets, ring radii, arrow origins and
+		arrowhead barbs. It is not what sizes an icon - drawIcon's width,
+		height and text size are screen space, and STRAT_fnc_drawItems converts
+		those through STRAT_drawIconUiScale and STRAT_drawTextUiScale instead.
+		Feeding this figure to them is what made icons grow as the player
+		zoomed out; the reasoning is in init.sqf beside those two constants.
+
+		The split does not put the drawn and the clickable at risk, which is
+		the thing this function exists to protect. Both sides still start from
+		the same icon-unit numbers and both still come out as a fixed fraction
+		of the screen - a hit radius of 0.60 units is 0.60 x
+		STRAT_drawIconScreenSize of screen width at every zoom, exactly as the
+		icon drawn at 0.85 units is. What differs is only which arithmetic
+		reaches the engine.
 
 		Both the renderer and the click hit-test call this. If they computed
 		the conversion separately they would drift, and the drift is invisible

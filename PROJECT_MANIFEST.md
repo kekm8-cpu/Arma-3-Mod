@@ -794,13 +794,41 @@ Any map that needs to show armies gets the same Draw handler attached to it.
 
 ### Scaling is ours
 
-`drawIcon` takes width and height in metres, so an icon at a fixed metre size
-scales with zoom exactly as a marker does. Multiplying by `ctrlMapScale`
-instead holds a constant pixel size. The point is not that one law is correct —
-it is that every element of an army is drawn by the same pass and therefore
-shares one scale factor by construction, so they cannot drift apart. Detail can
-also be varied by zoom, strongholds and front lines when zoomed out against
-per-army adornment when zoomed in, which markers cannot do at all.
+Two spaces, one law, and the split between them is not a compromise.
+
+**Position is world space.** Anchors, label offsets, ring radii, order-arrow
+endpoints, how far a shaft stands off an icon's edge, the boundary circle.
+These are distances on the ground and they scale with the terrain, because
+that is what they are. `STRAT_fnc_mapUnitMetres` is the single conversion and
+both the renderer and the hit-test read it.
+
+**Size is screen space.** `drawIcon`'s width, height and text size are *not*
+world metres — an earlier revision of this section asserted they were, and the
+drill disproved it. With icon size multiplied by the metres-per-icon-unit
+figure, zooming out made every icon and label *grow*, until a rifleman covered
+two hundred metres of map; zooming in shrank them to nothing. That is the
+signature of handing a screen-space argument a metres-per-screen figure: the
+factor meant to cancel the zoom compounds it. Icon units reach `drawIcon`
+through `STRAT_drawIconUiScale` and `STRAT_drawTextUiScale` instead, and two
+constants are needed rather than one because width/height and text size are
+separate arguments with separate base scales — trying to serve both from one
+factor is why labels came out several times the size of the icons they
+belonged to.
+
+An icon is fixed on screen and that is the right law here, independently of the
+bug. A command icon is a click target and a piece of symbology; neither has a
+footprint. A NATO silhouette says *a man is here*, not *the man is three metres
+wide*, and a click target that changes size with zoom is harder to hit. The
+things that genuinely do have an extent stay in world metres and go on scaling.
+
+The invariant survives the split intact, because both spaces are driven by the
+same icon-unit numbers. A hit radius of 0.60 units is `0.60 ×
+STRAT_drawIconScreenSize` of screen width at every zoom, exactly as an icon
+drawn at 0.85 units is. What differs is only the arithmetic that reaches the
+engine — every element of an army is still drawn by one pass off one set of
+figures, so they cannot drift apart. Detail can also be varied by zoom,
+strongholds and front lines when zoomed out against per-army adornment when
+zoomed in, which markers cannot do at all.
 
 ### One draw list
 
@@ -1299,22 +1327,20 @@ the enforced one cannot drift apart.
   armies it costs a few HashMaps a frame. It is the first thing to look at if
   the map ever gets heavy, and the fix is a dirty flag on the list, not two
   lists.
-- `drawIcon`'s text size is fed in world metres like its width and height, so
-  labels scale with the icons. Along with `STRAT_drawIconScreenSize` itself,
-  that number wants an eyeball pass in game against a real zoom range.
-- The command layer currently draws its labels and none of its silhouettes. The
-  `squadFour` drill puts `YOU` and the slot numbers on the map with nothing
-  above them, and there are exactly two explanations: the CfgMarkers texture is
-  not resolving, or the icon is being drawn at a metre size the zoom does not
-  survive. They cannot be told apart by looking, because an icon and its label
-  are the same `drawIcon` call through the same `STRAT_fnc_mapUnitMetres`
-  figure and differ only in the texture and the size argument.
-  `TEST_iconProbeEnabled` settles it: it seeds `STRAT_drawTextureCache` with a
-  procedural white square - the one texture that cannot fail to resolve - so
-  squares appearing indicts the texture path and squares still absent indicts
-  the scale. It seeds the cache rather than editing `STRAT_fnc_mapIconTexture`,
-  because a resolver edited to return a square is no longer the resolver under
-  test.
+- `STRAT_drawIconUiScale` and `STRAT_drawTextUiScale` are a FIRST PASS, taken
+  off measuring the drill's probe squares in a screenshot. They are the right
+  order of magnitude and no better. The selection ring is the ruler that
+  settles them — `drawEllipse` in true world coordinates at
+  `STRAT_drawRingUnits`, which is the same 0.85 as `TACT_commandIconUnits`, so
+  a selected unit's ring and its icon should very nearly coincide. Check at two
+  zoom levels: getting it right at one zoom is what the old arithmetic could
+  also do, and holding across the range is the property that was missing.
+- Whether the CfgMarkers artwork resolves at all is still formally open. The
+  icon probe was pointed at that question and answered a different one — the
+  square it drew was present but wildly mis-sized, so nothing at that zoom
+  would have been visible whatever its texture. Turning `TEST_iconProbeEnabled`
+  off at a zoom where the square is legible is what actually puts the question,
+  and it is one screenshot's work once the scale is settled.
 
 **Not started**
 - Post-battle march for a repulsed army. Survivors of every other outcome
