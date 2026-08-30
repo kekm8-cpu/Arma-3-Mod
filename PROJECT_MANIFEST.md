@@ -785,20 +785,24 @@ being made, across every force at once.
   and none may acquire one.
 - **The tactical map draws individuals only for the player's own group.** The
   player is one icon; each unit of his group is one icon and a click target;
-  every other friendly group is one icon over its leader, whole. A group's
-  internal composition is drawn only where the player arranges it, which is his
-  group and nowhere else — forty allied soldiers drawn man by man bury the eight
-  that are his. His own group is never *also* collapsed: no group icon is
+  every other group on his side is one icon over its leader, whole — a half he
+  detached, a reinforcing army of his own side, a garrison of his faction. A
+  group's internal composition is drawn only where the player arranges it, which
+  is the group he is standing in and nowhere else — forty friendly soldiers
+  drawn man by man bury the eight that are his. His own group is never *also* collapsed: no group icon is
   emitted for it, because that would draw the same men twice, once as units he
   commands and once as a body he does not. Composition for a collapsed group is
   an adornment on its icon, never a second icon.
-- **Allegiance on the field is read from the group's faction stamp, never from
-  its side.** `TACT_fnc_deployMen` writes `STRAT_faction` onto every group it
-  creates because a live group carries no route back to its army record. Side
-  cannot stand in for it: the bloc table puts player and CSAT in one bloc while
-  `STRAT_fnc_factionSide` puts them on INDEPENDENT and EAST, so a side test
-  reads an ally as an enemy and gives no sign that it did. A group with no stamp
-  is skipped, not guessed at.
+- **Two allegiance questions, two different answers, and they must not be
+  swapped.** *Who fights whom* is decided between armies, from `faction`,
+  through `STRAT_fnc_areHostile` — the bloc table is the source of truth and
+  section 8 is where it lives. *Which groups are the player's own side on the
+  field* is decided from `side`, because a group he detaches mid-battle is
+  created by the engine, carries no record and no stamp, and inherits its side
+  for free. A faction test cannot see that group at all, which is the case the
+  tactical map exists to draw. `TACT_fnc_deployMen` still stamps `STRAT_faction`
+  and `STRAT_armyId` on the groups it creates, for colour, icon and attribution
+  back to an army record — never as an allegiance test.
 - **Two command surfaces, never at once.** Map closed, the stock squad bar
   commands. Map open, the squad bar is hidden and the map commands. This
   includes the engine's own friendly icons on the map, which are a second
@@ -982,11 +986,22 @@ the enforced one cannot drift apart.
   battle model rather than of the pass. `fn_buildEngagement` takes exactly two
   armies, `fn_deployMen` spawns each as exactly one group, and contact detection
   requires hostility — so the only groups on a battlefield are the player's and
-  one enemy's, and the pass correctly emits nothing. It becomes live the day a
-  battle holds a third army, a garrison deploys into the fight, or an army
-  deploys as more than one group. The rule is encoded now because it is cheaper
-  to hold than to retrofit, and because the alternative — every friendly unit
-  drawn individually — is the state this replaces.
+  one enemy's, and the pass correctly emits nothing. Three things make it live,
+  and the first is already planned: the detach that group-level command needs
+  anyway, where a half the player splits off stops being command entities and
+  becomes one icon the same frame; a second army of his side arriving to
+  reinforce; a garrison of his faction spawning into the fight it is standing
+  in. The rule is encoded now because the detach lands into it for free, and
+  because the alternative — every friendly unit drawn individually — is the
+  state this replaces.
+- A bloc ally is not drawn as friendly and is not currently friendly to the
+  engine either. `STRAT_fnc_areHostile` puts player and CSAT in one bloc, but
+  `STRAT_fnc_factionSide` puts them on INDEPENDENT and EAST and nothing calls
+  `setFriend`, so an allied CSAT force would shoot at the player and appear
+  under the enemy indicators. The tactical map's side test inherits that rather
+  than causing it. Whichever way it is settled — a shared side, an explicit
+  `setFriend`, or accepting that blocs describe strategic hostility only — the
+  map follows and needs no separate decision.
 - Collapsed group icons carry no composition adornment yet, so a group of eight
   in trucks and a group of eight on foot are the same icon and the same label.
   `men` on the group record is what an adornment would read; the badge itself is
