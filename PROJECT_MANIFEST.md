@@ -1227,17 +1227,29 @@ happening underneath interface work.
   the left button's business, so a stray right-click cannot discard four
   entities the player spent four clicks assembling, and an empty selection
   opens nothing at all rather than a panel of dead rows.
-  The menu is **drawn from items, not built as a dialog** — rows sized and
-  placed in icon units off one world anchor, through `STRAT_fnc_drawItems` like
-  everything else, so it inherits the scaling law instead of reimplementing it
-  in a second coordinate space. Its geometry is two constants
-  (`TACT_commandMenuWidthUnits`, `TACT_commandMenuRowUnits`) with exactly two
-  readers: the draw in `fn_buildCommandList` and `TACT_fnc_contextMenuHit`,
-  which resolves both the click and the hover — so the row that lights up under
-  the pointer is provably the row that fires. While a menu is open it takes the
-  next click wherever it lands; a click away from it dismisses it and
-  deliberately does NOT fall through to a move order, because answering "not
-  that after all" by sending the men somewhere is the worst reading available.
+  The menu is **real controls on the map's display**, `ctrlCreate`d onto
+  display 12 from the `TACT_RscMenuFrame` / `TACT_RscMenuButton` classes in
+  `description.ext` — not drawn into the map layer, and not a `createDialog`
+  display. Drawing it would have put it under the same scaling law as the
+  icons, which is the tidier story and buys a rectangle, a font metric and a
+  hover highlight hand-rolled in world coordinates against a renderer built for
+  map symbols, with every row's position written down twice — once to draw it
+  and once to hit-test it. A dialog would have opened a display on top of the
+  map and taken focus from it, so a click that missed the menu would land on a
+  dialog rather than on the map. Controls on the map's own display are neither:
+  the map keeps its input, the engine lays out the rows and highlights the one
+  under the pointer, and z-order settles itself because nothing is created
+  after them. The menu's whole geometry is three fractions of the safe zone in
+  `init.sqf`; everything else about how it looks is config, where a control's
+  appearance is normally declared.
+  Each row **carries its own option id on the control**, so nothing keeps a
+  parallel list of what the rows are or what order they are in, and no row can
+  run the wrong option. A click on a row is consumed by that row; a click that
+  reaches the map with a menu open is therefore one that missed it, and
+  dismisses it without falling through to a move order — answering "not that
+  after all" by sending the men somewhere is the worst reading available.
+  `TACT_fnc_closeContextMenu` is the single teardown every path uses: a chosen
+  row, a click away, the map closing, `fn_dropOut`.
   The layer draws four things: the player, each unit of his group, every other
   group on his side as one icon over its leader (`TACT_fnc_playerGroups`), and
   every allied group as one icon over its leader (`TACT_fnc_alliedGroups`).

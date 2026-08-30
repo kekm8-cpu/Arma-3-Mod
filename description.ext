@@ -1,3 +1,80 @@
+// ------------------------------------------------------------------------ //
+// BATTLE COMMAND CONTEXT MENU                                               //
+// ------------------------------------------------------------------------ //
+// The right-click menu the map's command mode opens over a selection. These
+// are CONTROL CLASSES rather than a dialog class: TACT_fnc_openContextMenu
+// builds the menu with ctrlCreate onto display 12, the map's own display,
+// instead of calling createDialog.
+//
+// That is the difference that matters. A dialog is a display of its own and
+// would open on top of the map, taking focus from it; controls created on
+// display 12 are part of the map screen, so the map keeps its own input and a
+// click that misses the menu is still a click on the map. It also settles
+// z-order for free: a control created later draws over the ones already there,
+// and there are none created later than these.
+//
+// The engine owns the geometry from here. Sizes are in the UI coordinate space
+// ctrlSetPosition uses, which is the same space the mouse event handlers report
+// their position in, so a menu can be put exactly where the cursor was. The
+// figures themselves are in init.sqf as fractions of the safe zone, which is
+// what keeps the menu the same size on a 1080p monitor and a 4K one.
+//
+// Colour lives HERE and not in init.sqf, unlike the rest of the layer's
+// presentation. A config class cannot read a mission variable, and a colour
+// declared in both places is a colour that will eventually disagree with
+// itself. The map's DRAWN colours stay in init.sqf; the menu's are these.
+
+// The backing plate. Pale, and one margin larger than the rows on every side,
+// so what shows around them reads as a thin border rather than as a gap.
+class TACT_RscMenuFrame {
+    idc = -1;
+    type = 0;                        // CT_STATIC
+    style = 0;                       // ST_LEFT
+    x = 0; y = 0; w = 0; h = 0;      // Set at creation; these are placeholders
+    text = "";
+    font = "PuristaMedium";
+    sizeEx = 0.032;
+    shadow = 0;
+    colorText[] = {1, 1, 1, 1};
+    colorBackground[] = {0.85, 0.87, 0.90, 0.75};
+};
+
+// One row. A button rather than a static with a click handler, because a
+// button is what the engine already knows how to highlight under the pointer -
+// colorBackgroundActive is the hover state, and it costs nothing to have the
+// row light up the way every other button in the game does.
+//
+// The offsets and the sounds are zeroed deliberately. A stock button slides
+// down a pixel and clicks when pressed; a menu row that moves under the cursor
+// as it is chosen is a row that can be missed, and the click belongs to the
+// map's own soundscape rather than to the main menu's.
+class TACT_RscMenuButton {
+    idc = -1;
+    type = 1;                        // CT_BUTTON
+    style = 2;                       // ST_CENTER
+    x = 0; y = 0; w = 0; h = 0;      // Set at creation; these are placeholders
+    text = "";
+    action = "";
+    font = "PuristaMedium";
+    sizeEx = 0.032;
+    shadow = 0;
+    borderSize = 0;
+    offsetX = 0; offsetY = 0;
+    offsetPressedX = 0; offsetPressedY = 0;
+    colorText[] = {1, 1, 1, 1};
+    colorDisabled[] = {0.65, 0.65, 0.65, 0.6};
+    colorBackground[] = {0.04, 0.05, 0.07, 0.92};
+    colorBackgroundDisabled[] = {0.04, 0.05, 0.07, 0.6};
+    colorBackgroundActive[] = {0.20, 0.28, 0.40, 1};
+    colorFocused[] = {0.20, 0.28, 0.40, 1};
+    colorShadow[] = {0, 0, 0, 0};
+    colorBorder[] = {0, 0, 0, 0};
+    soundClick[] = {"", 0, 1};
+    soundEnter[] = {"", 0, 1};
+    soundPush[] = {"", 0, 1};
+    soundEscape[] = {"", 0, 1};
+};
+
 class CfgFunctions {
     class STRAT {
         class Army {
@@ -98,7 +175,7 @@ class CfgFunctions {
             class issueRegroup {};
             class splitGroup {};
             class openContextMenu {};
-            class contextMenuHit {};
+            class closeContextMenu {};
             class runContextOption {};
             class buildCommandList {};
         };

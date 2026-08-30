@@ -24,7 +24,6 @@
 		  Draw            the campaign layer, which picks its own list by mode
 		  MouseButtonDown records where a press started
 		  MouseButtonUp   turns a press that did not travel into a click
-		  MouseMoving     tracks the cursor while a context menu is open
 
 		Mouse handling is split across down and up because the map's own
 		panning is a click and drag. Acting on the press would fire an order
@@ -34,11 +33,11 @@
 		nothing else, and command-mode selection needs CTRL - and where the
 		RIGHT button comes from, which `onMapSingleClick` does not report at
 		all. Both buttons go through the same press-and-travel test and then
-		split: left selects or orders, right opens the context menu.
-
-		The cursor handler writes one variable, and only while a menu is
-		open. It exists because a menu row that does not light up under the
-		pointer reads as a picture of a menu rather than as one.
+		split: left selects or orders, right opens the context menu. The left
+		button converts its position to the world, because an order is given
+		at a place on the ground; the right button passes the screen position
+		straight through, because a menu opens at the cursor and is made of
+		controls positioned in that same space.
 
 		While the map is open and the player is commanding, the stock squad bar
 		is hidden. It is checked every frame rather than switched once, so
@@ -93,8 +92,7 @@ STRAT_mapLayerRunning = true;
 		} forEach [
 			["Draw", "STRAT_campaignLayerEH"],
 			["MouseButtonDown", "STRAT_mapPressEH"],
-			["MouseButtonUp", "STRAT_mapReleaseEH"],
-			["MouseMoving", "STRAT_mapMoveEH"]
+			["MouseButtonUp", "STRAT_mapReleaseEH"]
 		];
 
 		private _drawId = _map ctrlAddEventHandler ["Draw", {
@@ -138,9 +136,16 @@ STRAT_mapLayerRunning = true;
 					// The two buttons ask two different questions of the same
 					// selection: the left one changes it or orders it, the
 					// right one asks what can be done with it.
+					//
+					// And they take their position in two different spaces,
+					// which is not an inconsistency. An order is given at a
+					// place on the ground, so the left button converts to
+					// world. A menu opens at the cursor, so the right button
+					// hands on the screen coordinates untouched - they are
+					// already in the space ctrlSetPosition takes.
 					switch (_button) do {
 						case 0: { [_world, _ctrl, _shift] call TACT_fnc_onCommandClick };
-						case 1: { [_world] call TACT_fnc_openContextMenu };
+						case 1: { [[_x, _y]] call TACT_fnc_openContextMenu };
 					};
 				};
 			};
@@ -149,23 +154,7 @@ STRAT_mapLayerRunning = true;
 		}];
 		_map setVariable ["STRAT_mapReleaseEH", _releaseId];
 
-		// Only while a menu is open, and only to write down where the
-		// pointer is. Which row lights up is not decided here -
-		// TACT_fnc_buildCommandList derives it every frame through
-		// TACT_fnc_contextMenuHit, the same function the click runs through,
-		// so the lit row and the fired row are one row.
-		private _moveId = _map ctrlAddEventHandler ["MouseMoving", {
-			params ["_control", "_x", "_y"];
-
-			if (!isNil "TACT_commandMenuOpen" && {TACT_commandMenuOpen}) then {
-				TACT_commandMenuCursor = _control ctrlMapScreenToWorld [_x, _y];
-			};
-
-			false
-		}];
-		_map setVariable ["STRAT_mapMoveEH", _moveId];
-
-		diag_log format ["STRAT Draw: map layer attached (draw %1, press %2, release %3, move %4).", _drawId, _pressId, _releaseId, _moveId];
+		diag_log format ["STRAT Draw: map layer attached (draw %1, press %2, release %3).", _drawId, _pressId, _releaseId];
 
 		// Hold here until the map closes, then go round and wait for the next
 		// opening. Nothing is detached on close - the control's handlers and
@@ -183,10 +172,10 @@ STRAT_mapLayerRunning = true;
 
 		// The map is closed: the stock commanding UI is the interface again,
 		// whether or not a battle is still running. A context menu does not
-		// survive that - it is drawn on the map, so one left open is a menu
-		// the player cannot see, cannot dismiss, and would find waiting to
-		// eat his first click the next time he opened the map.
-		TACT_commandMenuOpen = false;
+		// survive that - its controls live on the map's display, so one left
+		// open is a menu the player cannot see, cannot dismiss, and would find
+		// waiting to eat his first click the next time he opened the map.
+		call TACT_fnc_closeContextMenu;
 		[false] call TACT_fnc_setCommandHud;
 	};
 };

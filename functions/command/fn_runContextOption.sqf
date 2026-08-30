@@ -5,20 +5,27 @@
 		Runs one context menu option against the current selection, and closes
 		the menu.
 
-		The menu closes FIRST, before anything is ordered. Every option either
-		changes what the selection is or changes what it is doing, and a menu
-		that outlived its own option would be describing a selection that had
-		moved on - "New Group" still offered over units that are no longer in
-		the player's group, a row highlighted over men who are gone. One
-		option, one menu.
+		The menu closes FIRST, before anything is ordered - and closing it
+		deletes its controls, so this runs from inside the ButtonClick handler
+		of a control it is about to destroy. That is safe and it is the reason
+		nothing is read off the control afterwards: the option id is taken out
+		of it by the handler and passed in here by value.
+
+		First, because every option either changes what the selection is or
+		changes what it is doing, and a menu that outlived its own option would
+		be describing a selection that had moved on - "New Group" still offered
+		over units that are no longer in the player's group, a row sitting over
+		men who are gone. One option, one menu.
 
 		The selection is re-resolved here rather than carried from the open.
-		TACT_fnc_openContextMenu fixed the option LIST so the rows cannot
-		renumber under a click; it deliberately did not fix the units, because
-		men die between opening a menu and pressing it and an order issued to a
-		casualty is an order issued to nothing. Every option therefore re-checks
-		its own preconditions - including "New Group", which needs two entities
-		at the moment it runs and not merely at the moment it was offered.
+		Which option a row runs is fixed - it is written on the control and
+		nowhere else, so a row cannot come to mean something it did not mean
+		when it was drawn - but WHICH UNITS it runs against deliberately is
+		not. Men die between opening a menu and pressing it, and an order
+		issued to a casualty is an order issued to nothing. Every option
+		therefore re-checks its own preconditions, "New Group" included: it
+		needs two entities at the moment it runs and not merely at the moment
+		it was offered.
 
 		Unknown ids do nothing. The list is built one function away and read one
 		function away, so an id that reaches here and is not handled is a wiring
@@ -35,7 +42,7 @@ params [
 	["_id", "", [""]]
 ];
 
-TACT_commandMenuOpen = false;
+call TACT_fnc_closeContextMenu;
 
 if (_id == "") exitWith { false };
 

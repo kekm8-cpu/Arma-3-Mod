@@ -153,7 +153,7 @@ _unit addEventHandler ["Killed", {
 TACT_commandActive    = true;
 TACT_commandSelection = [];
 TACT_commandArmyId    = _army get "id";
-TACT_commandMenuOpen  = false;
+call TACT_fnc_closeContextMenu;
 
 // A battle starts with no detachments and the naming starts at one. Both are
 // cleared HERE rather than in TACT_fnc_dropOut, because dropping out is not
