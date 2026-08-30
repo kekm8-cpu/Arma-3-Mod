@@ -376,7 +376,7 @@ STRAT_drawIconScreenSize = 0.030;
 // modes are opposite and neither is wrong in the abstract - which one matters
 // depends on how much of the fight the player wants on screen at once, and that
 // is a question for playing rather than for arguing.
-STRAT_drawIconScaleMode = 0;
+STRAT_drawIconScaleMode = 2;
 
 // Mode 1's figure: metres per icon unit, fixed. It has to be comparable to the
 // spacing between men or the icons self-overlap at EVERY zoom and the mode
