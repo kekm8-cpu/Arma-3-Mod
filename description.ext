@@ -60,7 +60,6 @@ class CfgFunctions {
             class spawnBattle {};
             class spawnDrill {};
             class endDrill {};
-            class deployConverted {};
             class vehicleProbe {};
             class probeReport {};
             class hostileProbe {};

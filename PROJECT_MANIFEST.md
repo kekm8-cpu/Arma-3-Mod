@@ -4,24 +4,31 @@ Attach this as project context. It describes the intended scope, the data model,
 current implementation state, and the invariants that must not be broken.
 
 **Revision note:** the strategic layer was originally prototyped as realtime.
-It is now specified as turn-based (WEGO). Sections 5, 7, and 13 reflect that
+It is now specified as turn-based (WEGO). Sections 5, 7, and 14 reflect that
 decision; parts of the existing codebase still assume realtime and are flagged
-in section 13.
+in section 14.
 
 **Earlier revisions** added section 10, the battle type model, closing two open
 decisions (execution presentation, boundary enforcement) that the battle model
 forced; and replaced the flat milestone list with the three-phase build plan
-(section 15) — a strategic minimum, a battle-layer deep dive, then a return to
-the strategic layer and story progression. Sections 13 and 14 are annotated
+(section 16) — a strategic minimum, a battle-layer deep dive, then a return to
+the strategic layer and story progression. Sections 14 and 15 are annotated
 with the phase each item belongs to.
 
-**This revision** adds section 11, map rendering, and renumbers the sections
-after it. The first draft of it split the map between markers and a Draw layer.
-That split does not survive contact with the engine: marker extent cannot be
-queried, so nothing drawn beside a marker can be aligned to it or scaled with
-it. Section 11 now carries the rule that follows — one entity, one renderer —
-and armies move off markers entirely. Sections 1, 5, 7, 12, 13 and 15 are
-updated accordingly.
+**An earlier revision** added section 11, map rendering, and renumbered the
+sections after it. The first draft of it split the map between markers and a
+Draw layer. That split does not survive contact with the engine: marker extent
+cannot be queried, so nothing drawn beside a marker can be aligned to it or
+scaled with it. Section 11 now carries the rule that follows — one entity, one
+renderer — and armies move off markers entirely. Sections 1, 5, 7, 12, 14 and
+16 were updated accordingly.
+
+**This revision** adds section 13, SQF Quirks and Workarounds, and renumbers the
+sections after it. It exists because `createUnit` does not put a unit on its
+group's side, that cost a day to find, and the code that works around it looks
+like overwrought nonsense unless the finding is written down next to it. Entries
+go in when an engine behaviour contradicts what the documentation implies AND
+the code carries a workaround for it — not for every surprise.
 
 ---
 
@@ -129,7 +136,8 @@ functions/
                              fn_alliedGroups, fn_onCommandClick,
                              fn_issueMoveOrder, fn_buildCommandList
   test/                      fn_buildArmy, fn_clearArmies, fn_setupScenario,
-                             fn_spawnBattle, fn_spawnDrill, fn_endDrill
+                             fn_spawnBattle, fn_spawnDrill, fn_endDrill,
+                             fn_vehicleProbe, fn_hostileProbe, fn_probeReport
 ```
 
 ---
@@ -818,7 +826,7 @@ attached while the map is closed attaches to a null control and silently renders
 nothing. The campaign layer attaches on map open, not on state change, and
 stores its handler ID on the control so it can be removed by ID rather than by
 clearing every handler — the pattern `fn_drawBoundary` uses, minus
-`fn_drawBoundary`'s call-time control lookup. See section 13.
+`fn_drawBoundary`'s call-time control lookup. See section 14.
 
 Because armies are now drawn rather than marked, a failure to attach is not a
 cosmetic fault. It is an empty strategic map.
@@ -914,7 +922,84 @@ being made, across every force at once.
 
 ---
 
-## 13. Implementation Status
+## 13. SQF Quirks and Workarounds
+
+Engine behaviours that are not what the documentation implies, that cost real
+debugging time to find, and that the code now works around. Each entry says what
+the engine does, how it was proven, and where the workaround lives — so that the
+next person to look at an odd-shaped piece of code finds the reason attached to
+it rather than deleting it as overwrought.
+
+### 13.1 `createUnit` does not put a unit on its group's side
+
+**What we assumed.** That `group createUnit [class, …]` makes the unit a member of
+that group in every sense, and that a unit's config faction is therefore
+cosmetic. The roster tables were built on it: mercenaries are `B_T_` classes on
+INDEPENDENT, the cartel is `O_T_` on WEST, and a comment in `init.sqf` recorded
+the mismatch as *"cosmetic only, since createUnit takes the group's side."*
+
+**What actually happens.** The unit joins the group and reports the group's side
+when asked — `side _unit` returns INDEPENDENT — but its **config** side still
+reaches the AI's friend/foe test. With `independent setFriend [west, 0]` in
+`init.sqf`, four `B_T_` men in an INDEPENDENT group are hostile to *each other*.
+
+**How it presented.** A drill deployed one four-man squad with nothing hostile
+anywhere on the map, and they immediately opened fire on each other and on the
+player. Nothing in the log, no script error, and every diagnostic that reported
+`side` reported INDEPENDENT throughout — the proxy looked correct the entire time
+the behaviour was wrong. It was found by swapping the roster to `I_` (AAF)
+classes, which silenced it.
+
+**Why we cannot just match classes to sides.** That fix costs the project every
+unit class it does not own. The cartel is where it bites: `drugLords` sits on
+WEST and wants Syndikat, which the game configures as INDEPENDENT, and there is
+no WEST-configured cartel in the game. Putting Syndikat on WEST would not be a
+fix either — only the same defect pointed the other way, with the cartel reading
+as the player's own side.
+
+**The workaround** — `TACT_fnc_deployMen`, section 5b onward. Six steps, and none
+of them commute:
+
+| | Step | Why it cannot move |
+|---|---|---|
+| 1 | Permanent group on the army's side | the destination |
+| 2 | COLONEL-ranked anchor of that side into it | gives the group somebody to hold it open; `createGroup [_side, true]` means an empty destination can be collected before the men arrive |
+| 3 | Holding group on the men's **config** side | read from `CfgVehicles >> side` on the class, because at this point no units exist |
+| 4 | **Men spawned into the holding group** | a unit is stamped when it is created; a man created in the destination is already wrong before any join could reach him |
+| 5 | `joinSilent` across | this one line is the conversion |
+| 6 | Anchor and holding group deleted | leader restored first — deleting a group's leader lets the engine pick the replacement |
+
+The anchor must be a class **genuinely configured on the destination side**: a
+class that shares the problem cannot be the cure for it. `TACT_sideAnchorClass`
+in `init.sqf` holds one base-game class per side. The rank matters — a squad
+leader who outranked the anchor would defeat it, so the anchor is `COLONEL`,
+above anything a config carries.
+
+Mounting is a separate pass after the join, so men are in their final group
+before they are put in vehicles.
+
+**Proven in both directions.** The squad deploys quiet with `B_T_` classes on
+INDEPENDENT. And a genuine WEST AT soldier placed 100 m from a mercenary sitting
+in a BLUFOR-classed Hunter shot him — so config side does not stop an enemy
+engaging either. That second test mattered more than the first: our own men
+ignoring our own transport is harmless, but the *enemy* ignoring it would mean
+nothing engages, nothing resolves, and the battle layer quietly does nothing.
+That failure looks like peace rather than like a bug.
+
+**Consequence for the project.** Class choice is free. A faction can wear whatever
+kit reads right regardless of which Arma side it is packed onto, and Syndikat for
+the cartel on WEST is available. Loadout flavour (3.11) is the only thing kit
+should be carrying.
+
+**If it regresses**, it will be silent. The symptom is either a squad firing on
+itself or a battle where nothing shoots. `TACT_fnc_deployMen` logs
+`UNCONVERTED` when the anchor could not be created, which is the one loud case;
+everything else needs the drill. `TEST_fnc_vehicleProbe` and
+`TEST_fnc_hostileProbe` in the harness re-run both directions on demand.
+
+---
+
+## 14. Implementation Status
 
 **Working**
 - Army/soldier/vehicle data construction, including hitpoint layout read from
@@ -1271,7 +1356,7 @@ the enforced one cannot drift apart.
 
 ---
 
-## 14. Open Decisions
+## 15. Open Decisions
 
 **Closed since last revision**
 
@@ -1342,7 +1427,7 @@ the enforced one cannot drift apart.
 
 ---
 
-## 15. Build Plan
+## 16. Build Plan
 
 Three phases. Phase one brings the strategic layer to the minimum that gives the
 battle layer real context. Phase two is the battle deep dive. Phase three
@@ -1453,24 +1538,11 @@ on. Putting Syndikat on WEST would not be a fix, only the same defect pointed th
 other way — the cartel would read as INDEPENDENT, which is the player's own side.
 
 So `mercFireteam` is deliberately back on `B_T_` classes and the drill is now the
-rig for the fix that costs nothing: **`TEST_fnc_deployConverted`**. Six steps,
-none of which commute — permanent group on the fighting side; a COLONEL-ranked
-anchor of that side into it; a holding group on the side the men's classes are
-configured on; **the men spawned into the holding group**; joined across; the
-anchor and the holding group deleted.
-
-Step four is the one that matters. A unit is stamped when it is created, so a man
-created in the destination group has already been got wrong before any join could
-reach him — which is also why this cannot be `fn_deployMen` plus a fix-up pass:
-deployment creates its men directly in the destination group, and that is exactly
-the move that does not work. The anchor goes in first for a duller reason, to
-hold the permanent group open while it would otherwise be empty.
-
-Dismounted only, and the drill owns the placement for now. **Confirmed working**
-— the squad deployed quiet with `B_T_` classes on INDEPENDENT. If it holds up, it
-folds into `fn_deployMen` so every army gets it and the roster tables can go back
-to being about what a force looks like rather than which side the engine will let
-it be on.
+rig for the fix that costs nothing: the rank-anchor join, now shipping inside
+`TACT_fnc_deployMen` and documented in full under **SQF Quirks and Workarounds**
+(13.1). The drill briefly owned its own placement while the technique was on
+trial; that copy is gone and a drill runs the shipping path, so what it exercises
+is what a battle runs.
 
 **Still open: vehicles.** `fn_deployVehicles` creates its vehicles with a bare
 `createVehicle` — no group, no side — and the anchor trick does not transfer,

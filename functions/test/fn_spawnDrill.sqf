@@ -132,24 +132,17 @@ _army set ["inBattle", true];
 // places - a selection test is worth less if the icons move between runs.
 private _bearing = 0;
 
-// TEST_fnc_deployConverted rather than TACT_fnc_deployMen, and the difference
-// is the whole reason this drill exists in its current form. createUnit does
-// not put a man on his group's side: the men are B_ classes and the group is
-// INDEPENDENT, which leaves them behaving as WEST, and `independent setFriend
-// [west, 0]` makes that a squad hostile to itself - the first drill run ended
-// with four men shooting each other.
+// The shipping path, both calls, exactly as TACT_fnc_initiateBattle makes
+// them. The drill briefly owned its own placement while the side-conversion
+// technique was on trial; that technique now lives in TACT_fnc_deployMen, so
+// the harness copy is gone and a drill tests what a battle runs.
 //
-// Deployment creates its men directly in the destination group, which is
-// exactly the move that does not work, so this cannot be fixed by calling it
-// and correcting afterwards. A unit is stamped when it is created; the join
-// has to be the first group it ever sees. The harness therefore owns the
-// placement for a drill, and TACT_fnc_deployMen is left alone until the
-// technique has earned its way in.
-//
-// No vehicle pass. A drill roster carries no transport by design - a mounted
-// man resolves to his vehicle and the map would draw fewer icons than there
-// are men - so there is nothing to place and nothing to mount into.
-private _group = [_army, _position, _bearing] call TEST_fnc_deployConverted;
+// No road lookup. `midpointConverge` lines vehicles up along the approach road
+// into a fight; there is no fight and no approach, so the deployment bearing
+// is what fn_deployVehicles falls back to anyway.
+[_army, [], _position, _bearing] call TACT_fnc_deployVehicles;
+
+private _group = [_army, _position, _bearing] call TACT_fnc_deployMen;
 
 if (count (units _group) == 0) exitWith {
 	diag_log format ["TEST Harness: drill deployment put nobody on the ground for %1.", _army get "name"];

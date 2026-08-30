@@ -15,6 +15,14 @@
 		already valid, which makes infantry-only a roster with an empty
 		rotation rather than a case to branch on.
 
+		Every man is spawned into a HOLDING GROUP on the side his class is
+		configured on and joined across into the army's own group under a
+		rank anchor, because createUnit does not put a man on the side of the
+		group it creates him in. That is a workaround for an engine behaviour,
+		not a design choice, and it is documented in full under SQF Quirks and
+		Workarounds in PROJECT_MANIFEST.md. Section 5b below is the mechanism
+		and the ordering constraints that make it work.
+
 		Seats are filled front-first, so the leader takes the head vehicle and
 		the tail of the roster walks. The dismounted remainder stays in the
 		same group as the mounted element - one army is one group, which is
@@ -146,10 +154,82 @@ if (_fileWidth < 1) then { _fileWidth = 1 };
 private _lateral = if (isNil "TACT_deployFootSpacing") then {6} else {TACT_deployFootSpacing};
 private _depth   = if (isNil "TACT_deployFootDepth") then {8} else {TACT_deployFootDepth};
 
-// 6. Place, then mount.
+// 5b. THE SIDE ANCHOR AND THE HOLDING GROUP.
+//
+// createUnit does not put a man on the side of the group it creates him in. A
+// group created on INDEPENDENT and filled with B_ classes produces men who ARE
+// in an INDEPENDENT group, report INDEPENDENT when asked, and behave as WEST -
+// so with `independent setFriend [west, 0]` they are hostile to their own
+// squad and open fire on each other with no enemy on the map. Matching every
+// roster's classes to its side is the other fix and it is the expensive one:
+// it costs the project every class it does not own, and there is no
+// WEST-configured cartel in the game for drugLords to be built out of.
+//
+// So each man is spawned into a holding group on the side his class is
+// configured on and joined across under an anchor that is genuinely of this
+// army's side and outranks him. The join is what carries him; the anchor's
+// rank is what makes the join carry him.
+//
+// THE ORDER IS THE TECHNIQUE and none of it commutes. The men must be created
+// in the holding group - a man created in the destination has already been got
+// wrong before any join could reach him. The anchor must exist before they are
+// created, because _grp is built deleteWhenEmpty and a destination with nobody
+// in it is a destination the engine may collect before the men arrive.
+private _anchorClass = TACT_sideAnchorClass getOrDefault [str _side, ""];
+private _anchor = objNull;
+private _holding = grpNull;
+
+if (_anchorClass == "") then {
+	diag_log format ["TACT Deploy: no anchor class for side %1; men will deploy unconverted.", _side];
+} else {
+	_anchor = _grp createUnit [_anchorClass, _deployPos, [], 0, "NONE"];
+
+	if (isNull _anchor) then {
+		diag_log format ["TACT Deploy: could not create anchor '%1'; men will deploy unconverted.", _anchorClass];
+	} else {
+		// Above every rank a config can carry, so it outranks the roster
+		// whatever the classes declare - B_T_Soldier_SL_F is a SERGEANT, and a
+		// squad leader who outranked the anchor would defeat the whole thing.
+		_anchor setUnitRank "COLONEL";
+		_grp selectLeader _anchor;
+		_anchor hideObject true;
+		_anchor allowDamage false;
+
+		// The side the men's CLASSES are configured on, read off the class
+		// rather than off a unit - at this point there are no units, which is
+		// the whole point of the ordering. CfgVehicles >> side: 0 EAST,
+		// 1 WEST, 2 GUER, 3 CIVILIAN.
+		//
+		// deleteWhenEmpty false: this group is emptied on purpose at 6b, and a
+		// group that deletes itself out from under 6d is a null reference
+		// waiting to be tidied up.
+		private _configSides = [east, west, independent, civilian];
+		private _configSide = _configSides param [
+			getNumber (configFile >> "CfgVehicles" >> ((_ordered select 0) get "className") >> "side"),
+			_side
+		];
+
+		_holding = createGroup [_configSide, false];
+
+		if (isNull _holding) then {
+			diag_log "TACT Deploy: could not create the holding group; men will deploy unconverted.";
+			deleteVehicle _anchor;
+			_anchor = objNull;
+		};
+	};
+};
+
+// Where the men are actually created. The holding group when the anchor stood
+// up, the army's own group when it did not - an unconverted deployment is
+// worse than a converted one but better than no deployment at all, and the log
+// above says which happened.
+private _spawnGroup = if (isNull _holding) then {_grp} else {_holding};
+
+// 6a. Place. Mounting is a separate pass now: a man has to be in his final
+// group before he is put in a vehicle, or the join would be moving crewed men
+// between groups for no reason.
 private _physicalLeader = objNull;
-private _vehicleIndex = 0;
-private _mounted = 0;
+private _placed = [];
 
 {
 	private _soldierData = _x;
@@ -167,23 +247,45 @@ private _mounted = 0;
 	// Placed on the ground at his slot, not at map origin. "NONE" so the man
 	// stands where he is put rather than being pulled into an engine
 	// formation around a leader who may not exist yet.
-	private _unit = _grp createUnit [_soldierData get "className", _slotPos, [], 0, "NONE"];
+	private _unit = _spawnGroup createUnit [_soldierData get "className", _slotPos, [], 0, "NONE"];
 	_soldierData set ["obj", _unit];
 
-	_unit setDir _deployDir;
-	_unit setDamage (1 - (_soldierData getOrDefault ["health", 1]));
-	_unit setSkill (_soldierData getOrDefault ["skill", 0.5]);
+	// A class that will not resolve returns null rather than throwing, and
+	// every line below would then error on nothing. Skipped and counted out.
+	if (!isNull _unit) then {
+		_placed pushBack _unit;
 
-	if (_soldierData getOrDefault ["isLeader", false]) then { _physicalLeader = _unit };
+		_unit setDir _deployDir;
+		_unit setDamage (1 - (_soldierData getOrDefault ["health", 1]));
+		_unit setSkill (_soldierData getOrDefault ["skill", 0.5]);
 
-	// Mount forward through the rotation until this man has a seat or the
-	// rotation is empty. `objectParent` is the authority on whether he got
-	// one: moveInAny fails silently on a full vehicle, and a vehicle that
-	// refuses a man is full for everyone, so it leaves the rotation.
-	//
-	// The loop terminates - every pass either seats him or shortens the
-	// rotation by one - and once the rotation empties every man after this
-	// one walks, which is the infantry-only case reached by exhaustion.
+		if (_soldierData getOrDefault ["isLeader", false]) then { _physicalLeader = _unit };
+	} else {
+		diag_log format ["TACT Deploy: '%1' would not spawn, man skipped.", _soldierData get "className"];
+	};
+} forEach _ordered;
+
+// 6b. Across. This one line is the conversion.
+if (!isNull _holding && {count _placed > 0}) then {
+	_placed joinSilent _grp;
+};
+
+// 6c. Mount, now that everyone is in the group they will fight in.
+//
+// Mount forward through the rotation until a man has a seat or the rotation is
+// empty. `objectParent` is the authority on whether he got one: moveInAny
+// fails silently on a full vehicle, and a vehicle that refuses a man is full
+// for everyone, so it leaves the rotation.
+//
+// The loop terminates - every pass either seats him or shortens the rotation
+// by one - and once the rotation empties every man after this one walks, which
+// is the infantry-only case reached by exhaustion.
+private _vehicleIndex = 0;
+private _mounted = 0;
+
+{
+	private _unit = _x;
+
 	while {isNull (objectParent _unit) && {count _rotation > 0}} do {
 		private _veh = _rotation select _vehicleIndex;
 		_unit moveInAny _veh;
@@ -198,7 +300,22 @@ private _mounted = 0;
 			_vehicleIndex = (_vehicleIndex + 1) % (count _rotation);
 		};
 	};
-} forEach _ordered;
+} forEach _placed;
+
+// 6d. The scaffolding back out. The real leader is selected before the anchor
+// is deleted, because deleting a group's leader lets the engine pick the
+// replacement and it would not pick the man the roster named.
+//
+// Recorded before the delete: deleteVehicle nulls the reference, so asking
+// afterwards whether there had been an anchor always answers no.
+private _converted = !isNull _holding;
+
+if (!isNull _physicalLeader && {_physicalLeader in (units _grp)}) then {
+	_grp selectLeader _physicalLeader;
+};
+
+if (!isNull _anchor) then { deleteVehicle _anchor };
+if (!isNull _holding) then { deleteGroup _holding };
 
 // 7. Hold the column to its foot element. limitSpeed is in km/h and per
 // object, which is what is wanted here - setSpeedMode is group-level and would
@@ -207,28 +324,27 @@ private _mounted = 0;
 // Applied only when somebody actually walked. With nobody on foot the slowest
 // thing in the group is a vehicle and there is nothing to hold the column back
 // to, so a fully mounted army is left uncapped and unchanged.
-private _onFoot = (count _ordered) - _mounted;
+private _onFoot = (count _placed) - _mounted;
 
 if (_onFoot > 0 && {count _deployed > 0}) then {
 	private _pace = if (isNil "TACT_deployFootPaceKmh") then {10} else {TACT_deployFootPaceKmh};
 	{ _x limitSpeed _pace } forEach _deployed;
 };
 
-// 8. Leader and facing. setFormDir gives the group a front to form on, which
-// otherwise defaults to whatever bearing the engine picks off the leader.
-if (!isNull _physicalLeader) then {
-	_grp selectLeader _physicalLeader;
-};
-
+// 8. Facing. The leader was selected at 6d, before the anchor was removed.
+// setFormDir gives the group a front to form on, which otherwise defaults to
+// whatever bearing the engine picks off the leader.
 _grp setFormDir _deployDir;
 
 diag_log format [
-	"TACT Deploy: %1 put %2 men on the ground - %3 mounted, %4 on foot%5.",
+	"TACT Deploy: %1 put %2 men on the ground as %3 - %4 mounted, %5 on foot%6%7.",
 	_army getOrDefault ["name", "?"],
-	count _ordered,
+	count _placed,
+	_side,
 	_mounted,
 	_onFoot,
-	(if (_onFoot > 0 && {count _deployed > 0}) then {", column held to foot pace"} else {""})
+	(if (_onFoot > 0 && {count _deployed > 0}) then {", column held to foot pace"} else {""}),
+	(if (_converted) then {""} else {", UNCONVERTED"})
 ];
 
 _grp

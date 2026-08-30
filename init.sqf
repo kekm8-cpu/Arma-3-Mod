@@ -178,6 +178,35 @@ TACT_deployFootDepth     = 8;   // Between ranks, back along the bearing
 TACT_deployFootPaceKmh   = 10;
 
 // ------------------------------------------------------------------------- //
+// THE SIDE ANCHOR                                                            //
+// ------------------------------------------------------------------------- //
+// createUnit does NOT put a man on the side of the group it creates him in.
+// This is not a quirk we chose to live with; it is one we found the hard way
+// and now work around on every deployment. See the SQF Quirks and Workarounds
+// section of PROJECT_MANIFEST.md for the whole finding.
+//
+// TACT_fnc_deployMen spawns each man into a holding group on the side his
+// CLASS is configured on, then joins the lot across into the army's real group
+// under a COLONEL-ranked anchor that is genuinely of the army's side. The join
+// is what carries them; the anchor's rank is what makes the join carry them.
+//
+// One class per Arma side, and each one MUST be a class genuinely configured
+// on the side it is keyed under - a class that shares the problem cannot be
+// the cure for it. Base-game classes only: the anchor lives for a few lines
+// inside one frame and is never seen, so there is nothing to gain from a class
+// that needs a DLC to resolve.
+//
+// Keyed by `str side` because a HashMap key is a string or a number and SIDE is
+// neither. `str west` is "WEST", and fn_deployMen builds its key the same way,
+// so the two cannot drift.
+TACT_sideAnchorClass = createHashMapFromArray [
+    [str independent, "I_Soldier_SL_F"],
+    [str west,        "B_Soldier_SL_F"],
+    [str east,        "O_Soldier_SL_F"],
+    [str civilian,    "C_man_1"]
+];
+
+// ------------------------------------------------------------------------- //
 // BATTLE COMMAND MODE                                                        //
 // ------------------------------------------------------------------------- //
 // When a battle deploys an army carrying a soldier flagged `isPlayer`, the
@@ -504,13 +533,15 @@ TEST_rosters = createHashMapFromArray [
     // drugLords sits on WEST and wants Syndikat, which is configured
     // INDEPENDENT, and there is no WEST-configured cartel in the game.
     //
-    // So this roster is deliberately back on the broken combination, because
-    // it is now the test rig for the fix that does not cost anything -
-    // TEST_fnc_deployConverted, which spawns these men into a holding group
-    // on the side their classes are configured on and joins them across into
-    // an INDEPENDENT group under a higher-ranked anchor of that side. Quiet
-    // with B_T_ men on INDEPENDENT means the conversion works and any class
-    // can serve any faction - Syndikat for the cartel on WEST included.
+    // So this roster stays on the broken combination, because that is now the
+    // combination the shipping code is built to survive: TACT_fnc_deployMen
+    // spawns every man into a holding group on the side his class is
+    // configured on and joins the lot across under a rank anchor. A roster
+    // that avoided the mismatch would stop exercising the workaround.
+    //
+    // Proven in both directions. The squad deploys quiet, and a WEST soldier
+    // put down next to a mercenary in a BLUFOR-classed Hunter shot him. Class
+    // choice is free: Syndikat for the cartel on WEST included.
     ["mercFireteam", [
         ["B_T_Soldier_SL_F", "B_T_Soldier_F", "B_T_Soldier_AR_F", "B_T_Soldier_LAT_F"],
         []
@@ -617,25 +648,6 @@ TEST_drills = createHashMapFromArray [
     // does not open fire there is exactly one friendly body and one friendly
     // vehicle it could have been reacting to.
     ["solo", ["BLU_Merc_Solo", "player", TEST_playerSpawn, "mercSolo"]]
-];
-
-// The rank anchor TEST_fnc_deployConverted spawns to carry a group's men onto
-// its side. One class per Arma side, and each one MUST be a class genuinely
-// configured on the side it is keyed under - a class that shares the problem
-// cannot be the cure for it.
-//
-// Keyed by `str side` because a HashMap key is a string or a number and SIDE
-// is neither. `str west` is "WEST", and the lookup in TEST_fnc_deployConverted
-// builds its key the same way, so the two cannot drift.
-//
-// Vanilla base-game classes only. The anchor lives for a few lines inside one
-// frame and is never seen, so there is nothing to gain from a class that needs
-// a DLC to resolve.
-TEST_sideAnchorClass = createHashMapFromArray [
-    [str independent, "I_Soldier_SL_F"],
-    [str west,        "B_Soldier_SL_F"],
-    [str east,        "O_Soldier_SL_F"],
-    [str civilian,    "C_man_1"]
 ];
 
 // Which drill, if any, the mission opens into. A key of TEST_drills, or "" to
