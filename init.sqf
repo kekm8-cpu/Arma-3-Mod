@@ -148,6 +148,25 @@ TACT_battleRealSecondsMax = 2400;
 TACT_blockSecondsPerBattleSecond = 1;
 
 // ------------------------------------------------------------------------- //
+// DEPLOYMENT FORMATION                                                       //
+// ------------------------------------------------------------------------- //
+// Where a roster stands the moment a battle opens. Both deployment routines
+// work off one point and one bearing per army (fn_initiateBattle computes
+// them): vehicles run forward from it as a column, dismounted men fall in
+// behind it as a staggered file, so the infantry is never spawned on top of
+// its own transport.
+//
+// Metres, and deliberately loose. These are march-order spacings rather than
+// combat ones - an army arrives in the state it was travelling in, and
+// spreading out is the first thing either side does once shooting starts.
+// They get a pass with boundary radius and the battle clock in phase 2, tuned
+// against played battles rather than in the abstract.
+TACT_deployColumnSpacing = 15;  // Between vehicles, along the column
+TACT_deployFootWidth     = 2;   // Men abreast in the dismounted file
+TACT_deployFootSpacing   = 6;   // Between files, across the bearing
+TACT_deployFootDepth     = 8;   // Between ranks, back along the bearing
+
+// ------------------------------------------------------------------------- //
 // BATTLE COMMAND MODE                                                        //
 // ------------------------------------------------------------------------- //
 // When a battle deploys an army carrying a soldier flagged `isPlayer`, the
@@ -332,6 +351,28 @@ TEST_rosters = createHashMapFromArray [
     ["cartelPatrol", [
         ["O_T_Soldier_SL_F", "O_T_Soldier_F", "O_T_Soldier_AR_F"],
         ["O_MBT_02_cannon_F"]
+    ]],
+
+    // Dismounted rosters. Build plan 2.2: an army with no transport at all is
+    // the case fn_deployMen used to refuse, and it is the shape a location
+    // garrison takes, so it is worth being able to put two of them in a field
+    // and watch them fight.
+    ["mercRifleSquad", [
+        ["B_T_Soldier_SL_F", "B_T_Soldier_F", ["B_T_Soldier_AR_F", 2], ["B_T_Soldier_LAT_F", 2], ["B_T_Medic_F", 1]],
+        []
+    ]],
+    ["cartelRifleSquad", [
+        ["O_T_Soldier_SL_F", "O_T_Soldier_F", ["O_T_Soldier_AR_F", 2], ["O_T_Soldier_LAT_F", 2], ["O_T_Medic_F", 1]],
+        []
+    ]],
+
+    // Partly mounted: more men than the Hunter has seats for, so the roster
+    // splits at deployment into a mounted element and a foot element inside
+    // one group. The interesting case for combined arms, and the one that
+    // exercises seat exhaustion rather than the absence of vehicles.
+    ["mercMotorised", [
+        ["B_T_Soldier_SL_F", ["B_T_Soldier_F", 4], ["B_T_Soldier_AR_F", 2], ["B_T_Soldier_LAT_F", 2]],
+        ["B_T_MRAP_01_gmg_F"]
     ]]
 ];
 
@@ -373,10 +414,29 @@ TEST_engagements = createHashMapFromArray [
     ["openField", [
         ["BLU_Merc_Vanguard", "player", TEST_playerSpawn, "mercVanguard"],
         ["O_Cartel_Patrol",   "drugLords", TEST_cartelSpawnClose, "cartelPatrol"]
+    ]],
+
+    // Two rosters with no transport between them. Nothing to mount, so every
+    // man is placed on foot in his deployment file and the fight opens as a
+    // meeting engagement between two dismounted squads.
+    ["infantryOnly", [
+        ["BLU_Merc_Rifles",   "player", TEST_playerSpawn, "mercRifleSquad"],
+        ["O_Cartel_Rifles",   "drugLords", TEST_cartelSpawnClose, "cartelRifleSquad"]
+    ]],
+
+    // Nine men and one Hunter against a fully mounted patrol. The player's
+    // side arrives split - a Hunter and the men who did not fit walking behind
+    // it - which is the state combined arms deployment has to produce.
+    ["combinedArms", [
+        ["BLU_Merc_Motorised", "player", TEST_playerSpawn, "mercMotorised"],
+        ["O_Cartel_Patrol",    "drugLords", TEST_cartelSpawnClose, "cartelPatrol"]
     ]]
 ];
 
-// Which engagement SHIFT+B spawns. See the key handler in block 2.
+// Which engagement SHIFT+B spawns. See the key handler in block 2. Any key of
+// TEST_engagements: "openField" (both sides mounted), "infantryOnly" (neither
+// side has transport), "combinedArms" (one side splits into a mounted element
+// and a foot element).
 TEST_defaultEngagement = "openField";
 
 // Build the starting state. Everything above is data; this is the only line
@@ -405,9 +465,11 @@ private _plantation = [
     "drugLords"
 ] call STRAT_fnc_createLocation;
 
-// A dismounted garrison, which is the normal set-piece case. Note that
-// TACT_fnc_deployMen cannot place this yet - it requires at least one vehicle,
-// and infantry-only deployment is build plan 2.2.
+// A dismounted garrison, which is the normal set-piece case. TACT_fnc_deployMen
+// can place a roster like this one now (build plan 2.2), but nothing calls it
+// with a garrison yet: a garrison record carries `men` and `vehicles` and no
+// `faction` or `id` of its own - those live on the location, as `owner` and
+// `id` - so it is the set-piece deployment plan in 2.3 that has to supply them.
 [_plantation, "O_T_Soldier_SL_F", true] call STRAT_fnc_addGarrisonMan;
 [_plantation, "O_T_Soldier_F", false] call STRAT_fnc_addGarrisonMan;
 [_plantation, "O_T_Soldier_AR_F", false] call STRAT_fnc_addGarrisonMan;

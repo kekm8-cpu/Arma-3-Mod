@@ -5,12 +5,17 @@
 		Resolves the player's group into the things that can be drawn on the
 		map, clicked, and given a move order.
 
-		A command entity is not a soldier. Deployment mounts every man into a
-		vehicle, so at the moment a battle opens the whole group is inside one
+		A command entity is not a soldier. Deployment mounts as many men as
+		there are seats, so a fully mounted group opens a battle inside one
 		MRAP: eight icons stacked on one point, seven of which cannot go
 		anywhere on their own. An entity is therefore either a dismounted
 		soldier or a vehicle carrying at least one of the group's men, which is
 		what the player actually has to move.
+
+		A partly mounted group - more men on the roster than seats in the
+		column - resolves to both kinds at once, and needs no special case
+		here: the men who did not fit are already on foot, so they are already
+		entities.
 
 		That also settles what clicking a mounted man means. He resolves to his
 		vehicle, because his vehicle is the entity he is part of - selecting

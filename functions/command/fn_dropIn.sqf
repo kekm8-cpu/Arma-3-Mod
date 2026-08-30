@@ -7,9 +7,10 @@
 
 		Nothing is moved and nothing is inserted. Deployment has already
 		spawned the whole roster, the flagged man among them, standing where
-		the deployment plan put him and mounted in whatever vehicle the
-		rotation gave him. All this does is change which of those bodies the
-		player is looking through, with selectPlayer.
+		the deployment plan put him - in whatever vehicle the rotation gave
+		him, or on foot in his formation slot if it ran out of seats before it
+		reached him. All this does is change which of those bodies the player
+		is looking through, with selectPlayer.
 
 		That is why the battle layer needs no special case for the player. He
 		is a soldier with a soldier record: he is counted in the army's

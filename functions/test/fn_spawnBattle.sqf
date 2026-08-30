@@ -128,7 +128,7 @@ if (!([_armyA get "faction", _armyB get "faction"] call STRAT_fnc_areHostile)) t
 private _engagement = [_armyA, _armyB, STRAT_blockLengthHours] call TACT_fnc_buildEngagement;
 
 if (!([_engagement] call TACT_fnc_initiateBattle)) exitWith {
-	systemChat "TEST: deployment failed, engagement abandoned. Both sides need at least one vehicle and a road route of two or more segments to the midpoint - infantry-only deployment is build plan 2.2.";
+	systemChat "TEST: deployment failed, engagement abandoned. Both sides need at least one man on the roster.";
 	createHashMap
 };
 

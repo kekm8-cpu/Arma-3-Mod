@@ -491,7 +491,11 @@ nearest its own origin — along the vector from the anchor toward its own
 position, at the boundary radius — **facing its destination bearing**, read from
 `pendingOrder`. The geometry of the tactical map therefore encodes where
 everyone is trying to go. Vehicles deploy along the approach road from that
-edge point; `fn_calculateRoadPath` supplies the road nodes as it does now.
+edge point; `fn_calculateRoadPath` supplies the road nodes as it does now, and
+where it supplies too few — it returns nothing at all for a position more than
+150 m from a road — the column carries on along its last bearing. Dismounted
+men fall in behind the same point, so infantry and its transport never contest
+the same ground.
 
 **The incentive to advance is strategic, not tactical.** Both armies are trying
 to reach somewhere. Time spent in cover is block time burned and distance not
@@ -821,8 +825,16 @@ being made, across every force at once.
   config without spawning.
 - Dijkstra road pathfinding with position→nearest-road snapping and jink-turn
   correction.
-- Vehicle deployment with damage/hitbox restoration; infantry deployment with
-  round-robin vehicle mounting and leader placement.
+- Vehicle deployment with damage/hitbox restoration; infantry deployment on
+  foot or mounted, from one deployment point and bearing per army.
+  `TACT_fnc_deployMen` places every man in a formation slot first and mounts
+  him afterwards, front of the column first, so infantry-only is a roster with
+  an empty rotation and combined arms is one that runs out of seats partway
+  down — both produce one group carrying whatever mixture resulted.
+  `TACT_fnc_deployVehicles` places only as many vehicles as the roster can put
+  drivers in, and continues the column along its last bearing past the end of
+  the approach road, so an army out of road range deploys off-road rather than
+  not at all.
 - Map battle boundary rendering.
 - Turn skeleton: planning → commit → resolve → advance, movement only.
   `STRAT_fnc_beginPlanning` opens the phase and retires finished orders;
@@ -941,10 +953,29 @@ takes the anchor and radius rather than a raw midpoint, so the drawn circle and
 the enforced one cannot drift apart.
 
 **Partial / needs work**
-- `fn_deployMen` requires at least one vehicle; infantry-only armies deploy
-  nothing, and a dismounted garrison is exactly that case. `fn_initiateBattle` now detects an empty deployment and abandons the
-  engagement rather than letting the side be classified as annihilated, so the
-  limitation costs a battle but never a roster.
+- A partly mounted group is one group containing trucks and men on foot, and
+  the single `move` order `fn_initiateBattle` issues drives both. The mounted
+  element will outpace the foot element until Arma's formation logic reins it
+  in, and how badly has only been reasoned about, not played. The alternative —
+  a mounted group and a foot group per army — is rejected: `fn_resolveVictory`,
+  `fn_syncBack` and `fn_dropIn` all read one group per side, and splitting it
+  is the same change as the detach that group-level command needs, so it waits
+  for that and for counting strength off the `men` array.
+- Deployment geometry is still `midpointConverge`: each army is placed where it
+  already stands, facing the anchor. `fn_initiateBattle` computes one point and
+  one bearing per army and hands them to both deployment routines, so edge
+  deployment facing the destination bearing (2.1) is a change to those four
+  values and to nothing inside `fn_deployMen` or `fn_deployVehicles`.
+- Nothing deploys a garrison yet. `fn_deployMen` can place a dismounted roster
+  now, but a garrison record carries `men` and `vehicles` and no `faction` or
+  `id` of its own — those live on the location as `owner` and `id` — so it is
+  the set-piece deployment plan (2.3) that has to supply them. Stamping a
+  `faction` into the garrison record instead was rejected: it would duplicate
+  `owner` and go stale the first time a location changes hands (3.8).
+- `fn_initiateBattle` still abandons an engagement when a side puts nobody on
+  the ground, but the only roster that now does that is one with no men in it.
+  A side that cannot field anybody must not be classified as annihilated, so
+  the engagement costs a battle and never a roster.
 - Only annihilation, breakthrough, repulse, and block-clock expiry are live
   victory conditions. Rout needs a morale model and surrender needs the
   set-piece capture point; neither is claimed in the engagement record.
@@ -1314,8 +1345,30 @@ is rejected in section 11.
 before adding a second battle type, not after. Includes edge-deployment
 geometry and destination bearing.
 
-2.2 **Infantry-only deployment.** `fn_deployMen` currently requires at least one
-vehicle. Fix before set-piece, where dismounted garrisons are the normal case.
+~~2.2 **Infantry-only deployment.**~~ **Done.** `fn_deployMen` places every man
+in a formation slot on the ground and mounts him afterwards, rather than
+creating him at `[0,0,0]` and relying on `moveInAny` to put him somewhere real.
+Placement became the unconditional step and mounting became subtraction from a
+state that was already valid, which makes infantry-only a roster with an empty
+vehicle rotation and combined arms a rotation that empties partway down the
+roster — neither is a branch. `objectParent` is what decides whether a man got
+a seat, so a vehicle that refuses one is full for everyone and leaves the
+rotation; the old `emptyPositions "Any"` pruning was the only thing keeping an
+unseated man off map origin.
+
+It took two changes outside `fn_deployMen`. `fn_deployVehicles` now places only
+as many vehicles as the roster can crew — a truck short of a driver keeps `obj`
+null, which `fn_syncBack` already reads as never deployed, so it sits the
+battle out instead of standing on the field unable to move or shoot — and it
+continues its column along the last bearing past the end of the approach road,
+where before a path shorter than the roster silently dropped the tail of it and
+an empty path (both ends more than 150 m from a road) dropped all of it. That
+last case produced exactly the symptom this item is about, from a different
+cause. `fn_initiateBattle` computes one deployment point and one bearing per
+army and hands them to both routines, which is the seam 2.1 moves.
+
+Harness: `infantryOnly` and `combinedArms` join `openField` in
+`TEST_engagements`, over three new rosters.
 
 2.3 **Set-piece battles.** Capture point, tug-of-war contest, surrender,
 prisoner logging. Both role directions.

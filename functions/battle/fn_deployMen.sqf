@@ -2,18 +2,50 @@
 	Function: TACT_fnc_deployMen
 
 	Description:
-		Spawns an army's infantry roster and distributes them between its
-		deployed vehicles, filling the front of the column first.
+		Spawns an army's infantry roster onto the tactical grid at a given
+		deployment point and bearing, mounting as much of it as the deployed
+		vehicles have seats for and leaving the rest on foot.
+
+		Every man is put on the ground first and mounted afterwards. That
+		ordering is the whole of build plan 2.2: the old version created each
+		unit at [0,0,0] and relied on `moveInAny` to move him somewhere real,
+		so an army with no vehicles deployed nobody and a man the rotation
+		could not seat was left standing at map origin. Placement is now the
+		unconditional step and mounting is subtraction from a state that was
+		already valid, which makes infantry-only a roster with an empty
+		rotation rather than a case to branch on.
+
+		Seats are filled front-first, so the leader takes the head vehicle and
+		the tail of the roster walks. The dismounted remainder stays in the
+		same group as the mounted element - one army is one group, which is
+		what fn_resolveVictory, fn_syncBack and fn_dropIn all read - and
+		TACT_fnc_commandEntities already resolves a mixed group into trucks
+		and men on foot without knowing how it got that way.
+
+		The foot formation is a staggered file laid out *behind* the
+		deployment point, along the reverse of the deployment bearing.
+		fn_deployVehicles lays its column out forward from the same point, so
+		the infantry falls in behind its own transport rather than inside it.
+
+		Deployment point and bearing are parameters rather than derived here.
+		Today fn_initiateBattle passes the army's own position and the bearing
+		to the anchor, which is what `midpointConverge` means; edge deployment
+		facing the destination bearing (section 10.1) changes that one call
+		site and nothing in here.
 
 	Parameters:
 		0: HASHMAP - army object
+		1: ARRAY   - deployment point, the head of the formation
+		2: NUMBER  - deployment bearing in degrees, the direction men face
 
 	Returns:
-		GROUP - the created group.
+		GROUP - the created group. Empty of units only if the roster is empty.
 */
 
 params [
-	["_army", createHashMap, [createHashMap]]
+	["_army", createHashMap, [createHashMap]],
+	["_deployPos", [0,0,0], [[]]],
+	["_deployDir", 0, [0]]
 ];
 
 // 1. Determine the Arma side from the "faction" attribute. The faction->side
@@ -37,97 +69,130 @@ private _grp = createGroup [_side, true];
 _grp setVariable ["STRAT_faction", _faction];
 _grp setVariable ["STRAT_armyId", _army getOrDefault ["id", ""]];
 
-// 2. Gather vehicles and reverse the order to fill the front first
-private _armyVehicles = _army getOrDefault ["vehicles", []];
-private _rotationVehicles = [];
-
-// Extract physical objects from the vehicle data array
-{
-    private _vehObj = _x get "obj";
-    if (!isNull _vehObj && alive _vehObj) then {
-        _rotationVehicles pushBack _vehObj;
-    };
-} forEach _armyVehicles;
-
-// Reverse array to fill front assets first (spawned back-to-front)
-reverse _rotationVehicles;
-
-// 3. Extract the men array
+// 2. The roster. An army with no men deploys nobody, and that is the only
+// condition under which this returns an empty group - having no vehicles is
+// no longer one of them.
 private _menArray = _army getOrDefault ["men", []];
-if (count _menArray == 0 || count _rotationVehicles == 0) exitWith { _grp };
+if (count _menArray == 0) exitWith { _grp };
 
-private _leaderData = createHashMap;
-private _regularInfantry = [];
-
-// Isolate the leader from the regular troops
+// 3. Vehicles that actually made it onto the ground, front of the column
+// first. fn_deployVehicles leaves `obj` null for anything it did not place -
+// a vehicle the roster has no driver for - so this reads what is there rather
+// than what was ordered.
+private _rotation = [];
 {
-    if (_x getOrDefault ["isLeader", false]) then {
-        _leaderData = _x;
-    } else {
-        _regularInfantry pushBack _x;
-    };
+	private _vehObj = _x getOrDefault ["obj", objNull];
+	if (!isNull _vehObj && {alive _vehObj}) then {
+		_rotation pushBack _vehObj;
+	};
+} forEach (_army getOrDefault ["vehicles", []]);
+
+// Spawned back-to-front along the approach, so the last placed is the head of
+// the column and the first to be filled.
+reverse _rotation;
+
+// 4. Marching order: the leader heads the file and takes the head vehicle,
+// then everyone else in roster order. One ordered pass replaces the separate
+// leader placement the mounted-only version needed.
+private _leaderData = createHashMap;
+private _ordered = [];
+
+{
+	if (_x getOrDefault ["isLeader", false] && {count _leaderData == 0}) then {
+		_leaderData = _x;
+	} else {
+		_ordered pushBack _x;
+	};
 } forEach _menArray;
 
+if (count _leaderData > 0) then { _ordered insert [0, [_leaderData]] };
+
+// 5. Formation geometry. Forward is the deployment bearing; men are laid out
+// in files of TACT_deployFootWidth, each rank one TACT_deployFootDepth further
+// back along the reverse of it.
+//
+// Flattened to ground level first. An army's `location` is a strategic
+// position and carries whatever height it was authored with; a slot built off
+// a non-zero z spawns the man in the air and drops him.
+_deployPos = [_deployPos param [0, 0, [0]], _deployPos param [1, 0, [0]], 0];
+
+private _fwd   = [sin _deployDir, cos _deployDir, 0];
+private _right = [cos _deployDir, -(sin _deployDir), 0];
+
+private _fileWidth = if (isNil "TACT_deployFootWidth") then {2} else {TACT_deployFootWidth};
+if (_fileWidth < 1) then { _fileWidth = 1 };
+
+private _lateral = if (isNil "TACT_deployFootSpacing") then {6} else {TACT_deployFootSpacing};
+private _depth   = if (isNil "TACT_deployFootDepth") then {8} else {TACT_deployFootDepth};
+
+// 6. Place, then mount.
 private _physicalLeader = objNull;
-
-// 4. Spawn and place the leader into the front vehicle
-if (count _leaderData > 0) then {
-    private _leadVehicle = _rotationVehicles select 0;
-    
-    // Spawn physical unit
-    _physicalLeader = _grp createUnit [_leaderData get "className", [0,0,0], [], 0, "NONE"];
-    _leaderData set ["obj", _physicalLeader]; // Update hashmap with physical model
-    
-    // Apply health and skill
-    _physicalLeader setDamage (1 - (_leaderData getOrDefault ["health", 1]));
-    _physicalLeader setSkill (_leaderData getOrDefault ["skill", 0.5]);
-    
-    // Move into first available seat of the lead vehicle
-    _physicalLeader moveInAny _leadVehicle;
-};
-
-// 5. Rotate between vehicles to fill remaining infantry
 private _vehicleIndex = 0;
+private _mounted = 0;
 
 {
-    private _soldierData = _x;
-    
-    // Safe guard if all vehicles somehow fill up before array is exhausted
-    if (count _rotationVehicles == 0) exitWith {};
+	private _soldierData = _x;
 
-    // Get the vehicle currently in rotation
-    private _currentVeh = _rotationVehicles select _vehicleIndex;
+	private _rank = floor (_forEachIndex / _fileWidth);
+	private _file = _forEachIndex % _fileWidth;
 
-    // Spawn the soldier
-    private _unit = _grp createUnit [_soldierData get "className", [0,0,0], [], 0, "NONE"];
-    _soldierData set ["obj", _unit]; // Update hashmap with physical model
+	private _offsetRight = ((_file - ((_fileWidth - 1) / 2)) * _lateral);
+	private _offsetBack  = -(_rank * _depth);
 
-    // Apply health and skill variables
-    _unit setDamage (1 - (_soldierData getOrDefault ["health", 1]));
-    _unit setSkill (_soldierData getOrDefault ["skill", 0.5]);
+	private _slotPos = _deployPos
+		vectorAdd (_right vectorMultiply _offsetRight)
+		vectorAdd (_fwd vectorMultiply _offsetBack);
 
-    // Assign to seat
-    _unit moveInAny _currentVeh;
+	// Placed on the ground at his slot, not at map origin. "NONE" so the man
+	// stands where he is put rather than being pulled into an engine
+	// formation around a leader who may not exist yet.
+	private _unit = _grp createUnit [_soldierData get "className", _slotPos, [], 0, "NONE"];
+	_soldierData set ["obj", _unit];
 
-    // Check if the vehicle has filled up after mounting
-    // (emptyPositions checks driver, gunner, commander, and cargo slots combined)
-    if ((_currentVeh emptyPositions "Any") == 0) then {
-        _rotationVehicles deleteAt _vehicleIndex; // Remove full vehicle from rotation
-        
-        // Re-evaluate index boundaries after pruning
-        if (count _rotationVehicles > 0) then {
-            _vehicleIndex = _vehicleIndex % (count _rotationVehicles);
-        };
-    } else {
-        // Move tracker to the next vehicle in rotation smoothly via modulo
-        _vehicleIndex = (_vehicleIndex + 1) % (count _rotationVehicles);
-    };
+	_unit setDir _deployDir;
+	_unit setDamage (1 - (_soldierData getOrDefault ["health", 1]));
+	_unit setSkill (_soldierData getOrDefault ["skill", 0.5]);
 
-} forEach _regularInfantry;
+	if (_soldierData getOrDefault ["isLeader", false]) then { _physicalLeader = _unit };
 
-// 6. Set the group leader to the designated leader asset and return group
+	// Mount forward through the rotation until this man has a seat or the
+	// rotation is empty. `objectParent` is the authority on whether he got
+	// one: moveInAny fails silently on a full vehicle, and a vehicle that
+	// refuses a man is full for everyone, so it leaves the rotation.
+	//
+	// The loop terminates - every pass either seats him or shortens the
+	// rotation by one - and once the rotation empties every man after this
+	// one walks, which is the infantry-only case reached by exhaustion.
+	while {isNull (objectParent _unit) && {count _rotation > 0}} do {
+		private _veh = _rotation select _vehicleIndex;
+		_unit moveInAny _veh;
+
+		if (isNull (objectParent _unit)) then {
+			_rotation deleteAt _vehicleIndex;
+			if (count _rotation > 0) then {
+				_vehicleIndex = _vehicleIndex % (count _rotation);
+			};
+		} else {
+			_mounted = _mounted + 1;
+			_vehicleIndex = (_vehicleIndex + 1) % (count _rotation);
+		};
+	};
+} forEach _ordered;
+
+// 7. Leader and facing. setFormDir gives the group a front to form on, which
+// otherwise defaults to whatever bearing the engine picks off the leader.
 if (!isNull _physicalLeader) then {
-    _grp selectLeader _physicalLeader;
+	_grp selectLeader _physicalLeader;
 };
+
+_grp setFormDir _deployDir;
+
+diag_log format [
+	"TACT Deploy: %1 put %2 men on the ground - %3 mounted, %4 on foot.",
+	_army getOrDefault ["name", "?"],
+	count _ordered,
+	_mounted,
+	(count _ordered) - _mounted
+];
 
 _grp
