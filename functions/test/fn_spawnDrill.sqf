@@ -294,6 +294,17 @@ if (!isNil "TEST_iconProbeEnabled" && {TEST_iconProbeEnabled}) then {
 		if (!(_y in _classes)) then { _classes pushBack _y };
 	} forEach STRAT_drawFactionIcon;
 
+	// And the CfgVehicles classes actually on the ground, because individual
+	// entities no longer resolve through the marker table at all - they go
+	// through STRAT_fnc_mapUnitTexture, keyed by vehicle class. Those keys
+	// cannot be listed in advance the way the marker classes can, so they are
+	// read off the deployment: whatever is standing here is what the map is
+	// about to ask for. Shared cache, so one seeding covers both resolvers.
+	{
+		private _class = typeOf (vehicle _x);
+		if (_class != "" && {!(_class in _classes)}) then { _classes pushBack _class };
+	} forEach (units _group);
+
 	if (isNil "STRAT_drawTextureCache") then { STRAT_drawTextureCache = createHashMap };
 
 	{

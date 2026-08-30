@@ -854,6 +854,27 @@ figures, so they cannot drift apart. Detail can also be varied by zoom,
 strongholds and front lines when zoomed out against per-army adornment when
 zoomed in, which markers cannot do at all.
 
+### Two icon sources
+
+The map draws two kinds of thing and they take different symbology.
+
+An **individual** — a command entity, the commander — takes the stock per-unit
+artwork, resolved by `STRAT_fnc_mapUnitTexture` through `CfgVehicles >> icon`
+and then `CfgVehicleIcons`. It is a rounded silhouette with a pointed end, and
+it is asymmetric on purpose: rotating it is how the engine's own map shows
+heading.
+
+An **aggregate** — a collapsed group, an army, a location — takes NATO box
+symbology, resolved by `STRAT_fnc_mapIconTexture` through `CfgMarkers`. A box
+means *a body of men of this type*. Putting one over a single rifleman says
+something false about what he is, and the box reads upright so it cannot carry
+heading anyway.
+
+Both resolvers share one cache, keyed by class name; a CfgMarkers class and a
+CfgVehicles class cannot collide. A unit whose config carries no icon falls back
+to the NATO box rather than to a blank — a wrong symbol is legible, and an empty
+one is a unit the player cannot identify.
+
 ### One draw list
 
 `STRAT_fnc_buildDrawList` derives a list of draw items from campaign state:
@@ -1313,16 +1334,17 @@ the enforced one cannot drift apart.
   `men` on the group record is what an adornment would read; the badge itself is
   the same piece of work as the vehicle badge section 11 opens with, and should
   land as one.
-- Nothing drawn on either map carries facing. `drawIcon`'s rotation argument is
-  the literal `0` for every item, and hiding the engine's friendly icons takes
-  away the stock facing arrows that were the only heading cue on the tactical
-  map. Facing belongs to an entity and not to an aggregate: a soldier and a
-  vehicle each have one, an army or a body of men under a single icon does not,
-  and the aggregate's equivalent is the order arrow it already draws —
-  direction of intent rather than direction of facing. So if this arrives it is
-  per command entity, and rotating the NATO silhouette is the wrong way to do
-  it — those symbols read as upright. It wants a barb off the icon's edge,
-  which is `_fnc_head` in `STRAT_fnc_drawItems` and already written.
+- Facing is drawn for individuals and for nobody else, which settles this
+  entry's original form. Items carry a `direction`, and command entities and the
+  commander set it from `getDir`; every aggregate passes `0`. The reasoning that
+  held it open still holds and is now what keeps the aggregates at zero:
+  rotating a NATO silhouette is the wrong way to show heading, because those
+  symbols read as upright, and a body of men under one icon has no single facing
+  to show — its equivalent is the order arrow, direction of intent rather than
+  direction of facing. What changed is that individuals no longer *use* a NATO
+  silhouette. The stock unit artwork is asymmetric and built to turn, so
+  rotating it is exactly how the engine's own map shows heading, and it cost one
+  argument.
 - `"polyline"` is a live shape in `STRAT_fnc_drawItems` that nothing emits. It
   is kept rather than deleted because an unreachable `case` cannot be entered
   and so cannot drift, and routes return with group waypoint chains. A

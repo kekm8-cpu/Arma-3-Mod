@@ -127,6 +127,12 @@ private _fnc_head = {
 			// zoomed out - the factor that was supposed to cancel the zoom
 			// compounded it instead.
 			//
+			// Rotation is the item's own, and is 0 for everything that is not
+			// an individual. The stock unit silhouettes are asymmetric and
+			// turning one is how the engine's map shows heading; a NATO box
+			// reads upright and an aggregate has no single facing to show, so
+			// those pass 0 and look the same as they always did.
+			//
 			// The two Arg scales are pure engine calibration: what number
 			// drawIcon wants for a given fraction of the screen. They carry no
 			// policy, which is why the scaling mode does not appear here. Two
@@ -140,7 +146,7 @@ private _fnc_head = {
 				_pos,
 				_w * _screenPerUnit * STRAT_drawIconArgScale,
 				_h * _screenPerUnit * STRAT_drawIconArgScale,
-				0,
+				_item get "direction",
 				_item get "text",
 				1,                                          // 1 = drop shadow
 				(_item get "textSize") * _screenPerUnit * STRAT_drawTextArgScale,

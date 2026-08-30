@@ -27,9 +27,19 @@
 		its units, and no group icon is emitted for it, because one would draw
 		the same men a second time as a body he does not command.
 
-		Colour and silhouette come from STRAT_drawFactionColour and
-		STRAT_drawFactionIcon - the CAMPAIGN layer's tables, read here
-		unchanged. There is no battle-only palette. An army the player watched
+		TWO ICON SOURCES, split on individual versus aggregate. A command
+		entity and the commander are individuals and take the stock per-unit
+		artwork through STRAT_fnc_mapUnitTexture - a rounded silhouette with a
+		pointed end, rotated to the entity's heading, which is how the engine's
+		own map draws a unit. A collapsed group is an aggregate and keeps the
+		NATO box from STRAT_drawFactionIcon. A box over one rifleman says
+		something false about what he is, and it reads upright so it cannot
+		carry heading; a body of men has no single heading to carry. The two
+		symbols mean different things and the map now says which it means.
+
+		Colour comes from STRAT_drawFactionColour, and a collapsed group's
+		silhouette from STRAT_drawFactionIcon - the CAMPAIGN layer's tables,
+		read here unchanged. There is no battle-only palette. An army the player watched
 		march across the strategic map is the same colour and the same shape as
 		the men he is now standing among, which is the whole reason the two
 		maps can be looked at as one system. The scheme and the reasoning behind
@@ -49,6 +59,12 @@
 
 		The player is drawn and never hit-tested. A commander is worth seeing
 		on the map, and is not something to select and order.
+
+		Facing is drawn for individuals and for nobody else. Section 15 held
+		this open on the grounds that rotating a NATO silhouette is the wrong
+		way to show heading, which is still true - it is why the aggregates
+		pass 0. The stock unit artwork is built to turn, so the entities can
+		have it for the cost of one argument.
 
 		Nothing here draws orders yet beyond the selection ring. An individual
 		unit's move order is a single destination it is already walking to, and
@@ -95,6 +111,7 @@ private _fnc_item = {
 		["toWorld", []],
 		["points", []],
 		["fromEdge", 0],
+		["direction", 0],
 		["texture", STRAT_drawBlankTexture],
 		["text", ""],
 		["textSize", 0],
@@ -199,11 +216,24 @@ private _fnc_groupIcons = {
 		_friendly
 	};
 
+	// The stock per-unit artwork, not a NATO box. A box means "a body of men of
+	// this type" and this is one man or one truck; and the box reads upright,
+	// so it has no way to show which way he is looking. The engine's own
+	// silhouette is asymmetric precisely so that rotating it does, which is
+	// where the facing below comes from.
+	//
+	// The NATO class is still named, as the fallback: a vehicle whose config
+	// carries no icon draws as a box rather than as a blank, because a wrong
+	// symbol is legible and an empty one is a unit the player cannot identify.
 	[_id, "commandEntity", _entity, _anchor, "icon", createHashMapFromArray [
 		["shape", "icon"],
-		["texture", [if (_mounted) then {"b_armor"} else {"b_inf"}] call STRAT_fnc_mapIconTexture],
+		["texture", [
+			typeOf _obj,
+			if (_mounted) then {"b_armor"} else {"b_inf"}
+		] call STRAT_fnc_mapUnitTexture],
 		["colour", _colour],
 		["size", [TACT_commandIconUnits, TACT_commandIconUnits]],
+		["direction", getDir _obj],
 		["hitUnits", TACT_commandHitUnits]
 	]] call _fnc_item;
 
@@ -243,11 +273,20 @@ private _fnc_groupIcons = {
 // men you are trying to select is a way to lose orders.
 private _playerAnchor = getPosATL (vehicle player);
 
+// The same artwork as his men, because he is one of them - an individual on the
+// ground, not an aggregate. He was a b_hq flag while every icon was a NATO box
+// and that was the only way to tell him apart; the yellow does that job now,
+// and a flag among unit silhouettes reads as a command post rather than as the
+// man himself. TACT_commandPlayerIcon is the one line to change it back.
 ["CMD_PLAYER", "commander", createHashMap, _playerAnchor, "icon", createHashMapFromArray [
 	["shape", "icon"],
-	["texture", ["b_hq"] call STRAT_fnc_mapIconTexture],
+	["texture", [
+		typeOf (vehicle player),
+		TACT_commandPlayerIcon
+	] call STRAT_fnc_mapUnitTexture],
 	["colour", TACT_commandPlayerColour],
-	["size", [TACT_commandIconUnits, TACT_commandIconUnits]]
+	["size", [TACT_commandIconUnits, TACT_commandIconUnits]],
+	["direction", getDir (vehicle player)]
 ]] call _fnc_item;
 
 ["CMD_PLAYER", "commander", createHashMap, _playerAnchor, "label", createHashMapFromArray [

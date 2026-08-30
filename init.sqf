@@ -256,6 +256,13 @@ TACT_commandGroupIconUnits = 1.00;
 // as one.
 TACT_commandPlayerColour = [1, 0.85, 0.2, 1];
 
+// The commander draws as the stock unit silhouette like his men, because he is
+// an individual and not an aggregate, and the yellow is what tells him apart.
+// This is only the FALLBACK, for a body whose config carries no icon - set it
+// to "b_hq" and give TACT_fnc_buildCommandList's commander block the marker
+// resolver instead if the flag is wanted back.
+TACT_commandPlayerIcon = "b_inf";
+
 // Everything else the battle map draws is coloured from STRAT_drawFactionColour,
 // the same table the campaign map reads. There is no battle-only palette. A
 // group with no STRAT_faction stamp - the half the player detaches, which the
@@ -769,6 +776,11 @@ TEST_bootDrill = "squadFour";
 // constants need touching up: hard edges, fills its box exactly, no artwork
 // padding to argue about. Worth turning on when a scaling mode is being tried
 // for the first time. To read one off:
+//
+// TEST_fnc_spawnDrill seeds the CfgVehicles classes actually on the ground as
+// well as the marker classes, so unit icons square off too. Without that they
+// would not: individual entities resolve through STRAT_fnc_mapUnitTexture and
+// their keys are class names the switch cannot know in advance.
 //
 //   1. Open the map on a drill and click a unit.
 //   2. The white selection ring is the reference. It is drawn by drawEllipse
