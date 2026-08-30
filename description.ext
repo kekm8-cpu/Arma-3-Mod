@@ -60,6 +60,7 @@ class CfgFunctions {
             class spawnBattle {};
             class spawnDrill {};
             class endDrill {};
+            class convertSide {};
         };
     };
     class TACT {

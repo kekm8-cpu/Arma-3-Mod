@@ -494,25 +494,24 @@ TEST_rosters = createHashMapFromArray [
     // testing is the mounting rule. Dismounted, the map draws one icon per man
     // and a click means the man it landed on.
     //
-    // I_ CLASSES, NOT B_T_. This is the one roster whose unit classes are
-    // configured on the side its group is actually created on. "player" maps
-    // to INDEPENDENT (STRAT_fnc_factionSide), so these are AAF classes, and
-    // config side and group side agree for every man in it.
+    // B_T_ CLASSES, ON PURPOSE, ON INDEPENDENT. Swapping these to I_ classes
+    // silenced the friendly fire and settled the question above: createUnit
+    // does NOT fully carry a unit onto its group's side, and a B_-classed man
+    // in an INDEPENDENT group is hostile to his own squad.
     //
-    // Every other roster here mismatches the two deliberately - the note above
-    // cartelPatrol calls it cosmetic on the grounds that createUnit takes the
-    // group's side - and the first drill run put four B_T_ men in an
-    // INDEPENDENT group with no enemy anywhere and they opened fire on each
-    // other. `independent setFriend [west, 0]` at the top of this file is the
-    // relation that would make a B_-classed squad hostile to itself if the
-    // engine is reading config side anywhere in the friend/foe path.
+    // Matching the classes to the side is a fix that costs the project every
+    // unit class it does not own. The cartel is the case that makes it hurt:
+    // drugLords sits on WEST and wants Syndikat, which is configured
+    // INDEPENDENT, and there is no WEST-configured cartel in the game.
     //
-    // So this roster removes the mismatch rather than working around it, and
-    // it is the experiment that says whether the mismatch is what did it. If
-    // the drill is quiet with these and loud with B_T_, "cosmetic only" is
-    // wrong and every roster below needs the same treatment.
+    // So this roster is deliberately back on the broken combination, because
+    // it is now the test rig for the fix that does not cost anything -
+    // TEST_fnc_convertSide, which takes the men out of the group and joins
+    // them back in under a higher-ranked leader that is genuinely of that
+    // side. Quiet with B_T_ men on INDEPENDENT means the conversion works and
+    // any class can serve any faction.
     ["mercFireteam", [
-        ["I_Soldier_SL_F", "I_Soldier_F", "I_Soldier_AR_F", "I_Soldier_LAT_F"],
+        ["B_T_Soldier_SL_F", "B_T_Soldier_F", "B_T_Soldier_AR_F", "B_T_Soldier_LAT_F"],
         []
     ]]
 ];
@@ -602,7 +601,26 @@ TEST_defaultEngagement = "openField";
 // [name, faction, position, roster]. The position is a placeholder - the boot
 // drill below overrides it with wherever the player is standing.
 TEST_drills = createHashMapFromArray [
-    ["squadFour", ["IND_Merc_Fireteam", "player", TEST_playerSpawn, "mercFireteam"]]
+    ["squadFour", ["BLU_Merc_Fireteam", "player", TEST_playerSpawn, "mercFireteam"]]
+];
+
+// The rank anchor TEST_fnc_convertSide spawns to convert a group's men onto
+// its side. One class per Arma side, and each one MUST be a class genuinely
+// configured on the side it is keyed under - a class that shares the problem
+// cannot be the cure for it.
+//
+// Keyed by `str side` because a HashMap key is a string or a number and SIDE
+// is neither. `str west` is "WEST", and the lookup in TEST_fnc_convertSide
+// builds its key the same way, so the two cannot drift.
+//
+// Vanilla base-game classes only. The anchor lives for a few lines inside one
+// frame and is never seen, so there is nothing to gain from a class that needs
+// a DLC to resolve.
+TEST_sideAnchorClass = createHashMapFromArray [
+    [str independent, "I_Soldier_SL_F"],
+    [str west,        "B_Soldier_SL_F"],
+    [str east,        "O_Soldier_SL_F"],
+    [str civilian,    "C_man_1"]
 ];
 
 // Which drill, if any, the mission opens into. A key of TEST_drills, or "" to

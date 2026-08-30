@@ -1436,20 +1436,32 @@ vehicle in `fn_commandEntities`, so a truck in the roster would draw fewer
 icons than there are men and make the mounting rule the first thing a selection
 test was testing.
 
-**Open question the drill raised: config side vs group side.** The first drill
-run deployed four `B_T_` (BLUFOR-configured) men into an INDEPENDENT group with
-nothing hostile anywhere on the map, and they opened fire on each other. Every
-roster in `init.sqf` carries that mismatch on purpose — mercs are `B_T_` on
-INDEPENDENT, the cartel is `O_T_` on WEST — recorded there as cosmetic on the
-grounds that `createUnit` takes the group's side. If that is wrong and the
-engine reads config side anywhere in the friend/foe path, then
-`independent setFriend [west, 0]` makes a merc squad hostile to itself and the
-same reasoning makes a cartel squad on WEST hostile to itself.
+**Settled by the drill: `createUnit` does not carry a unit onto its group's
+side.** The first drill run deployed four `B_T_` (BLUFOR-configured) men into an
+INDEPENDENT group with nothing hostile anywhere on the map, and they opened fire
+on each other. Swapping the roster to `I_` (AAF) classes silenced it. So the
+roster table's "cosmetic only, since `createUnit` takes the group's side" was
+wrong: a `B_`-classed man in an INDEPENDENT group behaves as WEST, and
+`independent setFriend [west, 0]` makes that a squad hostile to itself. The same
+reasoning makes the `O_T_` cartel rosters on WEST hostile to themselves.
 
-`mercFireteam` is now the control: `I_` (AAF) classes, the one roster whose
-classes match the side its group is created on. Quiet with `I_` and loud with
-`B_T_` settles it, and every roster then needs its classes moved onto its own
-side, leaving kit flavour to the loadout work in 3.11.
+Matching every roster's classes to its side is the obvious fix and the expensive
+one — it costs the project every unit class it does not own. The cartel is where
+that bites: `drugLords` sits on WEST and wants Syndikat, which the game
+configures as INDEPENDENT, and there is no WEST-configured cartel to fall back
+on. Putting Syndikat on WEST would not be a fix, only the same defect pointed the
+other way — the cartel would read as INDEPENDENT, which is the player's own side.
+
+So `mercFireteam` is deliberately back on `B_T_` classes and the drill is now the
+rig for the fix that costs nothing: **`TEST_fnc_convertSide`**, which spawns a
+COLONEL-ranked anchor of the destination side into the group, moves the men out
+to a holding group on their config side, joins them back under the anchor, and
+deletes the scaffolding. Order matters — the anchor is created before the men
+leave, because `fn_deployMen` builds its group with `deleteWhenEmpty` and a group
+whose last man walks out is a deleted group. It runs in the drill only. If it
+holds, it gets promoted into `fn_deployMen` so every army gets it and the roster
+tables can go back to being about what a force looks like rather than which side
+the engine will let it be on.
 
 Two things came out of it that were not harness work. `fn_beginPlanning`
 guarded on `STRAT_turnPhase == "resolving"` — the flag it is itself the only
