@@ -414,6 +414,44 @@ which collided with CSAT and made the patron and the cartel engine-level allies.
 Sides are only how the engine is told about the blocs. Hostility itself is
 decided from `faction` by `STRAT_fnc_areHostile` and never read off a side.
 
+CIVILIAN is the fourth side and is not spent here. It is wanted as itself: NATO
+Aggression accrues from collateral damage and ordnance near civilians, so the
+meter needs a populated Tanoa to measure against. That is what leaves three
+combatant sides for four story factions, and why NATO shares the cartel's.
+
+The packing is deliberately asymmetric, and it is the asymmetry that carries the
+future. The player and CSAT are one bloc on *two* sides made friendly by
+`setFriend`; the druglords and NATO are one bloc on *one* side. So CSAT can be
+peeled off the player with a single relation flip, and NATO can never be peeled
+off the cartel without respawning every unit it has. CSAT Favor is a spendable,
+losable resource and NATO's backing only ever escalates, so the relationship
+that can change got the allocation that can change. A CSAT turn is therefore a
+between-block event, never a mid-battle one: `setFriend` is global and takes
+every CSAT group on the map in the same frame, including any already in a fight.
+
+### The campaign avatar
+
+The `mission.sqm` unit sits on CIVILIAN and is outside this table on purpose. It
+is a placeholder: it never deploys, never joins an army, never appears in a
+roster and never fights. The player reaches a battle through `TACT_fnc_dropIn`,
+which `selectPlayer`s him into a soldier the deployment actually spawned, on
+that army's own side, and `TACT_fnc_dropOut` hands control back when the fight
+ends.
+
+Giving it a combatant side would make it a body some army has to account for.
+On INDEPENDENT it is a man his own mercenaries count and the tactical map has to
+filter; on WEST, where the editor originally left it, it was a man his
+mercenaries deployed hostile to — the sandbox scenario, with nothing hostile
+spawned anywhere, still shot at the player. Civilian is default-friendly to
+every side and asks nothing of the relation block in `init.sqf`.
+
+`init.sqf` claims it into `TACT_campaignAvatar` and makes it hidden,
+invulnerable and captive once, for the whole campaign. `fn_dropIn` stops its
+simulation on the way past and hides it again — hiding does not reliably take on
+a unit that is currently the player, and by that point it is an ordinary object.
+`fn_dropOut` restores the simulation and nothing else; unhiding it would stand an
+unarmed civilian up in the open at the end of every battle.
+
 ---
 
 ## 9. The Turn and Battle Lifecycle
@@ -1035,14 +1073,17 @@ the enforced one cannot drift apart.
   in. The rule is encoded now because the detach lands into it for free, and
   because the alternative — every friendly unit drawn individually — is the
   state this replaces.
-- A bloc ally is not drawn as friendly and is not currently friendly to the
-  engine either. `STRAT_fnc_areHostile` puts player and CSAT in one bloc, but
-  `STRAT_fnc_factionSide` puts them on INDEPENDENT and EAST and nothing calls
-  `setFriend`, so an allied CSAT force would shoot at the player and appear
-  under the enemy indicators. The tactical map's side test inherits that rather
-  than causing it. Whichever way it is settled — a shared side, an explicit
-  `setFriend`, or accepting that blocs describe strategic hostility only — the
-  map follows and needs no separate decision.
+- A bloc ally is friendly to the engine but is not drawn as friendly. The engine
+  half is settled: `STRAT_fnc_factionSide` puts the player on INDEPENDENT and
+  CSAT on EAST, and the `setFriend` block in `init.sqf` makes that pair friendly
+  both ways, so an allied CSAT force no longer shoots at the player. The drawing
+  half is not. `TACT_fnc_friendlyGroups` collects groups by `side _group == side
+  (group player)`, which a CSAT group fails by construction — it is on the other
+  side of a friendly pair, not on the player's. So a CSAT force fighting
+  alongside him is absent from the tactical map's friendly icons. Widening that
+  test to `!(side _group isEqualTo ...)`-style hostility, or to the bloc via the
+  `STRAT_faction` stamp, is the fix; the stamp is already there and a detached
+  group without one still has to fall back to `side`.
 - Collapsed group icons carry no composition adornment yet, so a group of eight
   in trucks and a group of eight on foot are the same icon and the same label.
   `men` on the group record is what an adornment would read; the badge itself is
@@ -1289,12 +1330,12 @@ guarded on `STRAT_turnPhase == "resolving"` — the flag it is itself the only
 writer of back to `"planning"` — so it refused to reopen planning after the
 first commit and the campaign accepted exactly one order. It now guards on
 `STRAT_resolutionRunning`, which `fn_resolveTurn` clears before handing over.
-And the `mission.sqm` avatar starts on WEST, which section 8 gives to the
-cartel, so the player's own mercenaries deployed hostile to their commander;
-`TEST_fnc_setupScenario` rejoins the avatar to the commanding faction's side,
-under `TEST_alignPlayerSide`. That belongs in `mission.sqm` eventually — it is
-in the harness because that is where it is currently needed and where it is
-cheap to remove.
+And the `mission.sqm` avatar started on WEST, which section 8 gives to the
+cartel, so the player's own mercenaries deployed hostile to their commander.
+That was first patched in the harness under `TEST_alignPlayerSide`, which
+rejoined the avatar to the commanding faction's side at scenario build. It is
+now fixed at the source: the avatar is a CIVILIAN placeholder per section 8, the
+harness flag and its block are gone, and `fn_dropOut` no longer unhides it.
 
 ~~1.6 **Campaign draw layer, and armies off markers.**~~ **Done.**
 `STRAT_fnc_buildDrawList` derives one list of draw items from campaign state,

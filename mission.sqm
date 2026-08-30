@@ -22,17 +22,25 @@ binarizationWanted=0;
 sourceName="testmission";
 addons[]=
 {
-	"A3_Characters_F"
+	"A3_Characters_F",
+	"A3_Characters_F_Civil"
 };
 class AddonsMetaData
 {
 	class List
 	{
-		items=1;
+		items=2;
 		class Item0
 		{
 			className="A3_Characters_F";
 			name="Arma 3 Alpha - Characters and Clothing";
+			author="Bohemia Interactive";
+			url="https://www.arma3.com";
+		};
+		class Item1
+		{
+			className="A3_Characters_F_Civil";
+			name="Arma 3 Alpha - Civilian Characters and Clothing";
 			author="Bohemia Interactive";
 			url="https://www.arma3.com";
 		};
@@ -71,7 +79,7 @@ class Mission
 		class Item0
 		{
 			dataType="Group";
-			side="West";
+			side="Civilian";
 			class Entities
 			{
 				items=1;
@@ -82,14 +90,14 @@ class Mission
 					{
 						position[]={5441.2559,34.960167,9371.042};
 					};
-					side="West";
+					side="Civilian";
 					flags=7;
 					class Attributes
 					{
 						isPlayer=1;
 					};
 					id=1;
-					type="B_Soldier_GL_F";
+					type="C_man_1";
 					atlOffset=-0.00017929077;
 				};
 			};

@@ -41,9 +41,11 @@ TACT_commandActive = false;
 if (!isNull TACT_campaignAvatar && {TACT_campaignAvatar != player}) then {
 	private _body = player;
 
+	// Simulation only. The avatar is a hidden, invulnerable, captive civilian
+	// placeholder for the whole campaign (init.sqf) - it is never looked at and
+	// never fights, so unhiding it here would only stand an unarmed civilian up
+	// in the open at the end of every battle.
 	TACT_campaignAvatar enableSimulation true;
-	TACT_campaignAvatar hideObject false;
-	TACT_campaignAvatar allowDamage true;
 
 	selectPlayer TACT_campaignAvatar;
 

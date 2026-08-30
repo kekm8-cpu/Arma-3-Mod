@@ -227,10 +227,44 @@ TACT_commandGroupIconUnits = 1.00;
 // as one.
 TACT_commandPlayerColour = [1, 0.85, 0.2, 1];
 
-// The body the player returns to when a battle ends. Captured on the first
-// drop-in rather than set here, so it is whatever the avatar actually was
-// rather than whatever init.sqf assumed it would be.
+// ------------------------------------------------------------------------- //
+// THE CAMPAIGN AVATAR                                                        //
+// ------------------------------------------------------------------------- //
+// The body the player holds outside a battle, and the body he returns to when
+// one ends. It is a placeholder and nothing else: it never deploys, never joins
+// an army, never appears in a roster and never fights. A battle is entered by
+// TACT_fnc_dropIn, which selectPlayers the player into a soldier the deployment
+// actually spawned, on that army's own side.
+//
+// It sits on CIVILIAN in mission.sqm, deliberately outside section 8's map. The
+// four story factions are packed into the three combatant sides and the avatar
+// is not one of them - putting it on INDEPENDENT with the mercenaries would
+// make it a body his own army counts and the tactical map has to filter out,
+// and putting it on WEST, where the editor left it, made it a body his
+// mercenaries deployed hostile to. Civilian is default-friendly to every side
+// and asks nothing of the relation map above.
+//
+// Hidden, invulnerable and captive for the whole campaign. The two protections
+// are what matter and they hold from here on; the hiding is cosmetic and may
+// not take on a unit that is currently the player, which is why fn_dropIn
+// hides it again on the way past - by then the player is somebody else and it
+// is an ordinary object. fn_dropOut restores its simulation and nothing else.
 TACT_campaignAvatar = objNull;
+
+[] spawn {
+	waitUntil {!isNull player};
+
+	TACT_campaignAvatar = player;
+
+	TACT_campaignAvatar hideObject true;
+	TACT_campaignAvatar allowDamage false;
+	TACT_campaignAvatar setCaptive true;
+
+	diag_log format [
+		"STRAT Avatar: campaign avatar claimed, side %1.",
+		side (group TACT_campaignAvatar)
+	];
+};
 
 TACT_activeEngagements       = [];  // Engagement records currently being fought
 TACT_resolvedPairsThisBlock  = [];  // Army id pairs that have already fought this block
@@ -336,12 +370,6 @@ STRAT_drawLocationIcon = "b_installation";
 //   "contact"  - the same two inside TACT_contactRadius, so the first
 //                committed block opens a battle immediately.
 TEST_scenario = "sandbox";
-
-// Put the mission.sqm avatar on the commanding faction's side at setup. It
-// starts on WEST, which section 8 gives to the cartel and its NATO backer, so
-// without this the player's own mercenaries deploy hostile to their commander.
-// See TEST_fnc_setupScenario.
-TEST_alignPlayerSide = true;
 
 // Named rosters: [_menSpec, _vehicleSpec]. Each entry is "className" or
 // ["className", count]. The first man listed leads.

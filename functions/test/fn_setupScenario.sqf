@@ -55,32 +55,6 @@ if (!([] call TEST_fnc_clearArmies)) exitWith { false };
 	[_x] call TEST_fnc_buildArmy;
 } forEach (TEST_scenarios get _scenario);
 
-// ------------------------------------------------------------------------ //
-// THE AVATAR'S SIDE                                                         //
-// ------------------------------------------------------------------------ //
-// mission.sqm starts the player on WEST, which section 8 gives to the cartel
-// and its NATO backer. Left alone, the player's own mercenaries deploy on
-// INDEPENDENT and read their commander as a valid target - which turns even
-// the sandbox, where nothing hostile is spawned at all, into something that
-// shoots at you.
-//
-// Rejoining the avatar to the commanding faction's side is the smallest fix
-// that holds, and it is done here rather than in mission.sqm so it travels
-// with the harness and comes out with it. Set TEST_alignPlayerSide to false in
-// init.sqf to leave the avatar where the editor put it.
-if (!isNil "TEST_alignPlayerSide" && {TEST_alignPlayerSide} && {!isNull player}) then {
-	private _commandSide = "player" call STRAT_fnc_factionSide;
-
-	if (side (group player) != _commandSide) then {
-		private _oldGroup = group player;
-		[player] joinSilent (createGroup [_commandSide, true]);
-
-		if (!isNull _oldGroup && {count (units _oldGroup) == 0}) then { deleteGroup _oldGroup };
-
-		diag_log format ["TEST Harness: player avatar moved to %1 to match the commanding faction.", _commandSide];
-	};
-};
-
 private _names = activeArmies apply {_x get "name"};
 
 diag_log format ["TEST Harness: scenario '%1' built - %2.", _scenario, _names joinString ", "];

@@ -29,9 +29,11 @@
 		the cap exists to hold an AI driver to the men on foot, and where the
 		player is driving there is no AI driver to hold.
 
-		The avatar the player came from is left standing on the campaign map,
-		hidden and out of harm's way, because that is the body
-		TACT_fnc_dropOut gives back when the battle ends.
+		The avatar the player came from is left where it stands, with its
+		simulation stopped, because that is the body TACT_fnc_dropOut gives
+		back when the battle ends. It is already hidden, invulnerable and
+		captive - a civilian placeholder that init.sqf put in that state at
+		mission start and that nothing ever takes it out of.
 
 	Parameters:
 		0: HASHMAP - engagement record, already deployed
@@ -87,9 +89,14 @@ if (isNull _unit) exitWith {
 // 2. PUT THE CAMPAIGN AVATAR AWAY                                           //
 // ------------------------------------------------------------------------ //
 // Remembered before the switch, because afterwards `player` is somebody else.
-// Hidden and made invulnerable rather than deleted: it is the body control
-// comes back to, and a stray soldier standing in a field for the length of a
-// battle is a body that can be shot.
+// Put away rather than deleted: it is the body control comes back to.
+//
+// init.sqf already hid it, made it invulnerable and set it captive at mission
+// start, so the two protections below are no-ops on the normal path. The
+// hideObject is not: hiding does not reliably take on a unit that is currently
+// the player, and by this line the avatar is an ordinary object, so this is
+// where it actually lands. Simulation is the one piece that genuinely belongs
+// here, and fn_dropOut restores it.
 private _avatar = player;
 
 if (isNull TACT_campaignAvatar) then { TACT_campaignAvatar = _avatar };
