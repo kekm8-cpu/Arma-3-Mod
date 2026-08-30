@@ -132,12 +132,24 @@ _army set ["inBattle", true];
 // places - a selection test is worth less if the icons move between runs.
 private _bearing = 0;
 
-// No road lookup. `midpointConverge` lines vehicles up along the approach road
-// into a fight; there is no fight and no approach, so the deployment bearing is
-// what fn_deployVehicles falls back to anyway.
-[_army, [], _position, _bearing] call TACT_fnc_deployVehicles;
-
-private _group = [_army, _position, _bearing] call TACT_fnc_deployMen;
+// TEST_fnc_deployConverted rather than TACT_fnc_deployMen, and the difference
+// is the whole reason this drill exists in its current form. createUnit does
+// not put a man on his group's side: the men are B_ classes and the group is
+// INDEPENDENT, which leaves them behaving as WEST, and `independent setFriend
+// [west, 0]` makes that a squad hostile to itself - the first drill run ended
+// with four men shooting each other.
+//
+// Deployment creates its men directly in the destination group, which is
+// exactly the move that does not work, so this cannot be fixed by calling it
+// and correcting afterwards. A unit is stamped when it is created; the join
+// has to be the first group it ever sees. The harness therefore owns the
+// placement for a drill, and TACT_fnc_deployMen is left alone until the
+// technique has earned its way in.
+//
+// No vehicle pass. A drill roster carries no transport by design - a mounted
+// man resolves to his vehicle and the map would draw fewer icons than there
+// are men - so there is nothing to place and nothing to mount into.
+private _group = [_army, _position, _bearing] call TEST_fnc_deployConverted;
 
 if (count (units _group) == 0) exitWith {
 	diag_log format ["TEST Harness: drill deployment put nobody on the ground for %1.", _army get "name"];
@@ -149,25 +161,6 @@ if (count (units _group) == 0) exitWith {
 
 	createHashMap
 };
-
-// ------------------------------------------------------------------------ //
-// 4b. PUT THE MEN ON THE GROUP'S SIDE                                       //
-// ------------------------------------------------------------------------ //
-// createUnit did not. The men are B_ classes in an INDEPENDENT group, which
-// leaves them behaving as WEST, and `independent setFriend [west, 0]` makes
-// that a squad hostile to itself - the first drill run ended with four men
-// shooting each other.
-//
-// Here rather than in TACT_fnc_deployMen on purpose. Deployment is shared with
-// every battle the campaign runs, and this is a technique on trial: it is worth
-// promoting into deployment only once a drill has shown it holds. Until then
-// the drill is the only thing that pays for it, and the drill is the only thing
-// that can tell us.
-//
-// Before the posture below, so formation and combat mode land on the group as
-// it will finally be composed rather than on a membership that is about to be
-// shuffled out and back.
-[_group] call TEST_fnc_convertSide;
 
 // The same posture a battle deploys with, so what is being looked at on the
 // map is a group in the state command mode will actually meet. No move order:

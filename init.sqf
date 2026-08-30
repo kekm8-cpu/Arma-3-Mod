@@ -506,10 +506,11 @@ TEST_rosters = createHashMapFromArray [
     //
     // So this roster is deliberately back on the broken combination, because
     // it is now the test rig for the fix that does not cost anything -
-    // TEST_fnc_convertSide, which takes the men out of the group and joins
-    // them back in under a higher-ranked leader that is genuinely of that
-    // side. Quiet with B_T_ men on INDEPENDENT means the conversion works and
-    // any class can serve any faction.
+    // TEST_fnc_deployConverted, which spawns these men into a holding group
+    // on the side their classes are configured on and joins them across into
+    // an INDEPENDENT group under a higher-ranked anchor of that side. Quiet
+    // with B_T_ men on INDEPENDENT means the conversion works and any class
+    // can serve any faction - Syndikat for the cartel on WEST included.
     ["mercFireteam", [
         ["B_T_Soldier_SL_F", "B_T_Soldier_F", "B_T_Soldier_AR_F", "B_T_Soldier_LAT_F"],
         []
@@ -604,13 +605,13 @@ TEST_drills = createHashMapFromArray [
     ["squadFour", ["BLU_Merc_Fireteam", "player", TEST_playerSpawn, "mercFireteam"]]
 ];
 
-// The rank anchor TEST_fnc_convertSide spawns to convert a group's men onto
+// The rank anchor TEST_fnc_deployConverted spawns to carry a group's men onto
 // its side. One class per Arma side, and each one MUST be a class genuinely
 // configured on the side it is keyed under - a class that shares the problem
 // cannot be the cure for it.
 //
 // Keyed by `str side` because a HashMap key is a string or a number and SIDE
-// is neither. `str west` is "WEST", and the lookup in TEST_fnc_convertSide
+// is neither. `str west` is "WEST", and the lookup in TEST_fnc_deployConverted
 // builds its key the same way, so the two cannot drift.
 //
 // Vanilla base-game classes only. The anchor lives for a few lines inside one

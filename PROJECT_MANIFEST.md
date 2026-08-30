@@ -1453,15 +1453,23 @@ on. Putting Syndikat on WEST would not be a fix, only the same defect pointed th
 other way — the cartel would read as INDEPENDENT, which is the player's own side.
 
 So `mercFireteam` is deliberately back on `B_T_` classes and the drill is now the
-rig for the fix that costs nothing: **`TEST_fnc_convertSide`**, which spawns a
-COLONEL-ranked anchor of the destination side into the group, moves the men out
-to a holding group on their config side, joins them back under the anchor, and
-deletes the scaffolding. Order matters — the anchor is created before the men
-leave, because `fn_deployMen` builds its group with `deleteWhenEmpty` and a group
-whose last man walks out is a deleted group. It runs in the drill only. If it
-holds, it gets promoted into `fn_deployMen` so every army gets it and the roster
-tables can go back to being about what a force looks like rather than which side
-the engine will let it be on.
+rig for the fix that costs nothing: **`TEST_fnc_deployConverted`**. Six steps,
+none of which commute — permanent group on the fighting side; a COLONEL-ranked
+anchor of that side into it; a holding group on the side the men's classes are
+configured on; **the men spawned into the holding group**; joined across; the
+anchor and the holding group deleted.
+
+Step four is the one that matters. A unit is stamped when it is created, so a man
+created in the destination group has already been got wrong before any join could
+reach him — which is also why this cannot be `fn_deployMen` plus a fix-up pass:
+deployment creates its men directly in the destination group, and that is exactly
+the move that does not work. The anchor goes in first for a duller reason, to
+hold the permanent group open while it would otherwise be empty.
+
+Dismounted only, and the drill owns the placement for now. If it holds, it folds
+into `fn_deployMen` so every army gets it and the roster tables can go back to
+being about what a force looks like rather than which side the engine will let it
+be on.
 
 Two things came out of it that were not harness work. `fn_beginPlanning`
 guarded on `STRAT_turnPhase == "resolving"` — the flag it is itself the only
