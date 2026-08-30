@@ -372,17 +372,27 @@ STRAT_drawIconScreenSize = 0.030;
 //      enough out that collision rather than legibility is the thing to
 //      protect against.
 //
-// Modes 1 and 2 are on trial against 0, which is what shipped. The two failure
-// modes are opposite and neither is wrong in the abstract - which one matters
-// depends on how much of the fight the player wants on screen at once, and that
-// is a question for playing rather than for arguing.
+// SETTLED ON 2, by playing all three rather than by arguing about them. Modes
+// 0 and 1 fail in opposite directions and neither is wrong in the abstract; 2
+// takes each one over the range where its failure is not the one that matters.
+// Kept rather than deleted because the other two are one integer away and cost
+// nothing to sit here, and because the reasoning above is what a later change
+// of mind would need.
+//
+// This closes individual unit rendering for now. See section 11 of the manifest
+// for what "closed" covers and the one caveat left standing.
 STRAT_drawIconScaleMode = 2;
 
-// Mode 1's figure: metres per icon unit, fixed. It has to be comparable to the
-// spacing between men or the icons self-overlap at EVERY zoom and the mode
-// solves nothing - a column sits five to ten metres apart, so an icon of 0.85
-// units wants to land under ten metres. At 10 here it is 8.5 metres: forty-two
-// pixels with four hundred metres on screen, eleven with fifteen hundred.
+// Mode 1's figure: metres per icon unit, fixed. Hand-tuned.
+//
+// It has to be comparable to the spacing between men or the icons self-overlap
+// at EVERY zoom and the mode solves nothing - a column sits five to ten metres
+// apart, so an icon of 0.85 units wants to land inside that. At 4 here it is
+// 3.4 metres, which clears a column comfortably.
+//
+// Mode 2 does not read this. Its zoomed-out half is capped from
+// STRAT_drawIconClampScreenMetres instead, so this figure only takes effect
+// when the mode is set to 1 outright.
 STRAT_drawIconWorldMetres = 4;
 
 // Mode 2's crossover, and the number to tune in game. Stated in metres across
@@ -390,9 +400,12 @@ STRAT_drawIconWorldMetres = 4;
 // player can read off the map and reason about: "stop growing once I can see
 // the whole battle". STRAT_fnc_mapUnitMetres converts it.
 //
-// 800 is a first guess sitting between the zoom a squad is commanded at and
-// the 1500 metres that shows a whole battle boundary. Raise it to keep icons
-// screen-constant further out; lower it to make them start shrinking sooner.
+// 800 sits between the zoom a squad is commanded at and the 1500 metres that
+// shows a whole battle boundary, and survived the pass that settled the mode.
+// Raise it to keep icons screen-constant further out; lower it to make them
+// start shrinking sooner. It is the live figure now that mode 2 is the default,
+// so it is also the one to reach for first if the map ever reads wrong at
+// distance.
 STRAT_drawIconClampScreenMetres = 800;
 
 // ------------------------------------------------------------------------- //
@@ -417,11 +430,15 @@ STRAT_drawIconClampScreenMetres = 800;
 // trying to make it was why labels came out several times the size of the icons
 // they belonged to.
 //
-// The figures are 1.90 and 0.50 divided by STRAT_drawIconScreenSize, which is
-// deliberate: at mode 0 they reproduce the eyeballed pass that was working,
-// digit for digit. Recalibrating is not part of adding the modes.
+// HAND-TUNED in game, not derived. The text figure works out at 0.054 for a
+// 0.30-unit label, which is all but drawIcon's own documented default text size
+// of 0.05 - a good sign the argument really is screen space and that this has
+// found its footing.
 //
-// The selection ring is the ruler if they need touching up: it is drawn by
+// They are mode-independent. The scaling mode changes the screen fraction handed
+// to them, never these, which is why the mode appears nowhere in the renderer.
+//
+// The selection ring is the ruler if they ever need touching up: it is drawn by
 // drawEllipse in true world coordinates at STRAT_drawRingUnits, which is 0.85 -
 // the same figure as TACT_commandIconUnits - so a selected unit's ring and its
 // icon should very nearly coincide, in every mode. Icon spilling past the ring

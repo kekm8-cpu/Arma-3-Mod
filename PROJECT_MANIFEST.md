@@ -816,14 +816,16 @@ factor is why labels came out several times the size of the icons they
 belonged to.
 
 **How icons behave with zoom is one switch**, `STRAT_drawIconScaleMode`, read
-only by `STRAT_fnc_mapUnitMetres`. Three modes are on trial and their failures
-are opposite:
+only by `STRAT_fnc_mapUnitMetres`. Three modes exist, their failures are
+opposite, and **2 is settled** — arrived at by playing all three. The other two
+are kept because a switch has to exist anyway and a later change of mind wants
+the reasoning as much as the code:
 
 | | law | fails by |
 |---|---|---|
 | **0** screen-fixed | one icon unit is `STRAT_drawIconScreenSize` of screen width | **collision** — men 10 m apart converge to 13 px at boundary-wide zoom while icons stay 51 px, so a squad stacks into one pile you cannot aim at |
 | **1** world-fixed | one icon unit is `STRAT_drawIconWorldMetres` | **vanishing** — zoom out far and an icon is a pixel |
-| **2** clamped | 0 until the map shows more than `STRAT_drawIconClampScreenMetres` across, 1 past it | neither, within the range the crossover is set for |
+| **2** clamped **(default)** | 0 until the map shows more than `STRAT_drawIconClampScreenMetres` across, 1 past it | neither, within the range the crossover is set for |
 
 Mode 1's metre figure must be comparable to the spacing between men or icons
 self-overlap at *every* zoom and the mode solves nothing; a column sits 5–10 m
@@ -833,11 +835,17 @@ and reason about.
 
 The branch exists in exactly one function. `STRAT_fnc_drawItems` divides
 whatever it is given by the measured span and draws, and would not behave
-differently if a fourth mode arrived. **One switch serves both layers, which is
-a caveat rather than a feature**: the strategic map's zoom range is the island
-and not a battle's 1500 m, so a mode 1 army icon at Tanoa's full extent is a
-couple of pixels. If the tactical map settles on 1 or 2 and the campaign map
-wants 0, the split goes in `STRAT_fnc_mapUnitMetres` — chosen from
+differently if a fourth mode arrived. **One switch serves both layers, and that
+is the one caveat left standing** now the tactical side is closed: the strategic
+map's zoom range is the island and not a battle's 1500 m, so under mode 2 an
+army icon at Tanoa's full extent sits at the cap — 24 m per icon unit with the
+current figures — which is a few pixels rather than the constant size that map
+probably wants.
+
+It is left alone deliberately rather than fixed blind. The strategic map has not
+been looked at under mode 2, and assuming it needs mode 0 is the same move that
+had `drawIcon`'s arguments in world metres for a build and a half. When it is
+looked at, the split goes in `STRAT_fnc_mapUnitMetres` — mode chosen from
 `TACT_commandActive` rather than read from the global — and nothing else moves.
 
 A command icon is a click target and a piece of symbology; neither has a
@@ -1090,6 +1098,37 @@ happening underneath interface work.
 ## 14. Implementation Status
 
 **Working**
+- **Individual unit rendering — CLOSED for now.** The tactical map draws its
+  units, and the pieces below are settled by playing rather than by argument.
+  Reopening any of them is a constant, not a rewrite.
+  - Two icon sources, split on individual versus aggregate: stock per-unit
+    artwork through `STRAT_fnc_mapUnitTexture`, NATO boxes through
+    `STRAT_fnc_mapIconTexture`.
+  - Facing, drawn for individuals only, from the item's `direction`.
+  - `STRAT_drawUnitArtScale`, compensating for artwork that does not fill its
+    own texture.
+  - `STRAT_drawIconScaleMode` settled at **2** — screen-fixed while zoomed in,
+    capped at `STRAT_drawIconClampScreenMetres` beyond. Modes 0 and 1 are kept
+    in the switch: they cost nothing, and a later change of mind wants the
+    reasoning as much as the code.
+  - `STRAT_drawIconArgScale` and `STRAT_drawTextArgScale`, hand-tuned in game.
+    The text figure lands at 0.054 for a 0.30-unit label, all but `drawIcon`'s
+    own documented default of 0.05 — good evidence the argument really is
+    screen space.
+  - The selection ring stays the ruler if any of the size figures need touching
+    up: `drawEllipse` in true world coordinates at `STRAT_drawRingUnits`, the
+    same 0.85 as `TACT_commandIconUnits`, so a selected unit's ring and its icon
+    should very nearly coincide in every mode. Check at two zoom levels —
+    getting it right at one zoom is what the broken arithmetic could also do.
+  - One caveat is deliberately left standing rather than fixed blind: **the
+    scaling mode is one switch for both layers.** The strategic map reads the
+    same conversion and its zoom range is the island, so under mode 2 an army
+    icon at Tanoa's full extent is a few pixels rather than the constant size
+    that map probably wants. It has not been looked at under mode 2, and
+    guessing is the same move that made `drawIcon`'s arguments world metres for
+    a build and a half. The split, when wanted, goes in
+    `STRAT_fnc_mapUnitMetres` — mode chosen from `TACT_commandActive` rather
+    than read from the global — and nothing else changes.
 - Army/soldier/vehicle data construction, including hitpoint layout read from
   config without spawning.
 - Dijkstra road pathfinding with position→nearest-road snapping and jink-turn
@@ -1384,19 +1423,6 @@ the enforced one cannot drift apart.
   armies it costs a few HashMaps a frame. It is the first thing to look at if
   the map ever gets heavy, and the fix is a dirty flag on the list, not two
   lists.
-- `STRAT_drawIconScaleMode` is an open decision, not a setting. Modes 1 and 2
-  are built and untried; 0 is what shipped and remains the default. Which
-  failure matters depends on how much of a fight the player wants on screen at
-  once, which is a question for playing rather than for arguing. Mode 2's
-  `STRAT_drawIconClampScreenMetres` wants tuning in game whichever way it goes.
-- `STRAT_drawIconArgScale` and `STRAT_drawTextArgScale` are engine calibration
-  carried over from an eyeballed pass, restated against a screen fraction so
-  mode 0 reproduces it digit for digit. The selection ring is the ruler if they
-  need touching up — `drawEllipse` in true world coordinates at
-  `STRAT_drawRingUnits`, the same 0.85 as `TACT_commandIconUnits`, so a
-  selected unit's ring and its icon should very nearly coincide, in every mode.
-  Check at two zoom levels: getting it right at one zoom is what the broken
-  arithmetic could also do.
 
 **Not started**
 - Post-battle march for a repulsed army. Survivors of every other outcome

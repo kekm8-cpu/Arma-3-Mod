@@ -11,7 +11,12 @@
 		icons behave as the player zooms, and it is the only place that needs
 		to, because every element of every group - hit radius, label offset,
 		ring radius, arrow origin, arrowhead barb, and the icon itself - reads
-		its figure from this call. STRAT_drawIconScaleMode picks between:
+		its figure from this call.
+
+		STRAT_drawIconScaleMode is SETTLED AT 2, arrived at by playing all
+		three. The other two are kept because they cost nothing to leave in a
+		switch that has to exist anyway, and because a later change of mind
+		wants the reasoning as much as the code. It picks between:
 
 		  0  SCREEN-FIXED. One icon unit is STRAT_drawIconScreenSize of the
 		     screen's width, whatever the zoom. An icon holds a constant size
@@ -35,7 +40,8 @@
 		     crossover where he puts it.
 
 		The three are one expression with one term differing, which is the
-		point. There is no per-mode branch anywhere else in the layer.
+		point. There is no per-mode branch anywhere else in the layer, so
+		settling on one has changed no code but this function's default.
 
 		WHAT THIS IS FOR, since it does not cover everything it once did. This
 		is the WORLD-SPACE conversion: distances and positions on the ground.
@@ -57,13 +63,20 @@
 		the conversion separately they would drift, and the drift is invisible
 		until a player clicks something that is not where it was drawn.
 
-		ONE SWITCH FOR BOTH LAYERS, which is a caveat and not a feature. The
-		strategic map reads this too, and its zoom range is the whole island
-		rather than a battle's 1500 metres. At Tanoa's full extent a
-		mode 1 army icon is a couple of pixels. If the tactical map settles on
-		1 or 2 and the campaign map wants 0, this is where that split goes -
-		the mode would be chosen from TACT_commandActive here rather than read
-		from the global, and nothing else in the layer would change.
+		ONE SWITCH FOR BOTH LAYERS, which is the one caveat left standing now
+		that the tactical side is closed. The strategic map reads this too, and
+		its zoom range is the whole island rather than a battle's 1500 metres.
+		Mode 2 caps an icon at STRAT_drawIconClampScreenMetres x
+		STRAT_drawIconScreenSize metres per unit - 24 with the current figures -
+		so at Tanoa's full extent an army icon is a few pixels rather than the
+		constant size the campaign map probably wants.
+
+		It is deliberately left alone rather than fixed blind: the strategic map
+		has not been looked at under mode 2, and guessing that it needs mode 0
+		is the same kind of guess that made drawIcon's arguments world metres for
+		a build and a half. When it is looked at, this is where the split goes -
+		the mode chosen from TACT_commandActive here rather than read from the
+		global - and nothing else in the layer changes.
 
 	Parameters:
 		0: CONTROL - the map control (display 12, control 51)
