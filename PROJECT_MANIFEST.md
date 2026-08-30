@@ -1436,6 +1436,21 @@ vehicle in `fn_commandEntities`, so a truck in the roster would draw fewer
 icons than there are men and make the mounting rule the first thing a selection
 test was testing.
 
+**Open question the drill raised: config side vs group side.** The first drill
+run deployed four `B_T_` (BLUFOR-configured) men into an INDEPENDENT group with
+nothing hostile anywhere on the map, and they opened fire on each other. Every
+roster in `init.sqf` carries that mismatch on purpose — mercs are `B_T_` on
+INDEPENDENT, the cartel is `O_T_` on WEST — recorded there as cosmetic on the
+grounds that `createUnit` takes the group's side. If that is wrong and the
+engine reads config side anywhere in the friend/foe path, then
+`independent setFriend [west, 0]` makes a merc squad hostile to itself and the
+same reasoning makes a cartel squad on WEST hostile to itself.
+
+`mercFireteam` is now the control: `I_` (AAF) classes, the one roster whose
+classes match the side its group is created on. Quiet with `I_` and loud with
+`B_T_` settles it, and every roster then needs its classes moved onto its own
+side, leaving kit flavour to the loadout work in 3.11.
+
 Two things came out of it that were not harness work. `fn_beginPlanning`
 guarded on `STRAT_turnPhase == "resolving"` — the flag it is itself the only
 writer of back to `"planning"` — so it refused to reopen planning after the

@@ -433,9 +433,21 @@ TEST_scenario = "sandbox";
 // replaying if what fought it did not quietly change between runs.
 //
 // The cartel roster still uses O_ unit classes, so these men wear CSAT kit
-// while fighting for the cartel on WEST - cosmetic only, since createUnit
-// takes the group's side, and the real fix is a cartel-flavoured loadout set
-// (phase 3.11), not a different stock faction.
+// while fighting for the cartel on WEST, and the merc rosters use B_T_ classes
+// while fighting for the player on INDEPENDENT. That was recorded here as
+// cosmetic only, on the grounds that createUnit takes the group's side.
+//
+// THAT CLAIM IS UNDER TEST AND MAY BE WRONG. The first drill run put four
+// B_T_ men in an INDEPENDENT group with nothing hostile anywhere on the map
+// and they opened fire on each other. If the engine reads config side
+// anywhere in the friend/foe path, `independent setFriend [west, 0]` at the
+// top of this file makes a B_-classed merc squad hostile to itself, and the
+// same reasoning makes an O_-classed cartel squad on WEST hostile to itself.
+//
+// mercFireteam below is the control: it is the one roster whose classes match
+// the side its group is created on. If the drill is quiet with it and loud
+// with B_T_, every roster here needs its classes moved onto its own side, and
+// loadout flavour (phase 3.11) becomes the only thing kit should be carrying.
 TEST_rosters = createHashMapFromArray [
     ["mercVanguard", [
         ["B_T_Soldier_SL_F", "B_T_Soldier_F", "B_T_Soldier_AR_F"],
@@ -481,8 +493,26 @@ TEST_rosters = createHashMapFromArray [
     // icons than it has men and the first thing a selection test would be
     // testing is the mounting rule. Dismounted, the map draws one icon per man
     // and a click means the man it landed on.
+    //
+    // I_ CLASSES, NOT B_T_. This is the one roster whose unit classes are
+    // configured on the side its group is actually created on. "player" maps
+    // to INDEPENDENT (STRAT_fnc_factionSide), so these are AAF classes, and
+    // config side and group side agree for every man in it.
+    //
+    // Every other roster here mismatches the two deliberately - the note above
+    // cartelPatrol calls it cosmetic on the grounds that createUnit takes the
+    // group's side - and the first drill run put four B_T_ men in an
+    // INDEPENDENT group with no enemy anywhere and they opened fire on each
+    // other. `independent setFriend [west, 0]` at the top of this file is the
+    // relation that would make a B_-classed squad hostile to itself if the
+    // engine is reading config side anywhere in the friend/foe path.
+    //
+    // So this roster removes the mismatch rather than working around it, and
+    // it is the experiment that says whether the mismatch is what did it. If
+    // the drill is quiet with these and loud with B_T_, "cosmetic only" is
+    // wrong and every roster below needs the same treatment.
     ["mercFireteam", [
-        ["B_T_Soldier_SL_F", "B_T_Soldier_F", "B_T_Soldier_AR_F", "B_T_Soldier_LAT_F"],
+        ["I_Soldier_SL_F", "I_Soldier_F", "I_Soldier_AR_F", "I_Soldier_LAT_F"],
         []
     ]]
 ];
@@ -572,7 +602,7 @@ TEST_defaultEngagement = "openField";
 // [name, faction, position, roster]. The position is a placeholder - the boot
 // drill below overrides it with wherever the player is standing.
 TEST_drills = createHashMapFromArray [
-    ["squadFour", ["BLU_Merc_Fireteam", "player", TEST_playerSpawn, "mercFireteam"]]
+    ["squadFour", ["IND_Merc_Fireteam", "player", TEST_playerSpawn, "mercFireteam"]]
 ];
 
 // Which drill, if any, the mission opens into. A key of TEST_drills, or "" to
