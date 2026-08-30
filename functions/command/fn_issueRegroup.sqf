@@ -12,13 +12,13 @@
 		here - the unit stops doing the thing the map told it to do and goes
 		back to doing what the group does, which is follow the man leading it.
 
-		`doFollow` takes the unit and nothing else: which formation it returns
-		to is its own group's, which is the one it never left. The player is
-		that group's leader - TACT_fnc_dropIn makes him one, because the stock
-		F-key interface addresses a group through its leader - so "resume your
-		place in the formation" and "resume your place on the commander" are
-		the same instruction, and no leader has to be named for them to stay
-		the same one.
+		The leader is read off the unit's own group rather than assumed to be
+		the player. He is the leader today - TACT_fnc_dropIn makes him one,
+		because the stock F-key interface addresses a group through its leader
+		- so "resume your place in the formation" and "resume your place on the
+		commander" are the same instruction. But a function that hardcodes that
+		breaks silently the moment it is not true, and reading the group costs
+		nothing.
 
 		Orders go through the entity's `order` units, for the reason
 		TACT_fnc_issueStopOrder gives: a truck rejoins the formation when its
@@ -47,7 +47,19 @@ private _unorderable = 0;
 		if (count _order == 0) then {
 			_unorderable = _unorderable + 1;
 		} else {
-			{ doFollow _x } forEach _order;
+			{
+				// BINARY. `doFollow` takes the unit to order AND the leader to
+				// order it after - `doFollow _x` on its own does not parse,
+				// which is what the engine said the first time this was
+				// written that way. Its opposite number `doStop` is unary, and
+				// the two being a pair in meaning does not make them a pair in
+				// syntax.
+				private _leader = leader (group _x);
+
+				if (!isNull _leader && {_leader != _x}) then {
+					_x doFollow _leader;
+				};
+			} forEach _order;
 
 			_ordered = _ordered + 1;
 		};

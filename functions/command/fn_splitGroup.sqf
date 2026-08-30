@@ -41,12 +41,9 @@
 		own group; the men did not change their minds about the battle they are
 		standing in.
 
-		The men are then told to follow their formation, which is now their own
-		group's rather than the commander's - `doFollow` names no leader, so
-		the same call that used to close them up on the player closes them up
-		on their new leader the moment they belong to him. It also clears any
-		`doStop` or `doMove` the map had left on them as individuals. A
-		detachment forms up where it stands.
+		The men are then told to follow their new leader, which both closes them
+		up as a squad and clears any `doStop` or `doMove` the map had left on
+		them as individuals. A detachment forms up where it stands.
 
 		WHAT THIS DOES NOT DO YET. The detachment stops being command entities
 		the same frame - it is another group on the player's side, so
@@ -126,7 +123,10 @@ _new setSpeedMode _speed;
 
 // Form up on their own leader, which is also what clears whatever the map last
 // told them to do as individuals.
-{ doFollow _x } forEach (units _new);
+private _leader = leader _new;
+{
+	if (_x != _leader) then { _x doFollow _leader };
+} forEach (units _new);
 
 if (isNil "TACT_commandDetachments") then { TACT_commandDetachments = [] };
 TACT_commandDetachments pushBack _new;
