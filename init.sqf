@@ -210,7 +210,7 @@ TACT_deployFootPaceKmh   = 10;
 // layer, exactly as before.
 
 TACT_commandActive    = false;  // True only while the player holds a body on the field
-TACT_commandSelection = [];     // Selected entity objects; empty routes clicks to the group
+TACT_commandSelection = [];     // Selected entity objects; empty means a terrain click orders nobody
 TACT_commandArmyId    = "";     // Which army record the player is currently leading
 
 // Click radius around a command icon, in the same icon units the draw layer
@@ -466,6 +466,24 @@ TEST_rosters = createHashMapFromArray [
     ["mercMotorised", [
         ["B_T_Soldier_SL_F", ["B_T_Soldier_F", 4], ["B_T_Soldier_AR_F", 2], ["B_T_Soldier_LAT_F", 2]],
         ["B_T_MRAP_01_gmg_F"]
+    ]],
+
+    // Four men, no transport. The interface roster: it is what a drill puts on
+    // the ground, and every choice in it is about what the command map has to
+    // show rather than about what the men could fight.
+    //
+    // Four because that is the smallest force where every case the selection
+    // rule has is present at once - one to select, a second to add, a third to
+    // take back out, and the commander who is none of the three.
+    //
+    // No vehicle, deliberately. A mounted man resolves to his vehicle
+    // (TACT_fnc_commandEntities), so a roster with a truck in it draws fewer
+    // icons than it has men and the first thing a selection test would be
+    // testing is the mounting rule. Dismounted, the map draws one icon per man
+    // and a click means the man it landed on.
+    ["mercFireteam", [
+        ["B_T_Soldier_SL_F", "B_T_Soldier_F", "B_T_Soldier_AR_F", "B_T_Soldier_LAT_F"],
+        []
     ]]
 ];
 
@@ -531,6 +549,50 @@ TEST_engagements = createHashMapFromArray [
 // side has transport), "combinedArms" (one side splits into a mounted element
 // and a foot element).
 TEST_defaultEngagement = "openField";
+
+// ------------------------------------------------------------------------- //
+// DRILLS                                                                     //
+// ------------------------------------------------------------------------- //
+// A drill is one army on the ground with nobody to fight it, run by
+// TEST_fnc_spawnDrill. It exists to test the COMMAND INTERFACE rather than the
+// battle: the handover between the stock UI and the map's command mode, what
+// the command layer draws, and selection. All three are properties of that
+// layer alone, and a real engagement is a bad place to look at them - the
+// units under inspection are being shot at, and the battle clock takes the map
+// away at TACT_battleRealSecondsMax whether or not the tester was finished.
+//
+// A drill has no opposition and therefore no victory condition. It does not
+// end on its own; SHIFT+B ends it and hands the map back to the strategic
+// layer, and SHIFT+N opens it again. That pair is the point as much as the
+// drill is - the handover between the two maps is one of the things being
+// tested, and it wants to be repeatable on demand rather than once per mission
+// restart.
+//
+// Each entry is a single army spec, exactly the shape TEST_scenarios uses:
+// [name, faction, position, roster]. The position is a placeholder - the boot
+// drill below overrides it with wherever the player is standing.
+TEST_drills = createHashMapFromArray [
+    ["squadFour", ["BLU_Merc_Fireteam", "player", TEST_playerSpawn, "mercFireteam"]]
+];
+
+// Which drill, if any, the mission opens into. A key of TEST_drills, or "" to
+// boot onto the strategic map as normal.
+//
+// Set to a drill, this is what the session starts as: the scenario above is
+// still built and then immediately cleared, the drill deploys where the player
+// is standing, and he is in a body with the command map live before he has
+// touched anything. That is deliberate - the interface being tested is reached
+// in one step rather than through a scenario, an order, a commit and a march.
+//
+// Set back to "" for strategic-layer work.
+TEST_bootDrill = "squadFour";
+
+// The drill currently running, empty when none is. Declared here rather than
+// left to the function that first writes it, for the reason
+// TACT_activeEngagements is: the key handler in block 2 reads it, and a global
+// that only exists once something has run is a global that reads as nil on the
+// one path nobody tested.
+TEST_activeDrill = createHashMap;
 
 // Build the starting state. Everything above is data; this is the only line
 // here that does anything.
@@ -608,6 +670,27 @@ call STRAT_fnc_attachMapLayer;
         true    // Consume the key so it does not also reach the player unit
     };
 
+    // DIK 48 = B, with a drill running: end it. Checked before the spawn
+    // branch and without a phase guard, because a drill holds the phase at
+    // "resolving" for its whole length - the key that opens it has to be the
+    // key that closes it, or nothing can.
+    //
+    // Spawned rather than called, like the drill that opens: closing one runs
+    // selectPlayer, and a key handler is not a scope to change the player from.
+    if (_key == 48 && {_shift} && {!isNil "TEST_activeDrill"} && {count TEST_activeDrill > 0}) exitWith {
+        [] spawn { call TEST_fnc_endDrill };
+        true
+    };
+
+    // DIK 49 = N. Re-opens the boot drill, so a command-interface session is a
+    // key rather than a mission restart. SHIFT+B is already spoken for by the
+    // engagement above, and after a drill ends it goes back to spawning one -
+    // which is a battle, not another drill.
+    if (_key == 49 && {_shift} && {STRAT_turnPhase == "planning"} && {!isNil "TEST_bootDrill"} && {TEST_bootDrill != ""}) exitWith {
+        [] spawn { [TEST_bootDrill, getPosATL player] call TEST_fnc_spawnDrill };
+        true
+    };
+
     // DIK 48 = B
     if (_key == 48 && {_shift} && {STRAT_turnPhase == "planning"}) exitWith {
         // Anchored on the player so the fight opens where they are standing
@@ -628,3 +711,30 @@ call STRAT_fnc_attachMapLayer;
 // OPEN THE FIRST PLANNING PHASE                                              //
 // ------------------------------------------------------------------------- //
 call STRAT_fnc_beginPlanning;
+
+// ------------------------------------------------------------------------- //
+// BOOT DRILL (build plan 1.5)                                                //
+// ------------------------------------------------------------------------- //
+// Last line of the mission's setup, and last on purpose: a drill takes the
+// player's body and turns the map into the command surface, so everything it
+// depends on - the draw layer's handlers, the click handlers, the planning
+// phase it will hand back to - has to already be attached and open.
+//
+// Anchored on the player rather than on TEST_playerSpawn, so the fireteam
+// deploys around wherever the mission put him and the drill needs no drive to
+// reach. Same anchoring the SHIFT+B engagement uses.
+//
+// Spawned rather than called. TACT_fnc_dropIn runs selectPlayer, and doing that
+// from inside init.sqf's own scope is asking the engine to change the player
+// out from under the script that is still initialising him.
+if (!isNil "TEST_bootDrill" && {TEST_bootDrill != ""}) then {
+    [] spawn {
+        // The avatar is already up by here - init.sqf waited on display 46
+        // before any of this ran - so this yields a scheduler tick rather than
+        // waiting on anything. That tick is the point: it puts the drill after
+        // init.sqf's own scope has finished instead of inside it.
+        waitUntil {!isNull player && {alive player}};
+
+        [TEST_bootDrill, getPosATL player] call TEST_fnc_spawnDrill;
+    };
+};

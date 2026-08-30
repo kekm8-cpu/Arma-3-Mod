@@ -117,9 +117,13 @@ if (!isNull _hit) exitWith {
 		TACT_commandSelection = [_hit];
 	};
 
+	// An empty selection addresses nobody - see the header. The report used to
+	// say orders fell back to the whole group, which is what this function did
+	// before the fallback was taken out, and reading it while deselecting the
+	// last unit is how a working deselect looks like a broken one.
 	private _selected = count TACT_commandSelection;
 	private _report = if (_selected == 0) then {
-		"Selection cleared - orders go to the whole group."
+		"Nothing selected."
 	} else {
 		format ["%1 selected.", _selected]
 	};

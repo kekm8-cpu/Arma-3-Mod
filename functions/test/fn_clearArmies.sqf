@@ -29,6 +29,21 @@ if (!isNil "STRAT_resolutionRunning" && {STRAT_resolutionRunning}) exitWith {
 	false
 };
 
+// A drill points at armies this function is about to delete, and one of their
+// men is the body the player is looking through. Control comes back BEFORE the
+// deletion pass, for the reason conclusion returns it before sync-back: the
+// alternative is a player looking through an object that no longer exists.
+//
+// This is the reset path, not the normal one. A drill is normally closed by
+// TEST_fnc_endDrill, which reads the survivors back into the record first.
+// Arriving here means something cleared the map out from under it, and there
+// is nothing left to read back.
+if (!isNil "TEST_activeDrill" && {count TEST_activeDrill > 0}) then {
+	call TACT_fnc_dropOut;
+	TEST_activeDrill = createHashMap;
+	diag_log "TEST Harness: a running drill was cleared off the map.";
+};
+
 private _cleared = 0;
 
 {
@@ -60,6 +75,7 @@ STRAT_selectedArmy = nil;
 // otherwise carry ids that no longer name anything.
 TACT_activeEngagements      = [];
 TACT_resolvedPairsThisBlock = [];
+
 
 // The boundary belongs to a battle that no longer exists.
 [[0,0,0], false] call TACT_fnc_drawBoundary;

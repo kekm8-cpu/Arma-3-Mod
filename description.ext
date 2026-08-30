@@ -58,6 +58,8 @@ class CfgFunctions {
             class clearArmies {};
             class setupScenario {};
             class spawnBattle {};
+            class spawnDrill {};
+            class endDrill {};
         };
     };
     class TACT {

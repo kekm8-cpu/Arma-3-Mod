@@ -125,10 +125,11 @@ functions/
                              fn_concludeBattle, fn_syncBack
                              (planned) fn_captureLoop, fn_autoResolve
   command/                   fn_dropIn, fn_dropOut, fn_setCommandHud,
-                             fn_commandEntities, fn_onCommandClick,
+                             fn_commandEntities, fn_playerGroups,
+                             fn_alliedGroups, fn_onCommandClick,
                              fn_issueMoveOrder, fn_buildCommandList
   test/                      fn_buildArmy, fn_clearArmies, fn_setupScenario,
-                             fn_spawnBattle
+                             fn_spawnBattle, fn_spawnDrill, fn_endDrill
 ```
 
 ---
@@ -1037,13 +1038,24 @@ being made, across every force at once.
   is one competing with him for control of his own men. Whatever the group does
   as a body, it does by following him. An army with no flagged soldier drops
   nobody in and never leaves the campaign layer.
-- Test harness (`TEST_fnc_*`). Named rosters, named starting states and named
-  engagements, all declared as data in `init.sqf`. `TEST_fnc_setupScenario`
-  builds what a session boots into; `TEST_fnc_spawnBattle` drops a fixed
-  engagement straight into a battle with no turn around it, bound to SHIFT+B.
-  The two hand-built armies that used to sit in `init.sqf` are now the
-  `skirmish` scenario, and `sandbox` — one player army, nothing hostile — is
-  the default.
+- Test harness (`TEST_fnc_*`). Named rosters, named starting states, named
+  engagements and named drills, all declared as data in `init.sqf`.
+  `TEST_fnc_setupScenario` builds what a session boots into;
+  `TEST_fnc_spawnBattle` drops a fixed engagement straight into a battle with
+  no turn around it, bound to SHIFT+B. The two hand-built armies that used to
+  sit in `init.sqf` are now the `skirmish` scenario, and `sandbox` — one player
+  army, nothing hostile — is the default.
+- Drills (`TEST_fnc_spawnDrill` / `TEST_fnc_endDrill`). One army on the ground
+  with nobody to fight it, for testing the command interface rather than the
+  battle. A drill has no opposition and therefore no victory condition, so it
+  does not conclude on its own: SHIFT+B ends it, SHIFT+N opens it again, and
+  that repeatable handover between the campaign map and the battle map is as
+  much the point as the drill is. `TEST_bootDrill` in `init.sqf` names the
+  drill a session opens into, or `""` to boot onto the strategic map as normal.
+  Deployment, the body, the boundary and the map are the shipping functions
+  unchanged; only the conclusion is the harness's own, because a one-sided
+  engagement handed to `fn_resolveVictory` reads as an annihilation on its
+  first tick.
 
 **Needs conversion to turn-based**
 
@@ -1395,6 +1407,34 @@ it, for working on orders and routes without a fight interrupting. It needs no
 hidden enemy to stand up: `fn_detectContact` pairs armies off against each
 other and finds nothing to pair, and `fn_resolveTurn` marches a single army
 perfectly well.
+
+**Drills (added for the phase-two interface pass).** `TEST_fnc_spawnDrill` puts
+ONE army on the ground with nobody to fight it, hands the player a body in it,
+and opens command mode. It exists because the three things being worked on —
+the handover between the stock interface and the map's command mode, what the
+command layer draws, and selection — are properties of that layer alone, and a
+real engagement is a poor place to look at them: the units under inspection are
+being shot at, and the battle clock takes the map away at
+`TACT_battleRealSecondsMax` whether or not the tester was finished.
+
+It is not `fn_spawnBattle` with one army. The battle lifecycle is written
+around two sides classifying each other's exit, and a one-sided engagement
+handed to `fn_resolveVictory` reads as an annihilation on its first tick — so a
+drill runs `deployVehicles` → `deployMen` → `dropIn` → `drawBoundary`
+unchanged and owns only its own conclusion, `TEST_fnc_endDrill`, which is
+`fn_concludeBattle`'s teardown with the parts that need two sides taken out.
+The record it holds is engagement-shaped (`attacker`, `attackerGroup`,
+`defender`, `defenderGroup`) so `fn_dropIn` takes it unchanged; the defender is
+an empty record rather than a missing key.
+
+A drill has no victory condition and never ends on its own. SHIFT+B ends it,
+SHIFT+N opens it again. `TEST_bootDrill` names the drill a session opens into —
+`squadFour` ships, four men over the `mercFireteam` roster, deployed around
+wherever the mission put the player — or `""` to boot onto the strategic map as
+normal. The roster carries no vehicle on purpose: a mounted man resolves to his
+vehicle in `fn_commandEntities`, so a truck in the roster would draw fewer
+icons than there are men and make the mounting rule the first thing a selection
+test was testing.
 
 Two things came out of it that were not harness work. `fn_beginPlanning`
 guarded on `STRAT_turnPhase == "resolving"` — the flag it is itself the only
