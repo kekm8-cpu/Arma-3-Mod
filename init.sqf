@@ -383,7 +383,7 @@ STRAT_drawIconScaleMode = 0;
 // solves nothing - a column sits five to ten metres apart, so an icon of 0.85
 // units wants to land under ten metres. At 10 here it is 8.5 metres: forty-two
 // pixels with four hundred metres on screen, eleven with fifteen hundred.
-STRAT_drawIconWorldMetres = 10;
+STRAT_drawIconWorldMetres = 4;
 
 // Mode 2's crossover, and the number to tune in game. Stated in metres across
 // the SCREEN rather than as a cap on icon size, because that is the figure the
@@ -426,12 +426,12 @@ STRAT_drawIconClampScreenMetres = 800;
 // the same figure as TACT_commandIconUnits - so a selected unit's ring and its
 // icon should very nearly coincide, in every mode. Icon spilling past the ring
 // means these are too big; rattling around inside it, too small.
-STRAT_drawIconArgScale = 63.333;
+STRAT_drawIconArgScale = 300;
 
 // The same, for text. Set against the icon by eye - STRAT_drawLabelUnits is
 // 0.30 against the icon's 0.85, so a label should read at roughly a third of
 // the icon's height.
-STRAT_drawTextArgScale = 16.667;
+STRAT_drawTextArgScale = 6;
 
 // ------------------------------------------------------------------------- //
 // ARTWORK FILL                                                              //
