@@ -1466,10 +1466,28 @@ deployment creates its men directly in the destination group, and that is exactl
 the move that does not work. The anchor goes in first for a duller reason, to
 hold the permanent group open while it would otherwise be empty.
 
-Dismounted only, and the drill owns the placement for now. If it holds, it folds
-into `fn_deployMen` so every army gets it and the roster tables can go back to
-being about what a force looks like rather than which side the engine will let it
-be on.
+Dismounted only, and the drill owns the placement for now. **Confirmed working**
+— the squad deployed quiet with `B_T_` classes on INDEPENDENT. If it holds up, it
+folds into `fn_deployMen` so every army gets it and the roster tables can go back
+to being about what a force looks like rather than which side the engine will let
+it be on.
+
+**Still open: vehicles.** `fn_deployVehicles` creates its vehicles with a bare
+`createVehicle` — no group, no side — and the anchor trick does not transfer,
+because a vehicle reports `grpNull` and there is no group to be carried into. Every
+drill so far has been dismounted by design, so nothing has tested it.
+`TEST_fnc_vehicleProbe` puts one empty BLUFOR-classed vehicle in front of the
+drill's squad and reads it three times: **EMPTY** at spawn (the state deployment
+produces between placing a vehicle and seating its men), **CREWED** five seconds
+after the first man climbs in, and **HIT** the moment anything shoots it, naming
+the shooter.
+
+The Hit reading is the verdict; the other two are instrumentation. The infantry
+bug was never visible in a `side` call — the men reported INDEPENDENT the entire
+time they were shooting each other — so the probe reports `getFriend` and who is
+aiming at it rather than trusting `side` to answer. If vehicles do carry config
+side, the likely fix is the direct analogue of the anchor: `createVehicleCrew` on
+a correct-side group, then delete the crew.
 
 Two things came out of it that were not harness work. `fn_beginPlanning`
 guarded on `STRAT_turnPhase == "resolving"` — the flag it is itself the only

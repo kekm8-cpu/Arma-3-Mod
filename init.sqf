@@ -636,6 +636,37 @@ TEST_sideAnchorClass = createHashMapFromArray [
 // Set back to "" for strategic-layer work.
 TEST_bootDrill = "squadFour";
 
+// ------------------------------------------------------------------------- //
+// THE VEHICLE PROBE                                                          //
+// ------------------------------------------------------------------------- //
+// The infantry fix left one question open: does a VEHICLE carry its config
+// side the way a soldier did? Nothing has tested it - every drill so far has
+// been dismounted by design - and the anchor trick does not transfer, because
+// a vehicle reports grpNull and there is no group to be carried into.
+//
+// So a drill places one empty BLUFOR-classed vehicle in front of the squad and
+// reads it three times: empty at spawn, crewed after the settle below, and
+// again the moment anything shoots it. See TEST_fnc_vehicleProbe.
+//
+// A base-game class on purpose. The campaign's transport is B_T_ (Apex), but
+// both are configured WEST and only the config side is under test, so the
+// probe costs no DLC to resolve.
+TEST_probeVehicleClass = "B_MRAP_01_F";
+
+// Far enough to be a separate thing on the ground, near enough that the squad
+// can see it and would engage it if it read as hostile. Placed along the
+// squad's own deployment bearing, which is the way the men are facing.
+TEST_probeDistance = 45;
+
+// Seconds between the first man climbing in and the crewed reading, so that
+// anything resolving side asynchronously has finished before it is read.
+TEST_probeSettleDelay = 5;
+
+// The probe currently on the ground. Held outside every army record on
+// purpose - see TEST_fnc_vehicleProbe - so nothing that manages a roster
+// manages this.
+TEST_drillProbe = objNull;
+
 // The drill currently running, empty when none is. Declared here rather than
 // left to the function that first writes it, for the reason
 // TACT_activeEngagements is: the key handler in block 2 reads it, and a global

@@ -88,6 +88,13 @@ if (count (_army getOrDefault ["men", []]) == 0) then {
 	diag_log format ["TEST Harness: %1 has been removed from the map.", _army get "name"];
 };
 
+// The probe is instrumentation and belongs to no roster, so sync-back never
+// saw it and nothing else will remove it.
+if (!isNil "TEST_drillProbe" && {!isNull TEST_drillProbe}) then {
+	deleteVehicle TEST_drillProbe;
+	TEST_drillProbe = objNull;
+};
+
 [[0,0,0], false] call TACT_fnc_drawBoundary;
 
 // ------------------------------------------------------------------------ //

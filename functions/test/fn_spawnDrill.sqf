@@ -170,6 +170,11 @@ _group setFormation "COLUMN";
 _group setBehaviour "AWARE";
 _group setCombatMode "RED";
 
+// The vehicle probe, placed after the posture so the squad is already AWARE
+// and weapons free when it appears - a probe put down in front of men who are
+// not yet allowed to engage would answer the question with "they never tried".
+[_position, _bearing] call TEST_fnc_vehicleProbe;
+
 // ------------------------------------------------------------------------ //
 // 5. OPEN COMMAND MODE                                                      //
 // ------------------------------------------------------------------------ //
@@ -237,7 +242,7 @@ systemChat format [
 // than as a status line: a drill is opened to try the interface out, and the
 // interface is what it should be telling you.
 hint format [
-	"DRILL - %1\n\nM opens the map. With it closed the stock squad bar and commanding menu are the interface; with it open they go away and the command map is. Nothing is switched by hand.\n\nOn the map:\n  click a unit       select it\n  CTRL + click       add one, or take one back out\n  click the ground   move the selection\n\nYou are the yellow icon, and are never selectable. SHIFT+B ends the drill and hands the map back to the campaign layer.",
+	"DRILL - %1\n\nM opens the map. With it closed the stock squad bar and commanding menu are the interface; with it open they go away and the command map is. Nothing is switched by hand.\n\nOn the map:\n  click a unit       select it\n  CTRL + click       add one, or take one back out\n  click the ground   move the selection\n\nYou are the yellow icon, and are never selectable. SHIFT+B ends the drill and hands the map back to the campaign layer.\n\nAn empty BLUFOR truck sits ahead of the squad as a side probe. Watch whether the men shoot it, then get in for the crewed reading. Results go to chat and the log.",
 	_army get "name"
 ];
 

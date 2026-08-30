@@ -61,6 +61,8 @@ class CfgFunctions {
             class spawnDrill {};
             class endDrill {};
             class deployConverted {};
+            class vehicleProbe {};
+            class probeReport {};
         };
     };
     class TACT {
