@@ -27,14 +27,12 @@
 		     at any zoom. Its failure is the opposite one: zoom out far enough
 		     and an icon is a pixel.
 
-		  2  SPLIT. Mode 1 while the map shows less than
-		     STRAT_drawIconClampScreenMetres across, mode 0 at that width and
-		     beyond. Terrain-accurate at the zooms a fight is commanded at,
-		     where collision is what ruins the map, and a constant legible size
-		     once the player pulls back to survey, where vanishing is. Both
-		     behaviours with the crossover where he puts it, and the swap is a
-		     step upward rather than a blend - mode 1 is half of mode 0 there by
-		     construction, so icons double as he passes it.
+		  2  CLAMPED. Mode 0 until the map is showing more than
+		     STRAT_drawIconClampScreenMetres across, mode 1 beyond it. Constant
+		     on screen through the zoom range the player works in, and capped
+		     once he is far enough out that collision, rather than legibility,
+		     is the thing to protect against. Both behaviours with the
+		     crossover where he puts it.
 
 		The three are one expression with one term differing, which is the
 		point. There is no per-mode branch anywhere else in the layer.
@@ -98,24 +96,17 @@ switch (_mode) do {
 		_metresPerUnit = STRAT_drawIconWorldMetres;
 	};
 
-	// Split: mode 1 while zoomed in, mode 0 once pulled back. The threshold is
-	// compared against the raw span rather than against a converted cap,
-	// because the question it asks is about the ZOOM - how much ground is on
-	// screen - and not about how big an icon came out.
+	// Clamped. The threshold is stated in metres across the SCREEN because
+	// that is the number the player can read off the map and reason about -
+	// "stop growing once I can see the whole battle" - so it is converted into
+	// a cap on metres per icon unit here rather than being stored as one.
 	//
-	// A conditional and not a min or a max, because the swap is a step. Mode 1
-	// is half of mode 0 at the crossover by construction, so the two do not
-	// meet there and no smallest-of expression would land on this behaviour:
-	// icons double as the player passes 800 metres, which is intended. Pulling
-	// back is the moment they stop describing ground and start being things to
-	// find and click, and reading as a different thing is the point.
+	// `min` and not a conditional: below the threshold the measured figure is
+	// already the smaller of the two, so the same expression gives mode 0's
+	// behaviour without asking which side of the crossover it is on.
 	case 2: {
-		if (_metresPerScreen < STRAT_drawIconClampScreenMetres) then {
-			_metresPerUnit = STRAT_drawIconWorldMetres;
-		};
-
-		// At the threshold and beyond, the base figure stands untouched and
-		// mode 2 is mode 0.
+		_metresPerUnit = _metresPerUnit min
+			(STRAT_drawIconClampScreenMetres * STRAT_drawIconScreenSize);
 	};
 
 	// Mode 0, and anything unrecognised, falls through on the base figure. An

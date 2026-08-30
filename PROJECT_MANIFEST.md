@@ -823,22 +823,13 @@ are opposite:
 |---|---|---|
 | **0** screen-fixed | one icon unit is `STRAT_drawIconScreenSize` of screen width | **collision** — men 10 m apart converge to 13 px at boundary-wide zoom while icons stay 51 px, so a squad stacks into one pile you cannot aim at |
 | **1** world-fixed | one icon unit is `STRAT_drawIconWorldMetres` | **vanishing** — zoom out far and an icon is a pixel |
-| **2** split | 1 while the map shows less than `STRAT_drawIconClampScreenMetres` across, 0 at that width and beyond | neither, within the range the crossover is set for |
+| **2** clamped | 0 until the map shows more than `STRAT_drawIconClampScreenMetres` across, 1 past it | neither, within the range the crossover is set for |
 
-Mode 2 is terrain-accurate at the zooms a fight is commanded at, where collision
-ruins the map, and a constant legible size once the player pulls back to survey,
-where vanishing does. Its swap is a **step upward, not a blend**: mode 1 is half
-of mode 0 at the crossover by construction, so icons double as the player passes
-it. That is intended — pulling back is the moment icons stop describing ground
-and start being things to find and click, and reading as a different thing is
-the point.
-
-The two figures are therefore coupled. `STRAT_drawIconWorldMetres` is
-`STRAT_drawIconClampScreenMetres × STRAT_drawIconScreenSize ÷ 2`; moving the
-crossover without moving it changes the size of the step. Mode 1's figure also
-has to stay comparable to the spacing between men, or icons self-overlap at
-*every* zoom and the mode solves nothing; a column sits 5–10 m apart and the
-current figure draws a 10.2 m icon, touching at column spacing.
+Mode 1's metre figure must be comparable to the spacing between men or icons
+self-overlap at *every* zoom and the mode solves nothing; a column sits 5–10 m
+apart. Mode 2's threshold is stated in metres across the screen rather than as
+a cap on icon size, because that is the number a player can read off the map
+and reason about.
 
 The branch exists in exactly one function. `STRAT_fnc_drawItems` divides
 whatever it is given by the measured span and draws, and would not behave
@@ -1393,19 +1384,19 @@ the enforced one cannot drift apart.
   armies it costs a few HashMaps a frame. It is the first thing to look at if
   the map ever gets heavy, and the fix is a dirty flag on the list, not two
   lists.
-- `STRAT_drawIconScaleMode` is an open decision, not a setting. Mode 0 is
-  playtested and remains the default; 1 and 2 are built and specified against it
-  but not yet chosen between. Which failure matters depends on how much of a
-  fight the player wants on screen at once, which is a question for playing
-  rather than for arguing.
-- `STRAT_drawIconArgScale` and `STRAT_drawTextArgScale` are playtested at mode 0
-  and mode-independent — the modes change the screen fraction handed to them,
-  never these. The text figure lands at 0.054 for a 0.30-unit label, all but
-  `drawIcon`'s own documented default of 0.05, which is good evidence the
-  argument really is screen space. The selection ring is the ruler if they ever
+- `STRAT_drawIconScaleMode` is an open decision, not a setting. Modes 1 and 2
+  are built and untried; 0 is what shipped and remains the default. Which
+  failure matters depends on how much of a fight the player wants on screen at
+  once, which is a question for playing rather than for arguing. Mode 2's
+  `STRAT_drawIconClampScreenMetres` wants tuning in game whichever way it goes.
+- `STRAT_drawIconArgScale` and `STRAT_drawTextArgScale` are engine calibration
+  carried over from an eyeballed pass, restated against a screen fraction so
+  mode 0 reproduces it digit for digit. The selection ring is the ruler if they
   need touching up — `drawEllipse` in true world coordinates at
-  `STRAT_drawRingUnits`, the same 0.85 as `TACT_commandIconUnits`, so a selected
-  unit's ring and its icon should very nearly coincide, in every mode.
+  `STRAT_drawRingUnits`, the same 0.85 as `TACT_commandIconUnits`, so a
+  selected unit's ring and its icon should very nearly coincide, in every mode.
+  Check at two zoom levels: getting it right at one zoom is what the broken
+  arithmetic could also do.
 
 **Not started**
 - Post-battle march for a repulsed army. Survivors of every other outcome

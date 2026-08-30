@@ -366,18 +366,11 @@ STRAT_drawIconScreenSize = 0.030;
 //      much as the men do, never more, at any zoom. Fails by VANISHING: zoom
 //      out far enough and an icon is a pixel.
 //
-//   2  SPLIT. Mode 1 while the map shows less than
-//      STRAT_drawIconClampScreenMetres across, mode 0 at that width and
-//      beyond. Terrain-accurate at the zooms a fight is commanded at, where
-//      collision is what ruins the map; a constant legible size once the
-//      player pulls back to survey, where vanishing is.
-//
-//      The swap is a step and not a blend, and the step is upward: mode 1 is
-//      half of mode 0 at the crossover by construction (see
-//      STRAT_drawIconWorldMetres), so icons double as the player passes it.
-//      That is the intent rather than an artefact - pulling back is the moment
-//      the icons stop describing ground and start being things to find and
-//      click, and reading as a different thing is the point.
+//   2  CLAMPED. Mode 0 until the map shows more than
+//      STRAT_drawIconClampScreenMetres across, mode 1 past it. Constant on
+//      screen through the range the player works in, capped once he is far
+//      enough out that collision rather than legibility is the thing to
+//      protect against.
 //
 // Modes 1 and 2 are on trial against 0, which is what shipped. The two failure
 // modes are opposite and neither is wrong in the abstract - which one matters
@@ -385,35 +378,21 @@ STRAT_drawIconScreenSize = 0.030;
 // is a question for playing rather than for arguing.
 STRAT_drawIconScaleMode = 0;
 
-// Mode 1's figure: metres per icon unit, fixed.
-//
-// 12 is HALF THE SIZE MODE 0 DRAWS AT THE CROSSOVER, which is what sets it.
-// Mode 1's screen fraction is this over the metres on screen, and mode 0's is
-// the flat STRAT_drawIconScreenSize, so the two agree at
-// 12 / 0.030 = 400 metres and mode 1 is exactly half of mode 0 at the 800 the
-// mode 2 crossover is set to. Change the crossover and this wants changing
-// with it: it is 800 x 0.030 / 2.
-//
-// The figure also has to stay comparable to the spacing between men, or icons
-// self-overlap at EVERY zoom and the mode solves nothing. A column sits five to
-// ten metres apart and an icon is 0.85 units, so this draws a 10.2 metre icon -
-// touching at column spacing, which is the most a terrain-accurate icon can do
-// without lying about how much ground a man covers.
-STRAT_drawIconWorldMetres = 12;
+// Mode 1's figure: metres per icon unit, fixed. It has to be comparable to the
+// spacing between men or the icons self-overlap at EVERY zoom and the mode
+// solves nothing - a column sits five to ten metres apart, so an icon of 0.85
+// units wants to land under ten metres. At 10 here it is 8.5 metres: forty-two
+// pixels with four hundred metres on screen, eleven with fifteen hundred.
+STRAT_drawIconWorldMetres = 10;
 
 // Mode 2's crossover, and the number to tune in game. Stated in metres across
-// the SCREEN, because that is the figure the player can read off the map and
-// reason about: "hold a legible size once I have pulled back this far".
+// the SCREEN rather than as a cap on icon size, because that is the figure the
+// player can read off the map and reason about: "stop growing once I can see
+// the whole battle". STRAT_fnc_mapUnitMetres converts it.
 //
-// Below it mode 2 is world-fixed and icons shrink with the terrain; at it and
-// beyond they hold a constant screen size. 800 sits between the zoom a squad is
-// commanded at and the 1500 metres that shows a whole battle boundary. Raise it
-// to stay terrain-accurate further out; lower it to have icons stop shrinking
-// sooner.
-//
-// STRAT_drawIconWorldMetres is derived from this figure - half of what mode 0
-// draws here - so moving one without the other changes the size of the step at
-// the crossover.
+// 800 is a first guess sitting between the zoom a squad is commanded at and
+// the 1500 metres that shows a whole battle boundary. Raise it to keep icons
+// screen-constant further out; lower it to make them start shrinking sooner.
 STRAT_drawIconClampScreenMetres = 800;
 
 // ------------------------------------------------------------------------- //
@@ -438,26 +417,21 @@ STRAT_drawIconClampScreenMetres = 800;
 // trying to make it was why labels came out several times the size of the icons
 // they belonged to.
 //
-// PLAYTESTED at mode 0, which is what these two are: measured in game against
-// the map rather than derived. The text figure lands at 0.054 for a 0.30-unit
-// label, which is all but drawIcon's own documented default text size of 0.05 -
-// a good sign that the argument really is screen space and that the calibration
-// has found the right footing at last.
-//
-// They are mode-independent. Modes 1 and 2 change the screen fraction handed to
-// them, never these, which is why the mode appears nowhere in the renderer.
+// The figures are 1.90 and 0.50 divided by STRAT_drawIconScreenSize, which is
+// deliberate: at mode 0 they reproduce the eyeballed pass that was working,
+// digit for digit. Recalibrating is not part of adding the modes.
 //
 // The selection ring is the ruler if they need touching up: it is drawn by
 // drawEllipse in true world coordinates at STRAT_drawRingUnits, which is 0.85 -
 // the same figure as TACT_commandIconUnits - so a selected unit's ring and its
 // icon should very nearly coincide, in every mode. Icon spilling past the ring
 // means these are too big; rattling around inside it, too small.
-STRAT_drawIconArgScale = 2000;
+STRAT_drawIconArgScale = 63.333;
 
 // The same, for text. Set against the icon by eye - STRAT_drawLabelUnits is
 // 0.30 against the icon's 0.85, so a label should read at roughly a third of
 // the icon's height.
-STRAT_drawTextArgScale = 6;
+STRAT_drawTextArgScale = 16.667;
 
 // ------------------------------------------------------------------------- //
 // ARTWORK FILL                                                              //
