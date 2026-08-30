@@ -13,19 +13,28 @@
 		position array, and adornments are placed in icon units off that
 		anchor.
 
-		Three things are drawn, and the split between them is the tactical
+		Four things are drawn, and the split between them is the tactical
 		map's visibility rule:
 
-		  the player          one icon, his own
-		  his group's units   one icon each - these are what he selects
-		  every other
-		  friendly group      one icon over its leader, whole
+		  the player          one icon, his own, yellow
+		  his group's units   one icon each, green - these are what he selects
+		  his other groups    one icon over each leader, green, whole
+		  allied groups       one icon over each leader, red, whole
 
-		A friendly group that is not his collapses because its composition is
-		not his to arrange, and because forty allied soldiers drawn man by man
-		bury the eight that are his. His own group is never collapsed - it is
-		drawn as its units, and no group icon is emitted for it, because one
-		would draw the same men a second time as a body he does not command.
+		A group that is not his own collapses because its composition is not his
+		to arrange, and because forty other soldiers drawn man by man bury the
+		eight that are his. His own group is never collapsed - it is drawn as
+		its units, and no group icon is emitted for it, because one would draw
+		the same men a second time as a body he does not command.
+
+		Colour is ROLE ON THE FIELD, from TACT_commandFriendlyColour and
+		TACT_commandAlliedColour, and never the campaign layer's faction table.
+		Green and red are Arma's own INDEPENDENT and EAST, which section 8 puts
+		the player and CSAT on, so the map agrees with the stock squad bar and
+		the engine icons the player already reads. It also draws a detached
+		group correctly: that group carries no faction stamp and never will, so
+		a faction lookup would fall through to unknown for the exact case this
+		layer exists for.
 
 		The player is drawn and never hit-tested. A commander is worth seeing
 		on the map, and is not something to select and order.
@@ -88,42 +97,48 @@ private _fnc_item = {
 	_item
 };
 
-private _friendly = STRAT_drawFactionColour getOrDefault ["player", [0.25, 0.45, 0.95, 1]];
+private _friendly = TACT_commandFriendlyColour;
 
 // ------------------------------------------------------------------------ //
-// OTHER FRIENDLY GROUPS                                                     //
+// COLLAPSED GROUPS                                                          //
 // ------------------------------------------------------------------------ //
-// One icon per group, over its leader. Emitted first so it draws behind the
-// player's own units: where an ally and one of his men overlap, his man is the
-// one he needs to see and click.
+// One icon per group, over its leader, for both lists. Emitted first so they
+// draw behind the player's own units: where one of these and one of his men
+// overlap, his man is the one he needs to see and click.
 //
-// No hit area, for the reason the commander has none. These are not his to
-// order - they are somebody else's group - and a click target he cannot use,
-// sitting on top of units he can, is a way to lose orders. That changes the
-// day allied groups take an order from the map, and nothing else has to.
-{
-	private _friendlyGroup = _x;
-	private _group   = _friendlyGroup get "group";
-	private _faction = _friendlyGroup get "faction";
-	private _men     = _friendlyGroup get "men";
-	private _anchor  = _friendlyGroup get "anchor";
+// No hit area on either, for the reason the commander has none. Neither list is
+// his to order - one is somebody else's group, the other is somebody else's
+// army - and a click target he cannot use, sitting on top of units he can, is a
+// way to lose orders. That changes the day group-level command arrives, and it
+// changes for TACT_fnc_playerGroups only: an ally is never his to move.
+//
+// Allies are emitted before his own groups so that where the two overlap, his
+// reads on top.
+private _fnc_groupIcons = {
+	params ["_record", "_kind", "_colour"];
+
+	private _group   = _record get "group";
+	private _faction = _record get "faction";
+	private _men     = _record get "men";
+	private _anchor  = _record get "anchor";
 
 	private _id = format ["GRP_%1", groupId _group];
 
-	// The campaign layer's tables, unchanged. An allied faction draws in its
-	// own colour rather than the player's, so an ally reads as an ally and not
-	// as a detachment of his own men.
-	private _colour = STRAT_drawFactionColour getOrDefault [_faction, _friendly];
-	private _icon   = STRAT_drawFactionIcon getOrDefault [_faction, "b_unknown"];
+	// Colour is the role passed in, not a faction lookup - see the header. The
+	// silhouette still comes from the campaign table, because that is a
+	// statement about what kind of force this is rather than about whose side
+	// it is on, and an ally with no stamp draws as unknown rather than as a
+	// faction nobody recorded.
+	private _icon = STRAT_drawFactionIcon getOrDefault [_faction, "b_unknown"];
 
-	[_id, "friendlyGroup", _friendlyGroup, _anchor, "icon", createHashMapFromArray [
+	[_id, _kind, _record, _anchor, "icon", createHashMapFromArray [
 		["shape", "icon"],
 		["texture", [_icon] call STRAT_fnc_mapIconTexture],
 		["colour", _colour],
 		["size", [TACT_commandGroupIconUnits, TACT_commandGroupIconUnits]]
 	]] call _fnc_item;
 
-	[_id, "friendlyGroup", _friendlyGroup, _anchor, "label", createHashMapFromArray [
+	[_id, _kind, _record, _anchor, "label", createHashMapFromArray [
 		["shape", "icon"],
 		["size", [0, 0]],
 		["offset", [0, -STRAT_drawLabelOffsetUnits]],
@@ -131,8 +146,15 @@ private _friendly = STRAT_drawFactionColour getOrDefault ["player", [0.25, 0.45,
 		["text", format ["%1 (%2)", groupId _group, count _men]],
 		["textSize", STRAT_drawLabelUnits]
 	]] call _fnc_item;
+};
 
-} forEach (call TACT_fnc_friendlyGroups);
+{
+	[_x, "alliedGroup", TACT_commandAlliedColour] call _fnc_groupIcons;
+} forEach (call TACT_fnc_alliedGroups);
+
+{
+	[_x, "playerGroup", _friendly] call _fnc_groupIcons;
+} forEach (call TACT_fnc_playerGroups);
 
 // ------------------------------------------------------------------------ //
 // COMMAND ENTITIES                                                          //

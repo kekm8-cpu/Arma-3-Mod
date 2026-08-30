@@ -227,6 +227,29 @@ TACT_commandGroupIconUnits = 1.00;
 // as one.
 TACT_commandPlayerColour = [1, 0.85, 0.2, 1];
 
+// The battle UI colours by ROLE ON THE FIELD, not by faction, and the roles are
+// the two group lists the command layer builds: TACT_fnc_playerGroups and
+// TACT_fnc_alliedGroups. Green for his own, red for an ally he does not
+// command.
+//
+// Those are Arma's own side colours - INDEPENDENT green, EAST red - and that is
+// the point. The stock squad bar, the engine's own icons and every HUD element
+// the player has ever seen in this game already speak that language, and the
+// command layer sits on top of them rather than arguing with them. Section 8
+// puts the player on INDEPENDENT and CSAT on EAST, so the convention and the
+// side allocation agree by construction.
+//
+// Role rather than faction is also what makes a detached group draw correctly.
+// It carries no STRAT_faction stamp and never will - it was made by the engine
+// when the player split it - so a faction lookup would fall through to the
+// unknown colour for exactly the group this layer exists to draw.
+//
+// Separate from STRAT_drawFactionColour, which is the CAMPAIGN layer's table
+// and stays as it is. That map draws four factions as four blocs and has no
+// sides on the ground to agree with; this one draws one battle and does.
+TACT_commandFriendlyColour = [0.20, 0.70, 0.35, 1];   // Green - his own side
+TACT_commandAlliedColour   = [0.90, 0.20, 0.20, 1];   // Red   - CSAT, not his
+
 // ------------------------------------------------------------------------- //
 // THE CAMPAIGN AVATAR                                                        //
 // ------------------------------------------------------------------------- //

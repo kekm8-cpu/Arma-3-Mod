@@ -111,6 +111,10 @@ functions/
   turn/                      fn_beginPlanning, fn_issueOrder,
                              fn_projectArrival, fn_commitTurn, fn_resolveTurn,
                              fn_applyUpkeep, fn_advanceClock
+  command/                   fn_dropIn, fn_dropOut, fn_setCommandHud,
+                             fn_commandEntities, fn_playerGroups,
+                             fn_alliedGroups, fn_onCommandClick,
+                             fn_issueMoveOrder, fn_buildCommandList
   ui/                        fn_onMapClick, fn_mapUnitMetres,
                              fn_mapIconTexture, fn_buildDrawList,
                              fn_drawItems, fn_drawCampaignLayer,
@@ -941,12 +945,36 @@ being made, across every force at once.
   `TACT_fnc_setCommandHud` hides the bar, the commanding menu and the engine's
   friendly map icons, and `TACT_fnc_onCommandClick` takes over: click an icon
   to select, CTRL to add or remove, click terrain to move the selection.
-  The layer draws three things: the player, each unit of his group, and every
-  other friendly group as one icon over its leader
-  (`TACT_fnc_friendlyGroups`), the last of these carrying no hit area because
-  an allied group is not his to order and a dead click target over live ones
-  loses orders. No group icon is drawn for his own group — its units are
-  already there individually.
+  The layer draws four things: the player in yellow, each unit of his group in
+  green, every other group on his side as one green icon over its leader
+  (`TACT_fnc_playerGroups`), and every allied group as one red icon over its
+  leader (`TACT_fnc_alliedGroups`). Neither collapsed list carries a hit area,
+  because neither is his to order and a dead click target over live ones loses
+  orders. No group icon is drawn for his own group — its units are already
+  there individually. Green and red are Arma's INDEPENDENT and EAST, which
+  section 8 puts the player and CSAT on, so the command layer agrees with the
+  stock squad bar rather than arguing with it; the colours come from
+  `TACT_commandFriendlyColour` and `TACT_commandAlliedColour` and never from
+  the campaign layer's `STRAT_drawFactionColour`, which is a different surface
+  with different needs and is unchanged.
+  The two collapsed lists are split on **control, not allegiance**. Both are
+  friendly and neither is drawn man by man; what separates them is that
+  `fn_playerGroups` holds groups the command layer could one day order — a
+  detached half of his own group is the case group-level command exists for —
+  and `fn_alliedGroups` holds groups it never will. CSAT is a patron, not a
+  subordinate: the player's leverage over it is Favor spent between blocks, not
+  a move order on a map. Keeping the lists apart means group-level command
+  widens to one of them and provably cannot reach the other.
+  `fn_playerGroups` tests `side _group == side (group player)`; `fn_alliedGroups`
+  tests a different side that the engine counts friendly, via `getFriend` past
+  the 0.6 the engine itself reads as friendly, which is the reading half of the
+  `setFriend` decision section 8 writes. Both read the engine rather than the
+  `STRAT_faction` stamp, because a detached group is made by the engine and
+  carries no stamp — it inherits side for free, which is exactly the property
+  needed. CIVILIAN is excluded from the allied test explicitly: civilians are
+  default-friendly to every side and would otherwise pass it whole, the campaign
+  avatar first and eventually every civilian the NATO Aggression meter exists to
+  measure against.
   `TACT_fnc_commandEntities` resolves the group into what can actually be moved
   — a dismounted man, or a vehicle with at least one of ours in it, ordered
   through its driver — so a mounted rider resolves to the truck he is riding
@@ -1061,29 +1089,20 @@ the enforced one cannot drift apart.
   against overriding the stock squad bar, and every guard was another condition
   under which commanding behaved differently. All three return as group-level
   command, below, where the engine carries them natively.
-- The friendly-group pass draws nothing today, and that is a property of the
-  battle model rather than of the pass. `fn_buildEngagement` takes exactly two
+- Both collapsed-group passes draw nothing today, and that is a property of the
+  battle model rather than of the passes. `fn_buildEngagement` takes exactly two
   armies, `fn_deployMen` spawns each as exactly one group, and contact detection
   requires hostility — so the only groups on a battlefield are the player's and
-  one enemy's, and the pass correctly emits nothing. Three things make it live,
-  and the first is already planned: the detach that group-level command needs
-  anyway, where a half the player splits off stops being command entities and
-  becomes one icon the same frame; a second army of his side arriving to
-  reinforce; a garrison of his faction spawning into the fight it is standing
-  in. The rule is encoded now because the detach lands into it for free, and
-  because the alternative — every friendly unit drawn individually — is the
-  state this replaces.
-- A bloc ally is friendly to the engine but is not drawn as friendly. The engine
-  half is settled: `STRAT_fnc_factionSide` puts the player on INDEPENDENT and
-  CSAT on EAST, and the `setFriend` block in `init.sqf` makes that pair friendly
-  both ways, so an allied CSAT force no longer shoots at the player. The drawing
-  half is not. `TACT_fnc_friendlyGroups` collects groups by `side _group == side
-  (group player)`, which a CSAT group fails by construction — it is on the other
-  side of a friendly pair, not on the player's. So a CSAT force fighting
-  alongside him is absent from the tactical map's friendly icons. Widening that
-  test to `!(side _group isEqualTo ...)`-style hostility, or to the bloc via the
-  `STRAT_faction` stamp, is the fix; the stamp is already there and a detached
-  group without one still has to fall back to `side`.
+  one enemy's, and both passes correctly emit nothing. Three things make
+  `fn_playerGroups` live, and the first is already planned: the detach that
+  group-level command needs anyway, where a half the player splits off stops
+  being command entities and becomes one icon the same frame; a second army of
+  his side arriving to reinforce; a garrison of his faction spawning into the
+  fight it is standing over. `fn_alliedGroups` goes live the day a battle can
+  hold more than two armies and one of them is CSAT — which is also the day
+  CSAT Favor buys something that shows up on the ground. The rule is encoded now
+  because the detach lands into it for free, and because the alternative — every
+  friendly unit drawn individually — is the state this replaces.
 - Collapsed group icons carry no composition adornment yet, so a group of eight
   in trucks and a group of eight on foot are the same icon and the same label.
   `men` on the group record is what an adornment would read; the badge itself is

@@ -1,29 +1,31 @@
 /*
-	Function: TACT_fnc_friendlyGroups
+	Function: TACT_fnc_playerGroups
 
 	Description:
-		Resolves the friendly groups on the battlefield that are NOT the
-		player's own, so the command layer can draw each of them as a single
-		icon over its leader.
+		Resolves the groups on the battlefield that are the PLAYER'S OWN SIDE
+		but are NOT the group he is standing in, so the command layer can draw
+		each of them as a single icon over its leader.
 
-		This is the other half of the tactical map's visibility rule. The
-		player's group is shown man by man because it is the thing he commands
-		and every icon in it is a click target. Everything else on his side is
-		shown as one icon per group, because its internal composition is not his
-		to arrange from where he stands, and drawing forty allied soldiers
-		individually buries his own eight.
+		This is one half of the tactical map's visibility rule; the other is
+		TACT_fnc_alliedGroups. The player's group is shown man by man because it
+		is the thing he commands and every icon in it is a click target.
+		Everything else is shown as one icon per group, because its internal
+		composition is not his to arrange from where he stands, and drawing
+		forty other soldiers individually buries his own eight.
 
 		The player's group is excluded rather than collapsed. Its members are
 		already drawn individually by TACT_fnc_commandEntities, so emitting a
 		group icon for it too would draw the same men twice: once as the units
 		he orders and once as a body he does not.
 
-		Friendly means the player's own side. That is what these groups have in
-		common - a half of his group he detached, a second contractor army that
-		arrived to reinforce him, a garrison of his faction holding the ground
-		being fought over. All of them are his side's, none of them is the group
-		he is standing in, and every one of them is something he is drawn into
-		the battle alongside rather than against.
+		His side is what these groups have in common - a half of his group he
+		detached, a second contractor army that arrived to reinforce him, a
+		garrison of his faction holding the ground being fought over. All of
+		them are his side's, none of them is the group he is standing in, and
+		none of them is currently his to order. That last part is why they are
+		still separated from an ally: these are groups the command layer could
+		one day give orders to, and TACT_fnc_alliedGroups returns groups it
+		never will.
 
 		Side rather than the faction stamp, deliberately, because the stamp
 		cannot answer this question. A group the player detaches is created by
@@ -44,9 +46,10 @@
 
 		No spatial filter is needed to mean "in this battle". An army outside a
 		battle is a record with `obj` set to objNull - the strategic layer never
-		spawns - so every friendly group standing on a map is in the fight by
-		construction. The one exception is the campaign avatar, which is alive,
-		hidden, and on the far side of the island, and is excluded by name.
+		spawns - so every group of his standing on a map is in the fight by
+		construction. The campaign avatar is excluded by name: it is a CIVILIAN
+		placeholder and so fails the side test already, but the exclusion is
+		kept as the backstop for the day that changes.
 
 		Rebuilt every frame, for the same reason the entity list is: groups take
 		casualties and lose leaders mid-battle, and a cached list is how the
@@ -57,13 +60,16 @@
 		leader  OBJECT - what the icon is drawn over
 		anchor  ARRAY  - the leader's position, read once for the frame
 		men     ARRAY  - its living members
-		faction STRING - allegiance, for colour and icon
+		faction STRING - allegiance, for the icon silhouette and labels. NOT the
+		                 colour source: the command layer colours by role, in
+		                 TACT_fnc_buildCommandList, so a detached group with no
+		                 stamp is still drawn as one of his.
 
 	Parameters:
 		none
 
 	Returns:
-		ARRAY of HASHMAP - one per friendly group, excluding the player's.
+		ARRAY of HASHMAP - one per group on the player's side, excluding his own.
 */
 
 private _groups = [];
@@ -75,10 +81,10 @@ if (isNull _playerGroup) exitWith { _groups };
 
 private _playerSide = side _playerGroup;
 
-// Presentation only. A detached group has no stamp of its own and takes the
-// player's, which is correct by construction - it came out of his group - and
-// is the fallback rather than the rule, so a reinforcing army that carries its
-// own stamp is drawn in its own colours.
+// A detached group has no stamp of its own and takes the player's, which is
+// correct by construction - it came out of his group - and is the fallback
+// rather than the rule, so a reinforcing army that carries its own stamp keeps
+// its own silhouette.
 private _playerFaction = _playerGroup getVariable ["STRAT_faction", "player"];
 
 {
