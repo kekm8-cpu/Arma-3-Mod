@@ -433,6 +433,36 @@ STRAT_drawIconArgScale = 63.333;
 // the icon's height.
 STRAT_drawTextArgScale = 16.667;
 
+// ------------------------------------------------------------------------- //
+// ARTWORK FILL                                                              //
+// ------------------------------------------------------------------------- //
+// drawIcon stretches a texture to fill the box it is given, so two icons drawn
+// at the same size look the same size only if their artwork fills its own
+// texture to the same extent. It does not. A CfgMarkers NATO box is drawn edge
+// to edge, and a CfgVehicleIcons unit silhouette is a small glyph sitting in a
+// mostly transparent square - so at one size the box reads correctly and the
+// silhouette reads as a speck.
+//
+// This is the compensation, and it is a THIRD knob rather than a bigger
+// STRAT_drawIconArgScale because that one is shared: raising it to rescue the
+// unit silhouettes would blow the group boxes up with them. It is also not
+// folded into the item's `size`, which stays semantic - 0.85 icon units is the
+// box the icon occupies, and STRAT_drawRingUnits and TACT_commandHitUnits are
+// chosen against that figure. Inflating `size` would drag the drawn glyph away
+// from the ring and the click area both. Inflating the texture's box around a
+// centred glyph leaves the glyph where the ring expects it.
+//
+// So: applied to the drawn box of unit artwork only. Never to text, never to
+// the hit radius, never to the ring.
+//
+// FIRST GUESS at 4, from eyeballing how much of iconMan's texture the glyph
+// actually covers. Tune it against the selection ring like the others - click a
+// unit and the silhouette should sit comfortably inside the ring rather than
+// vanishing at its centre. If a different vehicle class turns out to be padded
+// differently enough to matter, this becomes a table keyed the way
+// STRAT_drawFactionIcon is, and the item field it feeds already supports that.
+STRAT_drawUnitArtScale = 4.00;
+
 // These four are a set and are chosen against each other. A 1x1 icon reaches
 // 0.5 units to its edge and 0.71 to its corner, so the hit radius sits just
 // outside the edge, the ring just outside the corner, and the label far enough

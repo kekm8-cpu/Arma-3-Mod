@@ -115,6 +115,13 @@ private _fnc_head = {
 		case "icon": {
 			(_item get "size") params [["_w", 1, [0]], ["_h", 1, [0]]];
 
+			// Compensation for artwork that does not fill its own texture. It
+			// scales the BOX the texture is stretched into, so a small glyph in
+			// a padded square comes out the size the item asked for. Applied
+			// here and to nothing else: the item's `size` stays semantic, which
+			// is what keeps the ring and the click area calibrated against it.
+			private _art = _item get "artScale";
+
 			// SIZE is icon units -> screen fraction -> drawIcon argument.
 			// POSITION went through _metresPerUnit above. That split is the
 			// whole of the scaling law and it is not a compromise: the two
@@ -144,8 +151,8 @@ private _fnc_head = {
 				_item get "texture",
 				_colour,
 				_pos,
-				_w * _screenPerUnit * STRAT_drawIconArgScale,
-				_h * _screenPerUnit * STRAT_drawIconArgScale,
+				_w * _art * _screenPerUnit * STRAT_drawIconArgScale,
+				_h * _art * _screenPerUnit * STRAT_drawIconArgScale,
 				_item get "direction",
 				_item get "text",
 				1,                                          // 1 = drop shadow

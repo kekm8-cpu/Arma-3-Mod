@@ -47,6 +47,9 @@
 		points    ARRAY   - ordered world positions ("polyline" shape)
 		fromEdge  NUMBER  - icon units to push the arrow's origin off the anchor
 		texture   STRING  - texture path ("icon" shape)
+		artScale  NUMBER  - multiplies the drawn box to compensate for artwork
+		                    that does not fill its own texture; 1 for artwork
+		                    that does ("icon" shape)
 		direction NUMBER  - icon rotation in degrees; 0 for anything that
 		                    is not an individual ("icon" shape)
 		text      STRING  - label text ("icon" shape)
@@ -93,6 +96,7 @@ private _fnc_item = {
 		["points", []],
 		["fromEdge", 0],
 		["direction", 0],
+		["artScale", 1],
 		["texture", STRAT_drawBlankTexture],
 		["text", ""],
 		["textSize", 0],

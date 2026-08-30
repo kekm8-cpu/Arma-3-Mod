@@ -37,6 +37,14 @@
 		carry heading; a body of men has no single heading to carry. The two
 		symbols mean different things and the map now says which it means.
 
+		The two also do not fill their textures alike, which is why the unit
+		icons carry STRAT_drawUnitArtScale and the group boxes do not. A NATO
+		box is drawn edge to edge; a unit silhouette is a small glyph in a
+		mostly transparent square, and drawn at the same size it reads as a
+		speck. That compensation scales the box the texture is stretched into
+		and not the item's `size`, so the glyph grows while the ring and the
+		click area stay calibrated against the figure they were chosen for.
+
 		Colour comes from STRAT_drawFactionColour, and a collapsed group's
 		silhouette from STRAT_drawFactionIcon - the CAMPAIGN layer's tables,
 		read here unchanged. There is no battle-only palette. An army the player watched
@@ -112,6 +120,7 @@ private _fnc_item = {
 		["points", []],
 		["fromEdge", 0],
 		["direction", 0],
+		["artScale", 1],
 		["texture", STRAT_drawBlankTexture],
 		["text", ""],
 		["textSize", 0],
@@ -233,6 +242,7 @@ private _fnc_groupIcons = {
 		] call STRAT_fnc_mapUnitTexture],
 		["colour", _colour],
 		["size", [TACT_commandIconUnits, TACT_commandIconUnits]],
+		["artScale", STRAT_drawUnitArtScale],
 		["direction", getDir _obj],
 		["hitUnits", TACT_commandHitUnits]
 	]] call _fnc_item;
@@ -286,6 +296,7 @@ private _playerAnchor = getPosATL (vehicle player);
 	] call STRAT_fnc_mapUnitTexture],
 	["colour", TACT_commandPlayerColour],
 	["size", [TACT_commandIconUnits, TACT_commandIconUnits]],
+	["artScale", STRAT_drawUnitArtScale],
 	["direction", getDir (vehicle player)]
 ]] call _fnc_item;
 

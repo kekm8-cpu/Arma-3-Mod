@@ -870,6 +870,17 @@ means *a body of men of this type*. Putting one over a single rifleman says
 something false about what he is, and the box reads upright so it cannot carry
 heading anyway.
 
+The two families do not fill their textures alike, and `drawIcon` stretches a
+texture to fill whatever box it is given, so the same size is not the same
+apparent size. A NATO box is drawn edge to edge; a unit silhouette is a small
+glyph in a mostly transparent square. Items carry an `artScale` for that, set
+from `STRAT_drawUnitArtScale` on unit artwork and left at 1 on markers. It is a
+third constant rather than a larger `STRAT_drawIconArgScale` because that one is
+shared and would blow up the group boxes too, and it scales the drawn box rather
+than the item's `size` because `size` is what `STRAT_drawRingUnits` and
+`TACT_commandHitUnits` are calibrated against — inflating that would drag the
+glyph away from both.
+
 Both resolvers share one cache, keyed by class name; a CfgMarkers class and a
 CfgVehicles class cannot collide. A unit whose config carries no icon falls back
 to the NATO box rather than to a blank — a wrong symbol is legible, and an empty
