@@ -22,7 +22,8 @@
 		precondition - the map is open and its control exists - and one owner:
 
 		  Draw            the campaign layer, which picks its own list by mode
-		  MouseButtonDown records where a press started
+		  MouseButtonDown records where a press started, and eats the CTRL press
+		                  so the map does not draw on itself
 		  MouseButtonUp   turns a press that did not travel into a click
 
 		Mouse handling is split across down and up because the map's own
@@ -30,7 +31,11 @@
 		every time the player grabbed the map to move it, so a click is a
 		release that landed close to where its press did. The handlers are also
 		where CTRL comes from: `onMapSingleClick` reports SHIFT and ALT and
-		nothing else, and command-mode selection needs CTRL - and where the
+		nothing else, and command-mode selection needs CTRL. CTRL is also the
+		chord the map itself reads as "draw a freehand line", so the press
+		handler consumes it while commanding - see there. That is the only
+		event this layer ever consumes, and it consumes it on the narrowest
+		condition that covers the clash. It is also where the
 		RIGHT button comes from, which `onMapSingleClick` does not report at
 		all. Both buttons go through the same press-and-travel test and then
 		split: left selects or orders, right opens the context menu. The left
@@ -103,10 +108,27 @@ STRAT_mapLayerRunning = true;
 		// The press is only remembered, never acted on: the map pans by click
 		// and drag, and an order issued on the press would fire every time the
 		// player grabbed the map to move it.
+		//
+		// It is also where the map's own CTRL+drag FREEHAND DRAWING is taken
+		// away. CTRL is the selection modifier - it is how a selection is built
+		// up one unit at a time - and the engine reads the same chord as "start
+		// drawing a line", so every unit added to a selection left a scribble on
+		// the map behind it. The line starts on the press, so the press is where
+		// it can be stopped: returning true consumes the event and the engine
+		// never begins one.
+		//
+		// Consumed ONLY with CTRL down and ONLY while commanding, which is the
+		// whole of the overlap. A plain drag still pans, because that press is
+		// not consumed; drawing still works on the campaign map, because the
+		// player is not commanding there and CTRL means nothing to this layer.
 		private _pressId = _map ctrlAddEventHandler ["MouseButtonDown", {
-			params ["_control", "_button", "_x", "_y"];
+			params ["_control", "_button", "_x", "_y", "_shift", "_ctrl"];
 			_control setVariable ["STRAT_mapPressAt", [_button, _x, _y]];
-			false       // Never consume: consuming this stops the map panning
+
+			private _commanding = !isNil "TACT_commandActive" && {TACT_commandActive};
+
+			// Never unconditionally: consuming every press stops the map panning.
+			_commanding && {_ctrl}
 		}];
 		_map setVariable ["STRAT_mapPressEH", _pressId];
 
