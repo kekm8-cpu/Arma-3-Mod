@@ -881,13 +881,44 @@ heading anyway.
 The two families do not fill their textures alike, and `drawIcon` stretches a
 texture to fill whatever box it is given, so the same size is not the same
 apparent size. A NATO box is drawn edge to edge; a unit silhouette is a small
-glyph in a mostly transparent square. Items carry an `artScale` for that, set
-from `STRAT_drawUnitArtScale` on unit artwork and left at 1 on markers. It is a
-third constant rather than a larger `STRAT_drawIconArgScale` because that one is
-shared and would blow up the group boxes too, and it scales the drawn box rather
-than the item's `size` because `size` is what `STRAT_drawRingUnits` and
-`TACT_commandHitUnits` are calibrated against — inflating that would drag the
-glyph away from both.
+glyph in a mostly transparent square. Items carry an `artScale` for that, and
+the battle layer sets it **once per artwork family** — `STRAT_drawUnitArtScale`
+on the unit silhouettes, `STRAT_drawGroupArtScale` on the collapsed groups'
+boxes. Separate constants rather than a larger `STRAT_drawIconArgScale` because
+that one is shared and rescuing the silhouettes through it would blow up the
+group boxes too; and they scale the drawn box rather than the item's `size`
+because `size` is what `STRAT_drawRingUnits` and `TACT_commandHitUnits` are
+calibrated against — inflating that would drag the glyph away from both.
+
+Which makes the pair the **apparent-size knobs**, one per symbol, and that is
+what they are for beyond the fill correction. The unit figure has real work to
+do: 4.00, because `iconMan`'s glyph covers about a quarter of its texture. The
+group figure is nominally 1 and starts there, since a box needs no rescue — so
+anything else it becomes is a deliberate statement about how heavy a body of men
+reads against one of its own men, which is a judgement made by looking at the map
+rather than by measuring a texture. The semantic sizes stay put while that
+happens: a group is 1.00 icon units against an individual's 0.85, and the label,
+ring and hit radius go on being calibrated against those.
+
+Both are tuned against a selection ring, drawn by `drawEllipse` in true world
+coordinates, and a group has its own: `TACT_commandGroupRingUnits`, 0.85, the
+same radius an individual and a campaign-map army get. At art scale 1.00 the
+group box's corners fall at 0.71 and sit inside it with air; at about 1.20 they
+reach it. What differs is what the ring *means* to each — the difference between
+a correction and a preference. A silhouette spilling past its ring means
+`STRAT_drawUnitArtScale` is wrong. A group box past its ring means only that a
+body of men was asked to read heavier than one, which may be exactly what was
+wanted; the second test there is the pair on screen together. The one hard
+ceiling on the group figure is its own label — the drawn box reaches half its
+size below the anchor and the label sits at `STRAT_drawLabelOffsetUnits`, so past
+about 2.2 the box grows onto the label and the offset is what moves.
+
+The **campaign layer's army boxes are the same artwork and are left at 1**
+deliberately, alongside the mode caveat above. They could read the group
+constant, but that map has not been looked at since the scaling modes landed and
+coupling it to a figure tuned on the battle map is how it would move without
+anyone deciding it should. Wiring it in is one field on
+`STRAT_fnc_buildDrawList`'s group icon, the day that map is looked at.
 
 Both resolvers share one cache, keyed by class name; a CfgMarkers class and a
 CfgVehicles class cannot collide. A unit whose config carries no icon falls back
@@ -971,6 +1002,12 @@ being made, across every force at once.
 - **What is drawn and what is clickable derive from one list.** The Draw layer
   and the click hit-test read the same output of `STRAT_fnc_buildDrawList`. Two
   independent computations of the same geometry will drift.
+- **Selection reaches only what the command layer could order.** The player's
+  own units and his own collapsed groups carry a hit area; the commander and
+  every allied group are emitted without one, so an ally cannot be selected and
+  therefore cannot be ordered by anything built on selection. The rule lives in
+  the draw list, not in the click handler — a click target that exists and is
+  then refused is a click target that will one day stop being refused.
 - **Map draw handlers attach on map open, never on state change.** Display 12
   is absent while the map is closed and the attachment fails silently.
 - **One entity, one renderer.** Marker extent cannot be queried or matched, so
@@ -1115,6 +1152,17 @@ happening underneath interface work.
     The text figure lands at 0.054 for a 0.30-unit label, all but `drawIcon`'s
     own documented default of 0.05 — good evidence the argument really is
     screen space.
+  - **Group icon size — knobs in place, figure not yet played.** A collapsed
+    group has the same two knobs an individual has: `TACT_commandGroupIconUnits` for what
+    it means (1.00 against a man's 0.85) and `STRAT_drawGroupArtScale` for what
+    it looks like. The second starts at 1, because a NATO box already fills its
+    texture and needs no rescue — so unlike the unit figure it is not a
+    correction waiting to be got right, it is the dial for how heavy a body of
+    men should read against one of its own men. Tune it against the ring, which
+    a collapsed group now gets — `TACT_commandGroupRingUnits`, 0.85, reached by
+    the box's corners at about 1.20 — and then against the units on screen
+    beside it. Above about 2.2 the drawn box reaches its own label and
+    `STRAT_drawLabelOffsetUnits` is what moves.
   - The selection ring stays the ruler if any of the size figures need touching
     up: `drawEllipse` in true world coordinates at `STRAT_drawRingUnits`, the
     same 0.85 as `TACT_commandIconUnits`, so a selected unit's ring and its icon
@@ -1227,6 +1275,14 @@ happening underneath interface work.
   the left button's business, so a stray right-click cannot discard four
   entities the player spent four clicks assembling, and an empty selection
   opens nothing at all rather than a panel of dead rows.
+  It addresses the **entity container only**. All three options are orders for
+  individuals, so a selection of nothing but groups opens nothing and a mixed
+  selection offers the options for the individuals in it — offering "Stop" over
+  a body of men that cannot be stopped would be a row that does nothing. That
+  stops being the right answer the day a group has orders of its own.
+  "New Group" hands its detachment straight into `TACT_commandGroupSelection`,
+  so the selection follows the men across the split: they leave the entity
+  container as men and enter the group container as the group they became.
   The menu is **real controls on the map's display**, `ctrlCreate`d onto
   display 12 from the `TACT_RscMenuFrame` / `TACT_RscMenuButton` classes in
   `description.ext` — not drawn into the map layer, and not a `createDialog`
@@ -1253,11 +1309,9 @@ happening underneath interface work.
   The layer draws four things: the player, each unit of his group, every other
   group on his side as one icon over its leader (`TACT_fnc_playerGroups`), and
   every allied group as one icon over its leader (`TACT_fnc_alliedGroups`).
-  Neither collapsed list carries a hit area, because neither is his to order and
-  a dead click target over live ones loses orders. No group icon is drawn for
-  his own group — its units are already there individually. Colour and
-  silhouette come from `STRAT_drawFactionColour` and `STRAT_drawFactionIcon`,
-  the campaign layer's own tables, read here unchanged — see section 11.1. The
+  No group icon is drawn for his own group — its units are already there
+  individually. Colour and silhouette come from `STRAT_drawFactionColour` and
+  `STRAT_drawFactionIcon`, the campaign layer's own tables, read here unchanged — see section 11.1. The
   commander is the one thing on this map coloured by role instead: yellow,
   `TACT_commandPlayerColour`, because his force is blue and he is not his
   force.
@@ -1289,6 +1343,25 @@ happening underneath interface work.
   is one competing with him for control of his own men. Whatever the group does
   as a body, it does by following him. An army with no flagged soldier drops
   nobody in and never leaves the campaign layer.
+- **Groups are selectable; his own, never an ally's.** The widening the two
+  collapsed lists were kept apart for, taken on the half it was promised to.
+  A player group carries `TACT_commandGroupHitUnits` and gets
+  `TACT_commandGroupRingUnits` when selected; an allied group is emitted with
+  no hit area at all, so "an ally is never his" is enforced by the draw list
+  rather than restated in the click handler. Selecting a group does not order
+  it — a body of men has no map order until waypoints arrive — so what it buys
+  today is a ring, a count, and the ruler the group icon is tuned against.
+  The selection is **two containers and one concept**: `TACT_commandSelection`
+  holds objects, `TACT_commandGroupSelection` holds groups, because the two are
+  different engine types, take different orders, and are pruned against
+  different live lists — a group tested against a list of objects is not stale,
+  it is absent. To the player it is one selection: a bare click replaces both,
+  CTRL toggles within one and leaves the other, so a mixed selection is built
+  deliberately and never inherited. Individuals are hit-tested before groups so
+  a man standing under his own group's icon wins the tie. A terrain click with
+  groups selected moves the individuals and says what it did not do with the
+  rest — the one departure from the silence rule, because a click that reached
+  a deliberate selection is not an accidental click.
 - Test harness (`TEST_fnc_*`). Named rosters, named starting states, named
   engagements and named drills, all declared as data in `init.sqf`.
   `TEST_fnc_setupScenario` builds what a session boots into;
@@ -1307,6 +1380,18 @@ happening underneath interface work.
   unchanged; only the conclusion is the harness's own, because a one-sided
   engagement handed to `fn_resolveVictory` reads as an annihilation on its
   first tick.
+- **`TEST_fnc_splitGroup` (SHIFT+G)** detaches half the player's men into a
+  group of their own and walks them `TEST_splitStandoffMetres` clear. Harness
+  only, and it exists because nothing else puts a collapsed group on a drill's
+  map: a drill deploys one army as one group, and the second group in a battle
+  is hostile, which this layer does not draw. It deliberately leaves the new
+  group unstamped, which is the case `fn_playerGroups` resolves by side and
+  colours from the group it came out of — stamping it would walk the map's
+  hardest case past the code written for it. It is a drill tool and refuses
+  outside one: `fn_resolveVictory` counts an army's survivors as the `units` of
+  the group deployment made for it, so a split in a real battle would read as
+  men annihilated while they are still standing — which is group-level
+  command's problem to answer, not a debug key's.
 
 **Needs conversion to turn-based**
 
@@ -1513,16 +1598,17 @@ the enforced one cannot drift apart.
   **The detach itself is now built** — "New Group" on the context menu,
   `TACT_fnc_splitGroup` — and what is left is the commanding of what it
   produces. A detachment draws as one collapsed icon through `fn_playerGroups`,
-  and collapsed icons carry no hit area, so today it holds where it forms up
-  and takes no further orders: it is out of reach of the map, which cannot
-  click it, and out of reach of the stock F-key interface, which addresses one
-  group. **That is the one place the tactical layer is knowingly incomplete**,
-  and `fn_splitGroup` says so in `systemChat` at the moment of the split rather
-  than letting men quietly stop answering. Closing it is: a hit area on
-  `fn_playerGroups`' icons only — never `fn_alliedGroups`', which is the whole
-  reason the two lists are kept apart — a selection that can hold a group as
-  well as an object, `_group move` for a destination, waypoint chains for a
-  route, and Regroup extended to mean `join` back into the commander's group.
+  so it is **selectable** — hit area, ring and count, all of which arrived with
+  the two-container selection — and it is not **orderable**: selecting a group
+  does not order it, because a body of men has no map order until waypoints
+  exist. It is also out of reach of the stock F-key interface, which addresses
+  one group. So a detachment forms up where it is split and holds there.
+  **That is the one place the tactical layer is knowingly incomplete**, and
+  `fn_splitGroup` says so in `systemChat` at the moment of the split rather
+  than letting men quietly stop answering. What is left to close it: `_group
+  move` for a destination, waypoint chains for a route, and Regroup extended to
+  mean `join` back into the commander's group. The hit area and the selection
+  container are already in.
 
   Its prerequisite is **done**. `fn_resolveVictory` and `fn_concludeBattle` both
   read `units _attackerGroup` / `units _defenderGroup`, so a detached squad

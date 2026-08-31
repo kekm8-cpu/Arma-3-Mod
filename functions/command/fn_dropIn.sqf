@@ -150,9 +150,11 @@ _unit addEventHandler ["Killed", {
 // ------------------------------------------------------------------------ //
 // 4. OPEN COMMAND MODE                                                      //
 // ------------------------------------------------------------------------ //
-TACT_commandActive    = true;
-TACT_commandSelection = [];
-TACT_commandArmyId    = _army get "id";
+TACT_commandActive         = true;
+TACT_commandSelection      = [];
+TACT_commandGroupSelection = [];
+TACT_commandArmyId         = _army get "id";
+
 call TACT_fnc_closeContextMenu;
 
 // A battle starts with no detachments and the naming starts at one. Both are

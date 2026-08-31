@@ -47,12 +47,16 @@
 
 		WHAT THIS DOES NOT DO YET. The detachment stops being command entities
 		the same frame - it is another group on the player's side, so
-		TACT_fnc_playerGroups picks it up and it draws as one collapsed icon -
-		and collapsed icons carry no hit area. It is also out of reach of the
-		stock F-key interface, which addresses one group. So a detachment holds
-		where it forms up and takes no further orders until group-level command
-		gives those icons a hit area and a move order. That is the next piece
-		of work and it is deliberately not smuggled in here; the player is told
+		TACT_fnc_playerGroups picks it up and it draws as one collapsed icon.
+		That icon is SELECTABLE: his own collapsed groups carry a hit area and
+		a ring, and this function hands the new group straight into
+		TACT_commandGroupSelection so it is selected the moment it exists.
+		What it is not is ORDERABLE. Selecting a group does not order it - a
+		body of men has no map order until waypoints exist - and it is out of
+		reach of the stock F-key interface too, which addresses one group. So a
+		detachment forms up where it is split and holds there.
+
+		That last gap is deliberately not smuggled in here; the player is told
 		as much when he splits, because a unit that stops answering without
 		saying so reads as a bug.
 
@@ -131,16 +135,24 @@ private _leader = leader _new;
 if (isNil "TACT_commandDetachments") then { TACT_commandDetachments = [] };
 TACT_commandDetachments pushBack _new;
 
-// They are not entities any more, so the selection they were in is a selection
-// of things that no longer exist. Cleared here rather than left to the next
-// click's prune, so the rings come off the frame the split happens.
+// The selection FOLLOWS THE MEN across the split. They stop being entities and
+// become a group, so they come out of the entity container and the group they
+// became goes into the group one - which is the whole point of the selection
+// being two containers and one concept. The player selected these men, split
+// them, and they are still what is selected; he just cannot order them yet.
+//
+// Cleared here rather than left to the next click's prune, so the rings move
+// the frame the split happens rather than a click later.
 private _objs = _entities apply {_x get "obj"};
 TACT_commandSelection = TACT_commandSelection select {!(_x in _objs)};
+
+if (isNil "TACT_commandGroupSelection") then { TACT_commandGroupSelection = [] };
+TACT_commandGroupSelection pushBack _new;
 
 // Said, not swallowed. See the header: a detachment cannot be ordered again
 // yet, and a unit that stops answering without saying why reads as a bug.
 systemChat format [
-	"%1 detached - %2 men. They hold where they form up; a detachment takes no further orders yet.",
+	"%1 detached - %2 men. Selectable, but not orderable yet: they hold where they form up.",
 	groupId _new,
 	count _men
 ];

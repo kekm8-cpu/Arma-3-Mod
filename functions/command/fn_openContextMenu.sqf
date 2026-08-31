@@ -32,6 +32,16 @@
 		conversion in between. It flips back over the cursor at the right or
 		bottom edge of the screen rather than opening off it.
 
+		THE ENTITY CONTAINER ONLY. The selection is two containers - men and
+		vehicles in TACT_commandSelection, whole groups in
+		TACT_commandGroupSelection - and all three of this menu's options are
+		orders for individuals. So a selection of nothing but groups opens
+		nothing, exactly as an empty selection does, and a mixed selection
+		offers the options for the individuals in it and leaves the groups
+		alone. That stops being the right answer the day a group has orders of
+		its own; until then, offering "Stop" over a body of men that cannot be
+		stopped would be a row that does nothing.
+
 		The menu addresses the SELECTION and never changes it. Right-clicking
 		is not a way to pick a unit, anywhere on the map, on or off an icon:
 		the selection is built with the left button and CTRL, and the right

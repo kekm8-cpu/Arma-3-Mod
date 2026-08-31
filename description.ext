@@ -139,6 +139,7 @@ class CfgFunctions {
             class spawnBattle {};
             class spawnDrill {};
             class endDrill {};
+            class splitGroup {};
             class vehicleProbe {};
             class probeReport {};
             class hostileProbe {};
