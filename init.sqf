@@ -239,8 +239,29 @@ TACT_sideAnchorClass = createHashMapFromArray [
 // layer, exactly as before.
 
 TACT_commandActive    = false;  // True only while the player holds a body on the field
-TACT_commandSelection = [];     // Selected entity objects; empty means a terrain click orders nobody
 TACT_commandArmyId    = "";     // Which army record the player is currently leading
+
+// THE SELECTION IS TWO CONTAINERS AND ONE CONCEPT.
+//
+// A man and a body of men are different kinds of thing to the engine as much as
+// to the player: one is an OBJECT and one is a GROUP, and they take different
+// orders - an individual takes a single destination through doMove, a group
+// will take a waypoint chain the engine executes on its own. One array holding
+// both would make every consumer type-test its way through, and the prune in
+// TACT_fnc_onCommandClick is where that would go wrong quietly: the two are
+// pruned against different live lists, and a group checked against a list of
+// objects is not stale, it is absent.
+//
+// To the player it is still ONE selection. A bare click replaces both, so
+// clicking a man clears the groups and clicking a group clears the men. CTRL
+// toggles within a container and leaves the other alone, which is what makes a
+// mixed selection reachable at all - and mixed is a real state rather than an
+// accident: "these two men and that fireteam" is what the way to a group order
+// looks like.
+//
+// Empty on both counts means a terrain click orders nobody.
+TACT_commandSelection      = [];  // Selected entity objects - men and vehicles
+TACT_commandGroupSelection = [];  // Selected GROUPS, each drawn collapsed to one icon
 
 // Click radius around a command icon, in the same icon units the draw layer
 // uses, so a unit is as easy to click zoomed out as zoomed in.
@@ -249,7 +270,8 @@ TACT_commandIconUnits = 0.85;   // Command icons sit slightly under an army icon
 
 // A friendly group that is not the player's is drawn as one icon over its
 // leader, at full size - it stands for a body of men, so it reads larger than
-// the individuals beside it. It carries no hit area: it is not his to order.
+// the individuals beside it. His own are click targets and an ally's is not;
+// see TACT_commandGroupHitUnits below.
 //
 // This is the SEMANTIC size, in the same icon units as everything else on the
 // map: 1.00 against an individual's 0.85, which is the whole of the statement
@@ -264,6 +286,27 @@ TACT_commandIconUnits = 0.85;   // Command icons sit slightly under an army icon
 // the appearance with the art scale; move this only when what a group MEANS
 // relative to a man has changed.
 TACT_commandGroupIconUnits = 1.00;
+
+// A GROUP IS A CLICK TARGET. These are its click radius and its selection ring,
+// and they are the group's own rather than the individuals' because they are
+// chosen against the group's own icon size.
+//
+// The three are picked against each other exactly the way the individuals' are.
+// A 1.00 box reaches 0.50 units to its edge and 0.71 to its corner, so a hit
+// radius at the corner takes in the whole icon and no more - which is the same
+// rule as TACT_commandHitUnits against TACT_commandIconUnits, where 0.60 is
+// 0.85's corner to two places. It is also STRAT_drawHitUnits exactly, so an
+// army on the campaign map and a group on the battle map are grabbed alike.
+//
+// The ring is the same 0.85 an individual gets and the campaign map's armies
+// get, so one selection means one ring across both layers. It is a separate
+// constant anyway, because it is the RULER for STRAT_drawGroupArtScale and a
+// ruler has to be able to move without dragging the individuals' with it: at
+// art scale 1.00 the box's corners fall at 0.71 and the ring stands just
+// outside them, and the box reaches the ring at about 1.20. That is the mark to
+// tune the art scale against.
+TACT_commandGroupHitUnits  = 0.70;  // Click radius around a collapsed group
+TACT_commandGroupRingUnits = 0.85;  // Selection ring radius for a collapsed group
 
 // Yellow: the commander is not another unit to be ordered and should not read
 // as one.
@@ -518,11 +561,19 @@ STRAT_drawUnitArtScale = 4.00;
 // semantic - a group is 1.00 icon units against an individual's 0.85, and its
 // label offset is chosen against that.
 //
-// TUNE IT AGAINST THE UNITS, not against the selection ring. The ring is the
-// ruler for everything else here, but it is only ever drawn on an individual -
-// a collapsed group carries no hit area and so never gets one. The test is the
-// pair on screen together: a group box should read as a body of men standing
-// over its leader without burying the men beside it.
+// TUNE IT AGAINST THE RING, like everything else here. A collapsed group is
+// selectable now, so it gets one: TACT_commandGroupRingUnits, drawn by
+// drawEllipse in true world coordinates at 0.85. At 1.00 here the box's corners
+// fall at 0.71 and sit inside the ring with air; at about 1.20 they reach it.
+// So the ring reads the figure back to you, which is what a ruler is for.
+//
+// It is not a boundary the way the individuals' is, and that is the difference
+// between a correction and a preference. A silhouette spilling past its ring
+// means STRAT_drawUnitArtScale is wrong. A group box past its ring means only
+// that a body of men was asked to read heavier than one, which may well be what
+// was wanted. The second test is the pair on screen together: a group should
+// read as a body of men standing over its leader without burying the men
+// beside it.
 //
 // One ceiling worth knowing before reaching for a large figure. The drawn box is
 // TACT_commandGroupIconUnits multiplied by this, so it reaches half that below
@@ -837,6 +888,10 @@ TEST_defaultEngagement = "openField";
 // tested, and it wants to be repeatable on demand rather than once per mission
 // restart.
 //
+// SHIFT+G is the third key and belongs to the group layer: it splits half the
+// player's men off into a group of their own, which is the only way a drill has
+// of putting a collapsed group on the map to be clicked at.
+//
 // Each entry is a single army spec, exactly the shape TEST_scenarios uses:
 // [name, faction, position, roster]. The position is a placeholder - the boot
 // drill below overrides it with wherever the player is standing.
@@ -863,6 +918,21 @@ TEST_drills = createHashMapFromArray [
 // is what selection needs. "solo" is the side probes' rig and wants
 // TEST_probeEnabled set with it; see the probe block above.
 TEST_bootDrill = "squadFour";
+
+// How far a detached group walks before it stops. SHIFT+G splits half the
+// player's men into a group of their own - see TEST_fnc_splitGroup - and this
+// is the standoff that makes the result worth looking at.
+//
+// A drill deploys one army as one group and the player takes a body in it, so
+// without a split there is no second group of his on the field and the whole
+// collapsed-group layer - the icon, its click radius, its ring, its art scale -
+// has nothing on screen to be tuned against. A battle does not help: the second
+// group in one is hostile, and the command layer draws nothing hostile.
+//
+// 50 metres is far enough that the group icon clears his own men at the zoom a
+// squad is commanded at, and close enough to hold both in view while the two
+// are compared - which is the comparison the group icon is sized by.
+TEST_splitStandoffMetres = 50;
 
 // ------------------------------------------------------------------------- //
 // THE ICON PROBE                                                             //
@@ -1061,6 +1131,10 @@ call STRAT_fnc_attachMapLayer;
 // is expected to be used several hundred times during phase two, so it is one
 // key rather than a debug-console paste. It takes SHIFT because an unmodified
 // key would put a whole engagement on the ground on a mis-press.
+//
+// SHIFT+N re-opens the boot drill, SHIFT+B ends the one that is running, and
+// SHIFT+G splits a group off the player's inside it. All three take SHIFT for
+// the same reason, and all three are harness keys that go when the harness does.
 (findDisplay 46) displayAddEventHandler ["KeyDown", {
     params ["_display", "_key", "_shift"];
 
@@ -1088,6 +1162,26 @@ call STRAT_fnc_attachMapLayer;
     // which is a battle, not another drill.
     if (_key == 49 && {_shift} && {STRAT_turnPhase == "planning"} && {!isNil "TEST_bootDrill"} && {TEST_bootDrill != ""}) exitWith {
         [] spawn { [TEST_bootDrill, getPosATL player] call TEST_fnc_spawnDrill };
+        true
+    };
+
+    // DIK 34 = G, inside a drill: split half the player's men off into a group
+    // of their own. The collapsed-group layer needs a collapsed group to look
+    // at and a drill has none - see TEST_splitStandoffMetres.
+    //
+    // A DRILL and not merely command mode, which is the same guard SHIFT+B's
+    // end branch takes and for a sharper reason. TACT_fnc_resolveVictory counts
+    // an army's survivors as `units` of the group deployment made, so a group
+    // split during a real battle takes its men out of that count and the army
+    // reads as annihilated with those men still standing. That is a thing
+    // group-level command has to answer before the player can ever split a
+    // group for real; until then the key is confined to the scenario that has
+    // no victory condition to corrupt.
+    //
+    // Called rather than spawned: it moves men between groups and issues one
+    // order, and neither changes who the player is.
+    if (_key == 34 && {_shift} && {!isNil "TEST_activeDrill"} && {count TEST_activeDrill > 0}) exitWith {
+        [] call TEST_fnc_splitGroup;
         true
     };
 

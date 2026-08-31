@@ -57,8 +57,13 @@ if (!isNull TACT_campaignAvatar && {TACT_campaignAvatar != player}) then {
 	};
 };
 
-TACT_commandSelection = [];
-TACT_commandArmyId    = "";
+// Both containers, and for the reason there are two: a group handle outlives
+// the battle it was selected in, so a selection left behind here is one the
+// next drop-in would inherit and the prune would not catch until the first
+// click.
+TACT_commandSelection      = [];
+TACT_commandGroupSelection = [];
+TACT_commandArmyId         = "";
 
 // The squad bar was hidden for the map's command mode.
 [false] call TACT_fnc_setCommandHud;

@@ -900,9 +900,15 @@ rather than by measuring a texture. The semantic sizes stay put while that
 happens: a group is 1.00 icon units against an individual's 0.85, and the label,
 ring and hit radius go on being calibrated against those.
 
-The ruler is different for the two. A unit's is the selection ring, drawn in true
-world coordinates at the figure its icon is sized by. A collapsed group carries
-no hit area and so never gets a ring; its ruler is the units beside it. The one
+Both are tuned against a selection ring, drawn by `drawEllipse` in true world
+coordinates, and a group has its own: `TACT_commandGroupRingUnits`, 0.85, the
+same radius an individual and a campaign-map army get. At art scale 1.00 the
+group box's corners fall at 0.71 and sit inside it with air; at about 1.20 they
+reach it. What differs is what the ring *means* to each — the difference between
+a correction and a preference. A silhouette spilling past its ring means
+`STRAT_drawUnitArtScale` is wrong. A group box past its ring means only that a
+body of men was asked to read heavier than one, which may be exactly what was
+wanted; the second test there is the pair on screen together. The one hard
 ceiling on the group figure is its own label — the drawn box reaches half its
 size below the anchor and the label sits at `STRAT_drawLabelOffsetUnits`, so past
 about 2.2 the box grows onto the label and the offset is what moves.
@@ -996,6 +1002,12 @@ being made, across every force at once.
 - **What is drawn and what is clickable derive from one list.** The Draw layer
   and the click hit-test read the same output of `STRAT_fnc_buildDrawList`. Two
   independent computations of the same geometry will drift.
+- **Selection reaches only what the command layer could order.** The player's
+  own units and his own collapsed groups carry a hit area; the commander and
+  every allied group are emitted without one, so an ally cannot be selected and
+  therefore cannot be ordered by anything built on selection. The rule lives in
+  the draw list, not in the click handler — a click target that exists and is
+  then refused is a click target that will one day stop being refused.
 - **Map draw handlers attach on map open, never on state change.** Display 12
   is absent while the map is closed and the attachment fails silently.
 - **One entity, one renderer.** Marker extent cannot be queried or matched, so
@@ -1146,9 +1158,10 @@ happening underneath interface work.
     it looks like. The second starts at 1, because a NATO box already fills its
     texture and needs no rescue — so unlike the unit figure it is not a
     correction waiting to be got right, it is the dial for how heavy a body of
-    men should read against one of its own men. Tune it against the units on
-    screen, not against the ring: a group carries no hit area and so never gets
-    one. Above about 2.2 the drawn box reaches its own label and
+    men should read against one of its own men. Tune it against the ring, which
+    a collapsed group now gets — `TACT_commandGroupRingUnits`, 0.85, reached by
+    the box's corners at about 1.20 — and then against the units on screen
+    beside it. Above about 2.2 the drawn box reaches its own label and
     `STRAT_drawLabelOffsetUnits` is what moves.
   - The selection ring stays the ruler if any of the size figures need touching
     up: `drawEllipse` in true world coordinates at `STRAT_drawRingUnits`, the
@@ -1249,11 +1262,9 @@ happening underneath interface work.
   The layer draws four things: the player, each unit of his group, every other
   group on his side as one icon over its leader (`TACT_fnc_playerGroups`), and
   every allied group as one icon over its leader (`TACT_fnc_alliedGroups`).
-  Neither collapsed list carries a hit area, because neither is his to order and
-  a dead click target over live ones loses orders. No group icon is drawn for
-  his own group — its units are already there individually. Colour and
-  silhouette come from `STRAT_drawFactionColour` and `STRAT_drawFactionIcon`,
-  the campaign layer's own tables, read here unchanged — see section 11.1. The
+  No group icon is drawn for his own group — its units are already there
+  individually. Colour and silhouette come from `STRAT_drawFactionColour` and
+  `STRAT_drawFactionIcon`, the campaign layer's own tables, read here unchanged — see section 11.1. The
   commander is the one thing on this map coloured by role instead: yellow,
   `TACT_commandPlayerColour`, because his force is blue and he is not his
   force.
@@ -1285,6 +1296,25 @@ happening underneath interface work.
   is one competing with him for control of his own men. Whatever the group does
   as a body, it does by following him. An army with no flagged soldier drops
   nobody in and never leaves the campaign layer.
+- **Groups are selectable; his own, never an ally's.** The widening the two
+  collapsed lists were kept apart for, taken on the half it was promised to.
+  A player group carries `TACT_commandGroupHitUnits` and gets
+  `TACT_commandGroupRingUnits` when selected; an allied group is emitted with
+  no hit area at all, so "an ally is never his" is enforced by the draw list
+  rather than restated in the click handler. Selecting a group does not order
+  it — a body of men has no map order until waypoints arrive — so what it buys
+  today is a ring, a count, and the ruler the group icon is tuned against.
+  The selection is **two containers and one concept**: `TACT_commandSelection`
+  holds objects, `TACT_commandGroupSelection` holds groups, because the two are
+  different engine types, take different orders, and are pruned against
+  different live lists — a group tested against a list of objects is not stale,
+  it is absent. To the player it is one selection: a bare click replaces both,
+  CTRL toggles within one and leaves the other, so a mixed selection is built
+  deliberately and never inherited. Individuals are hit-tested before groups so
+  a man standing under his own group's icon wins the tie. A terrain click with
+  groups selected moves the individuals and says what it did not do with the
+  rest — the one departure from the silence rule, because a click that reached
+  a deliberate selection is not an accidental click.
 - Test harness (`TEST_fnc_*`). Named rosters, named starting states, named
   engagements and named drills, all declared as data in `init.sqf`.
   `TEST_fnc_setupScenario` builds what a session boots into;
@@ -1303,6 +1333,18 @@ happening underneath interface work.
   unchanged; only the conclusion is the harness's own, because a one-sided
   engagement handed to `fn_resolveVictory` reads as an annihilation on its
   first tick.
+- **`TEST_fnc_splitGroup` (SHIFT+G)** detaches half the player's men into a
+  group of their own and walks them `TEST_splitStandoffMetres` clear. Harness
+  only, and it exists because nothing else puts a collapsed group on a drill's
+  map: a drill deploys one army as one group, and the second group in a battle
+  is hostile, which this layer does not draw. It deliberately leaves the new
+  group unstamped, which is the case `fn_playerGroups` resolves by side and
+  colours from the group it came out of — stamping it would walk the map's
+  hardest case past the code written for it. It is a drill tool and refuses
+  outside one: `fn_resolveVictory` counts an army's survivors as the `units` of
+  the group deployment made for it, so a split in a real battle would read as
+  men annihilated while they are still standing — which is group-level
+  command's problem to answer, not a debug key's.
 
 **Needs conversion to turn-based**
 

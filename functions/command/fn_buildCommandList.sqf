@@ -14,18 +14,33 @@
 		anchor.
 
 		Four things are drawn, and the split between them is the tactical
-		map's visibility rule:
+		map's visibility rule. The right-hand column is the CONTROL rule, and
+		the two are not the same question:
 
-		  the player          one icon, his own
-		  his group's units   one icon each - these are what he selects
-		  his other groups    one icon over each leader, whole
-		  allied groups       one icon over each leader, whole
+		  the player          one icon, his own            never selectable
+		  his group's units   one icon each                selectable, singly
+		  his other groups    one icon over each leader    selectable, whole
+		  allied groups       one icon over each leader    never selectable
 
 		A group that is not his own collapses because its composition is not his
 		to arrange, and because forty other soldiers drawn man by man bury the
 		eight that are his. His own group is never collapsed - it is drawn as
 		its units, and no group icon is emitted for it, because one would draw
 		the same men a second time as a body he does not command.
+
+		A COLLAPSED GROUP OF HIS OWN IS SELECTABLE, and an ally's is not. That
+		is the split TACT_fnc_playerGroups and TACT_fnc_alliedGroups were
+		written to hold: one list is groups the command layer could give orders
+		to, the other is groups it never will, and selection reaching only the
+		first is the first thing the split buys. Selecting a group does not
+		order it yet - a body of men has no map order until waypoints arrive -
+		so what it currently buys the player is a ring and a count, and what it
+		buys the interface is the ruler the group icon is sized against.
+
+		Selection is held as GROUPS, in TACT_commandGroupSelection, and never as
+		the men inside one. A group is the thing being selected; its membership
+		changes under casualties and its leader can be promoted mid-frame, and
+		neither of those is a change to what was selected.
 
 		TWO ICON SOURCES, split on individual versus aggregate. A command
 		entity and the commander are individuals and take the stock per-unit
@@ -103,6 +118,7 @@ private _list = [];
 if (isNull player) exitWith { _list };
 
 if (isNil "TACT_commandSelection") then { TACT_commandSelection = [] };
+if (isNil "TACT_commandGroupSelection") then { TACT_commandGroupSelection = [] };
 
 private _fnc_item = {
 	params [
@@ -155,11 +171,16 @@ private _friendly = STRAT_drawFactionColour getOrDefault [_playerFaction, [0.25,
 // draw behind the player's own units: where one of these and one of his men
 // overlap, his man is the one he needs to see and click.
 //
-// No hit area on either, for the reason the commander has none. Neither list is
-// his to order - one is somebody else's group, the other is somebody else's
-// army - and a click target he cannot use, sitting on top of units he can, is a
-// way to lose orders. That changes the day group-level command arrives, and it
-// changes for TACT_fnc_playerGroups only: an ally is never his to move.
+// HIS OWN GROUPS ARE CLICKABLE; an ally's is not. That is the widening this
+// block always said it would take, and it took the half it said it would: an
+// ally is never his to move, so a click target on one is a target he cannot
+// use sitting on top of units he can, which is a way to lose orders.
+//
+// The click radius is the group's own, TACT_commandGroupHitUnits, because it is
+// chosen against the group's own icon size. The hit-test in
+// TACT_fnc_onCommandClick tests the individuals before the groups, so a man
+// standing under a group icon - his own leader, most often - wins the tie and
+// stays as clickable as he was before groups had an area at all.
 //
 // Allies are emitted before his own groups so that where the two overlap, his
 // reads on top.
@@ -173,6 +194,12 @@ private _fnc_groupIcons = {
 
 	private _id = format ["GRP_%1", groupId _group];
 
+	// The control rule, in one line. Everything below reads it rather than the
+	// kind, so a list that becomes selectable later becomes selectable here.
+	private _selectable = _kind == "playerGroup";
+	private _selected   = _selectable && {_group in TACT_commandGroupSelection};
+	private _hitUnits   = if (_selectable) then {TACT_commandGroupHitUnits} else {0};
+
 	// The campaign layer's tables, with the campaign layer's own fallbacks, so
 	// an unstamped group draws as unknown here exactly as it would there rather
 	// than as a faction nobody recorded.
@@ -184,7 +211,8 @@ private _fnc_groupIcons = {
 		["texture", [_icon] call STRAT_fnc_mapIconTexture],
 		["colour", _colour],
 		["size", [TACT_commandGroupIconUnits, TACT_commandGroupIconUnits]],
-		["artScale", STRAT_drawGroupArtScale]
+		["artScale", STRAT_drawGroupArtScale],
+		["hitUnits", _hitUnits]
 	]] call _fnc_item;
 
 	[_id, _kind, _record, _anchor, "label", createHashMapFromArray [
@@ -195,6 +223,19 @@ private _fnc_groupIcons = {
 		["text", format ["%1 (%2)", groupId _group, count _men]],
 		["textSize", STRAT_drawLabelUnits]
 	]] call _fnc_item;
+
+	// Its own radius rather than the individuals', because it is drawn around
+	// the group's own icon size - and because it is the ruler the group icon is
+	// tuned against, which is a job that wants to move without moving theirs.
+	// The colour is the shared one: a selection is a selection, whatever kind
+	// of thing is in it.
+	if (_selected) then {
+		[_id, _kind, _record, _anchor, "selectionRing", createHashMapFromArray [
+			["shape", "ellipse"],
+			["radius", TACT_commandGroupRingUnits],
+			["colour", STRAT_drawSelectionColour]
+		]] call _fnc_item;
+	};
 };
 
 {

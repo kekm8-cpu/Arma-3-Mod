@@ -150,9 +150,10 @@ _unit addEventHandler ["Killed", {
 // ------------------------------------------------------------------------ //
 // 4. OPEN COMMAND MODE                                                      //
 // ------------------------------------------------------------------------ //
-TACT_commandActive    = true;
-TACT_commandSelection = [];
-TACT_commandArmyId    = _army get "id";
+TACT_commandActive         = true;
+TACT_commandSelection      = [];
+TACT_commandGroupSelection = [];
+TACT_commandArmyId         = _army get "id";
 
 
 diag_log format [
