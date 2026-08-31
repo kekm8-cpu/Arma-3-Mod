@@ -25,17 +25,28 @@
 		  MouseButtonDown records where a press started, and eats the CTRL press
 		                  so the map does not draw on itself
 		  MouseButtonUp   turns a press that did not travel into a click
+		  MouseButtonDblClick
+		                  eats the double click so the map does not drop a marker
 
 		Mouse handling is split across down and up because the map's own
 		panning is a click and drag. Acting on the press would fire an order
 		every time the player grabbed the map to move it, so a click is a
 		release that landed close to where its press did. The handlers are also
 		where CTRL comes from: `onMapSingleClick` reports SHIFT and ALT and
-		nothing else, and command-mode selection needs CTRL. CTRL is also the
-		chord the map itself reads as "draw a freehand line", so the press
-		handler consumes it while commanding - see there. That is the only
-		event this layer ever consumes, and it consumes it on the narrowest
-		condition that covers the clash. It is also where the
+		nothing else, and command-mode selection needs CTRL.
+
+		TWO STOCK MAP GESTURES ARE TAKEN AWAY WHILE COMMANDING, and both for
+		the same reason: they are built out of the clicks this layer needs, so
+		the player cannot perform one without performing the other. CTRL+drag
+		draws a freehand line, and CTRL is how a selection is built up one
+		unit at a time. A double click drops a marker, and a double click is
+		two selections of the same unit. Each is consumed by the handler that
+		sees it first - the press for the line, MouseButtonDblClick for the
+		marker - on the narrowest condition that covers the clash, and nowhere
+		else does this layer consume anything. Both gestures still work on the
+		campaign map, where the player is planning rather than fighting.
+
+		The release handler is also where the
 		RIGHT button comes from, which `onMapSingleClick` does not report at
 		all. Both buttons go through the same press-and-travel test and then
 		split: left selects or orders, right opens the context menu. The left
@@ -97,7 +108,8 @@ STRAT_mapLayerRunning = true;
 		} forEach [
 			["Draw", "STRAT_campaignLayerEH"],
 			["MouseButtonDown", "STRAT_mapPressEH"],
-			["MouseButtonUp", "STRAT_mapReleaseEH"]
+			["MouseButtonUp", "STRAT_mapReleaseEH"],
+			["MouseButtonDblClick", "STRAT_mapDoubleEH"]
 		];
 
 		private _drawId = _map ctrlAddEventHandler ["Draw", {
@@ -176,7 +188,32 @@ STRAT_mapLayerRunning = true;
 		}];
 		_map setVariable ["STRAT_mapReleaseEH", _releaseId];
 
-		diag_log format ["STRAT Draw: map layer attached (draw %1, press %2, release %3).", _drawId, _pressId, _releaseId];
+		// The map's other stock gesture, and the other one that collides. A
+		// double left click opens the insert-marker dialog, and on this map a
+		// double click is not a gesture at all - it is two selections of the
+		// same unit, which is what clicking a unit twice quickly looks like when
+		// the player is deciding. Reaching for a second click and getting a text
+		// box over the battlefield is the whole of the problem.
+		//
+		// Consumed rather than answered: this layer has nothing it wants to do
+		// with a double click, so it takes the event and returns nothing. The
+		// two clicks underneath it still arrive as their own presses and
+		// releases and still select, so the gesture degrades into what it should
+		// have been.
+		//
+		// Left button and commanding only, on the same terms as the CTRL press
+		// above: the player keeps his own markers on the campaign map, where he
+		// is planning rather than fighting and a marker is a note to himself.
+		private _doubleId = _map ctrlAddEventHandler ["MouseButtonDblClick", {
+			params ["_control", "_button"];
+
+			private _commanding = !isNil "TACT_commandActive" && {TACT_commandActive};
+
+			_commanding && {_button == 0}
+		}];
+		_map setVariable ["STRAT_mapDoubleEH", _doubleId];
+
+		diag_log format ["STRAT Draw: map layer attached (draw %1, press %2, release %3, double %4).", _drawId, _pressId, _releaseId, _doubleId];
 
 		// Hold here until the map closes, then go round and wait for the next
 		// opening. Nothing is detached on close - the control's handlers and
