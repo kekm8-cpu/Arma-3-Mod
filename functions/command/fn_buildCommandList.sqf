@@ -37,13 +37,21 @@
 		carry heading; a body of men has no single heading to carry. The two
 		symbols mean different things and the map now says which it means.
 
-		The two also do not fill their textures alike, which is why the unit
-		icons carry STRAT_drawUnitArtScale and the group boxes do not. A NATO
-		box is drawn edge to edge; a unit silhouette is a small glyph in a
-		mostly transparent square, and drawn at the same size it reads as a
-		speck. That compensation scales the box the texture is stretched into
-		and not the item's `size`, so the glyph grows while the ring and the
-		click area stay calibrated against the figure they were chosen for.
+		The two also do not fill their textures alike, so each family carries
+		its own compensation: STRAT_drawUnitArtScale on the unit silhouettes,
+		STRAT_drawGroupArtScale on the group boxes. A NATO box is drawn edge to
+		edge; a unit silhouette is a small glyph in a mostly transparent
+		square, and drawn at the same size it reads as a speck. That
+		compensation scales the box the texture is stretched into and not the
+		item's `size`, so the glyph grows while the ring and the click area
+		stay calibrated against the figure they were chosen for.
+
+		The group figure is nominally 1 - a box needs no rescue - and is
+		carried anyway, because it is where the collapsed groups' apparent size
+		is tuned. How heavy a body of men reads against the men beside it is a
+		judgement made by looking at the map, and this is the one place it can
+		be made without dragging a label, a ring or a click area off the icon
+		it belongs to.
 
 		Colour comes from STRAT_drawFactionColour, and a collapsed group's
 		silhouette from STRAT_drawFactionIcon - the CAMPAIGN layer's tables,
@@ -175,7 +183,8 @@ private _fnc_groupIcons = {
 		["shape", "icon"],
 		["texture", [_icon] call STRAT_fnc_mapIconTexture],
 		["colour", _colour],
-		["size", [TACT_commandGroupIconUnits, TACT_commandGroupIconUnits]]
+		["size", [TACT_commandGroupIconUnits, TACT_commandGroupIconUnits]],
+		["artScale", STRAT_drawGroupArtScale]
 	]] call _fnc_item;
 
 	[_id, _kind, _record, _anchor, "label", createHashMapFromArray [

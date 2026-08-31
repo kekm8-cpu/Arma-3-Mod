@@ -250,6 +250,19 @@ TACT_commandIconUnits = 0.85;   // Command icons sit slightly under an army icon
 // A friendly group that is not the player's is drawn as one icon over its
 // leader, at full size - it stands for a body of men, so it reads larger than
 // the individuals beside it. It carries no hit area: it is not his to order.
+//
+// This is the SEMANTIC size, in the same icon units as everything else on the
+// map: 1.00 against an individual's 0.85, which is the whole of the statement
+// that a body of men is the larger thing. Offsets and radii are chosen against
+// figures like this one, so it is not the knob to reach for when the group
+// icons simply read too small or too large on screen. That is
+// STRAT_drawGroupArtScale, which grows the drawn box and leaves the geometry
+// where the rest of the layer expects to find it.
+//
+// The pair is the same pair the individuals have - TACT_commandIconUnits
+// against STRAT_drawUnitArtScale - and it is split for the same reason. Tune
+// the appearance with the art scale; move this only when what a group MEANS
+// relative to a man has changed.
 TACT_commandGroupIconUnits = 1.00;
 
 // Yellow: the commander is not another unit to be ordered and should not read
@@ -460,7 +473,7 @@ STRAT_drawTextArgScale = 6;
 // mostly transparent square - so at one size the box reads correctly and the
 // silhouette reads as a speck.
 //
-// This is the compensation, and it is a THIRD knob rather than a bigger
+// This is the compensation, and it is a knob of its own rather than a bigger
 // STRAT_drawIconArgScale because that one is shared: raising it to rescue the
 // unit silhouettes would blow the group boxes up with them. It is also not
 // folded into the item's `size`, which stays semantic - 0.85 icon units is the
@@ -469,8 +482,15 @@ STRAT_drawTextArgScale = 6;
 // from the ring and the click area both. Inflating the texture's box around a
 // centred glyph leaves the glyph where the ring expects it.
 //
-// So: applied to the drawn box of unit artwork only. Never to text, never to
+// So: applied to the drawn box of icon artwork only. Never to text, never to
 // the hit radius, never to the ring.
+//
+// ONE PER ARTWORK FAMILY, because the fill is a property of the artwork and the
+// two families do not fill alike. That is also what makes the two symbols
+// tunable against EACH OTHER, which is the thing the map actually needs: a man
+// and a body of men sit side by side on the same screen, and how heavy the one
+// reads against the other is a judgement about the map rather than a fact about
+// either texture.
 //
 // FIRST GUESS at 4, from eyeballing how much of iconMan's texture the glyph
 // actually covers. Tune it against the selection ring like the others - click a
@@ -479,6 +499,44 @@ STRAT_drawTextArgScale = 6;
 // differently enough to matter, this becomes a table keyed the way
 // STRAT_drawFactionIcon is, and the item field it feeds already supports that.
 STRAT_drawUnitArtScale = 4.00;
+
+// The same knob for the NATO boxes an AGGREGATE draws as. On this map that is
+// the collapsed groups - somebody else's group, and the player's own groups
+// other than the one he is standing in - each drawn as one box over its leader.
+//
+// NOMINALLY 1, and 1 is where it starts: a CfgMarkers box is drawn edge to edge,
+// so there is no padding to compensate for and the drawn box is exactly the box
+// the item asked for. That is what makes it the right place to put the group
+// icons' appearance. The figure that makes the texture honest is already known,
+// so anything else this becomes is a deliberate statement about how heavy a body
+// of men should read - which is a thing to decide by looking at the map, not by
+// measuring a texture.
+//
+// It is a second constant rather than a shared one for the reason the whole
+// section exists: the two families do not fill alike, and one figure cannot
+// serve both. It is also not folded into TACT_commandGroupIconUnits, which stays
+// semantic - a group is 1.00 icon units against an individual's 0.85, and its
+// label offset is chosen against that.
+//
+// TUNE IT AGAINST THE UNITS, not against the selection ring. The ring is the
+// ruler for everything else here, but it is only ever drawn on an individual -
+// a collapsed group carries no hit area and so never gets one. The test is the
+// pair on screen together: a group box should read as a body of men standing
+// over its leader without burying the men beside it.
+//
+// One ceiling worth knowing before reaching for a large figure. The drawn box is
+// TACT_commandGroupIconUnits multiplied by this, so it reaches half that below
+// the anchor, while the label sits at STRAT_drawLabelOffsetUnits - 1.10. Past
+// about 2.2 here the box grows down onto its own label, and the label offset is
+// the thing to move, not this.
+//
+// THE CAMPAIGN LAYER'S ARMY BOXES ARE LEFT AT 1 deliberately. They are the same
+// artwork with the same property and could read from this same constant, but
+// that map has not been looked at since the scaling modes landed, and coupling
+// it to a figure tuned on the battle map is how it would move without anyone
+// deciding it should. Wiring it in is one field on STRAT_fnc_buildDrawList's
+// group icon, the day that map is looked at.
+STRAT_drawGroupArtScale = 1.00;
 
 // These four are a set and are chosen against each other. A 1x1 icon reaches
 // 0.5 units to its edge and 0.71 to its corner, so the hit radius sits just

@@ -881,13 +881,38 @@ heading anyway.
 The two families do not fill their textures alike, and `drawIcon` stretches a
 texture to fill whatever box it is given, so the same size is not the same
 apparent size. A NATO box is drawn edge to edge; a unit silhouette is a small
-glyph in a mostly transparent square. Items carry an `artScale` for that, set
-from `STRAT_drawUnitArtScale` on unit artwork and left at 1 on markers. It is a
-third constant rather than a larger `STRAT_drawIconArgScale` because that one is
-shared and would blow up the group boxes too, and it scales the drawn box rather
-than the item's `size` because `size` is what `STRAT_drawRingUnits` and
-`TACT_commandHitUnits` are calibrated against — inflating that would drag the
-glyph away from both.
+glyph in a mostly transparent square. Items carry an `artScale` for that, and
+the battle layer sets it **once per artwork family** — `STRAT_drawUnitArtScale`
+on the unit silhouettes, `STRAT_drawGroupArtScale` on the collapsed groups'
+boxes. Separate constants rather than a larger `STRAT_drawIconArgScale` because
+that one is shared and rescuing the silhouettes through it would blow up the
+group boxes too; and they scale the drawn box rather than the item's `size`
+because `size` is what `STRAT_drawRingUnits` and `TACT_commandHitUnits` are
+calibrated against — inflating that would drag the glyph away from both.
+
+Which makes the pair the **apparent-size knobs**, one per symbol, and that is
+what they are for beyond the fill correction. The unit figure has real work to
+do: 4.00, because `iconMan`'s glyph covers about a quarter of its texture. The
+group figure is nominally 1 and starts there, since a box needs no rescue — so
+anything else it becomes is a deliberate statement about how heavy a body of men
+reads against one of its own men, which is a judgement made by looking at the map
+rather than by measuring a texture. The semantic sizes stay put while that
+happens: a group is 1.00 icon units against an individual's 0.85, and the label,
+ring and hit radius go on being calibrated against those.
+
+The ruler is different for the two. A unit's is the selection ring, drawn in true
+world coordinates at the figure its icon is sized by. A collapsed group carries
+no hit area and so never gets a ring; its ruler is the units beside it. The one
+ceiling on the group figure is its own label — the drawn box reaches half its
+size below the anchor and the label sits at `STRAT_drawLabelOffsetUnits`, so past
+about 2.2 the box grows onto the label and the offset is what moves.
+
+The **campaign layer's army boxes are the same artwork and are left at 1**
+deliberately, alongside the mode caveat above. They could read the group
+constant, but that map has not been looked at since the scaling modes landed and
+coupling it to a figure tuned on the battle map is how it would move without
+anyone deciding it should. Wiring it in is one field on
+`STRAT_fnc_buildDrawList`'s group icon, the day that map is looked at.
 
 Both resolvers share one cache, keyed by class name; a CfgMarkers class and a
 CfgVehicles class cannot collide. A unit whose config carries no icon falls back
@@ -1115,6 +1140,16 @@ happening underneath interface work.
     The text figure lands at 0.054 for a 0.30-unit label, all but `drawIcon`'s
     own documented default of 0.05 — good evidence the argument really is
     screen space.
+  - **Group icon size — knobs in place, figure not yet played.** A collapsed
+    group has the same two knobs an individual has: `TACT_commandGroupIconUnits` for what
+    it means (1.00 against a man's 0.85) and `STRAT_drawGroupArtScale` for what
+    it looks like. The second starts at 1, because a NATO box already fills its
+    texture and needs no rescue — so unlike the unit figure it is not a
+    correction waiting to be got right, it is the dial for how heavy a body of
+    men should read against one of its own men. Tune it against the units on
+    screen, not against the ring: a group carries no hit area and so never gets
+    one. Above about 2.2 the drawn box reaches its own label and
+    `STRAT_drawLabelOffsetUnits` is what moves.
   - The selection ring stays the ruler if any of the size figures need touching
     up: `drawEllipse` in true world coordinates at `STRAT_drawRingUnits`, the
     same 0.85 as `TACT_commandIconUnits`, so a selected unit's ring and its icon
