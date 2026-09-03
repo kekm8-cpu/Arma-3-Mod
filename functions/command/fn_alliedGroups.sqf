@@ -3,64 +3,41 @@
 
 	Description:
 		Resolves the groups on the battlefield that are fighting ALONGSIDE the
-		player but are not his - CSAT, in section 8's terms - so the command
-		layer can draw each of them as a single icon over its leader.
+		player but are not his - CSAT - so the command layer can draw each of
+		them as a single icon over its leader.
 
-		The other half of the tactical map's visibility rule; TACT_fnc_playerGroups
-		is the first. The split between them is not cosmetic and is not about
-		allegiance: both are friendly, and neither is drawn man by man. It is
-		about control.
-
-		  player groups  his side. Not his to order today, but the command
-		                 layer could give them orders tomorrow - a detached
-		                 half of his own group is the case group-level command
-		                 exists for.
-		  allied groups  somebody else's army, on somebody else's side. Never
-		                 his to order, at any point. CSAT is a patron, not a
-		                 subordinate; the player's leverage over it is CSAT
-		                 Favor spent between blocks, not a move order on a map.
-
-		Keeping them apart means the day group-level command arrives, it widens
-		to one of these lists and provably cannot reach the other.
+		The other half of the tactical map's visibility rule;
+		TACT_fnc_playerGroups is the first and carries the split. These are the
+		groups the command layer will NEVER order: CSAT is a patron, not a
+		subordinate, and the player's leverage over it is Favor spent between
+		blocks rather than a move order on a map.
 
 		Allied means friendly to the engine and on a different side. Read from
 		`getFriend` rather than from the faction stamp, for the reason
-		TACT_fnc_playerGroups reads side: a stamp answers for a group that
-		deployment created and for nothing else, and the engine relation is the
-		same decision the `setFriend` block in init.sqf writes. Section 8 says
-		those two are halves of one thing; this is the half that reads.
+		TACT_fnc_playerGroups reads side - and because the engine relation is
+		the reading half of the `setFriend` decision init.sqf writes.
 
-		CIVILIAN is excluded explicitly. Civilians are default-friendly to every
-		side and would otherwise pass the relation test whole - the campaign
-		avatar first, and eventually every civilian on Tanoa that the NATO
-		Aggression meter exists to measure against. They are not allies; they
-		are the terrain the war is fought in.
+		CIVILIAN IS EXCLUDED EXPLICITLY. Civilians are default-friendly to every
+		side and would otherwise pass the relation test whole: the campaign
+		avatar first, and eventually every civilian the NATO Aggression meter
+		exists to measure against.
 
-		The threshold is 0.6, the same figure the engine reads as friendly and
-		the same one init.sqf writes its blocs around as the extremes 0 and 1.
-		Nothing is expected to sit between them; the comparison is written
-		against the engine's own line rather than against `== 1` so a future
-		partial relation lands on the side the engine would put it.
+		The threshold is 0.6, the figure the engine itself reads as friendly.
+		Written against the engine's line rather than `== 1`, so a future
+		partial relation lands where the engine would put it.
 
-		No spatial filter is needed to mean "in this battle", for the reason
-		given in TACT_fnc_playerGroups: an army outside a battle has never
-		spawned.
-
-		Rebuilt every frame, like the rest of the command layer.
+		No spatial filter is needed to mean "in this battle" - an army outside
+		one has never spawned. Rebuilt every frame, like the rest of the layer.
 
 	Group keys:
 		group   GROUP  - the group itself
 		leader  OBJECT - what the icon is drawn over
 		anchor  ARRAY  - the leader's position, read once for the frame
 		men     ARRAY  - its living members
-		faction STRING - allegiance, and the key both draw tables are read with:
-		                 STRAT_drawFactionColour and STRAT_drawFactionIcon, the
-		                 same two the campaign map uses, so a CSAT army is the
-		                 same green here as it was when he watched it march.
-		                 An ally always comes from TACT_fnc_deployMen and so
-		                 always carries a stamp; the empty fallback draws the
-		                 unknown grey rather than asserting a faction that was
-		                 never recorded.
+		faction STRING - the key both draw tables are read with. An ally always
+		                 comes from TACT_fnc_deployMen and so always carries a
+		                 stamp; the empty fallback draws the unknown grey rather
+		                 than asserting a faction never recorded.
 
 	Parameters:
 		none

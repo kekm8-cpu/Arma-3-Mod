@@ -5,8 +5,8 @@
 		Appends a soldier record to a location's garrison.
 
 		The garrison roster is the army roster format, so this delegates to
-		STRAT_fnc_addMan rather than building a second soldier record — one
-		record shape is what keeps deployment and sync-back on one code path.
+		STRAT_fnc_addMan rather than building a second soldier record: one
+		record shape keeps deployment and sync-back on one code path.
 
 	Parameters:
 		0: HASHMAP - location record

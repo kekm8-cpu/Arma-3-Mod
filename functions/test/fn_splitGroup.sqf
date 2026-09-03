@@ -2,67 +2,34 @@
 	Function: TEST_fnc_splitGroup
 
 	Description:
-		Detaches part of the player's group into a group of its own and walks
-		it clear of him. The harness's answer to a simple problem: collapsed
-		groups are now selectable, and until this existed there was nothing on
-		the field to select.
+		Detaches part of the player's group into a group of its own and walks it
+		clear of him, so a drill has a collapsed group on the map to click at.
+		Without it there is nothing: a drill deploys one army as one group, and
+		the second group in a battle is hostile, which this layer does not draw.
 
-		A drill deploys ONE army, and an army deploys as ONE group, which the
-		player then takes a body in. So a drill draws his own men individually
-		and nothing else - no second group of his, no ally - and the whole of
-		the group layer, the icon, the click radius, the ring and the art
-		scale, has no case on screen to be looked at. A battle is no better: it
-		puts a second group on the map, but that one is hostile and the command
-		layer draws nothing hostile at all.
-
-		THE DETACHED GROUP IS THE CASE THE COMMAND LAYER WAS WRITTEN FOR, which
-		is the other reason this and not a second army. TACT_fnc_playerGroups
+		IT DELIBERATELY LEAVES THE NEW GROUP UNSTAMPED. TACT_fnc_playerGroups
 		resolves membership by SIDE rather than by the STRAT_faction stamp
-		precisely because a group the player splits off is created by the
-		engine and carries no stamp; the colour it draws in comes from the
-		group it came out of, resolved before the draw sees it. Nothing here
-		stamps the new group, deliberately - a stamp would walk the map's
-		hardest case straight past the code that exists for it.
+		precisely because an engine-created group carries none, and colours it
+		from the group it came out of. Stamping it here would walk the map's
+		hardest case past the code written for it.
 
-		How many: half the men he is not, rounded, and never fewer than one nor
-		more than there are. A four-man fireteam with the player in it leaves
-		two men detached, one man with him, and one of each kind of icon on the
-		map - which is exactly what looking at a group icon against a unit icon
-		needs.
+		How many: half the men he is not, rounded, never fewer than one nor more
+		than there are. A four-man fireteam leaves two detached and one with
+		him, which is one of each kind of icon on the map.
 
-		They walk TEST_splitStandoffMetres clear before stopping. A group icon
+		They walk TEST_splitStandoffMetres clear before stopping - a group icon
 		drawn over a leader standing among the men he just left is an icon on
-		top of three others, which is the one arrangement in which neither the
-		group nor the units can be looked at. The order is a group `move` and
-		not a doMove per man, because that is what a group with no player in it
-		takes natively - the same fact group waypoints will be built on.
+		top of three others. The order is a group `move` rather than a doMove
+		per man, because that is what a group with no player in it takes
+		natively.
 
-		A DRILL ONLY, and the reason has changed since this was written. The
-		guard used to be load-bearing: TACT_fnc_resolveVictory counted an
-		army's survivors as the `units` of the group deployment made for it, so
-		men split into a group of their own during a real battle left that
-		count and the army read as annihilated while they were still standing.
-		That is FIXED - resolveVictory and TACT_fnc_concludeBattle both count
-		living soldiers off the army record's `men` array now, which no split
-		can take a man out of - and it was fixed by the thing that made it
-		matter: "New Group" on the command map's context menu,
-		TACT_fnc_splitGroup, which is the real in-battle split this function's
-		last paragraph used to promise.
-
-		So the guard stays for what is left rather than for the count.
-		TEST_fnc_endDrill averages the surviving `units` of the deployed group
-		to decide where the army ended up, so a detachment does not vote on
-		that position; the error is the standoff distance on an island-sized
-		map. Sync-back deletes by roster rather than by group, so the detached
-		men are torn down with everyone else - the teardown was never
-		group-shaped. And the drill is what this is FOR: the standoff walk that
-		separates the icons, and an unstamped group, are both here to be looked
-		at, and neither is something a battle should be doing.
-
-		Harness only, and the drill's own rather than the command layer's. The
-		player's own split is TACT_fnc_splitGroup on the map; this is the debug
-		key that puts a second group of his on screen with no battle around
-		it.
+		A DRILL ONLY. TEST_fnc_endDrill averages the surviving `units` of the
+		deployed group to decide where the army ended up, so a detachment must
+		not vote on that position. (The count itself is safe now:
+		TACT_fnc_resolveVictory and TACT_fnc_concludeBattle both count living
+		soldiers off the army record's `men` array, which no split can take a
+		man out of.) The player's own in-battle split is TACT_fnc_splitGroup on
+		the map; this is the debug key.
 
 	Parameters:
 		0: NUMBER - how many men to detach. 0 (default) takes half.

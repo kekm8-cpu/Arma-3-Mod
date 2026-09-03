@@ -2,13 +2,12 @@
 	Function: STRAT_fnc_beginPlanning
 
 	Description:
-		Opens the planning phase (section 9, stage 1). Clears the orders that
+		Opens the planning phase (lifecycle stage 1). Clears the orders that
 		finished last block, leaves unfinished ones standing, and reports the
 		block clock plus every detachment still awaiting orders.
 
 		Orders issued during this phase are written to each army's
-		"pendingOrder" and do nothing until STRAT_fnc_commitTurn runs. Nothing
-		moves while the phase is "planning".
+		"pendingOrder" and do nothing until STRAT_fnc_commitTurn runs.
 
 	Parameters:
 		none
@@ -18,13 +17,10 @@
 		       resolving.
 */
 
-// The guard asks whether a block is actually still in flight, not what the
-// phase flag says. It used to read STRAT_turnPhase, which this function is
-// itself the only thing that ever sets back to "planning" - so the first
-// commit set the phase to "resolving", resolution ended, and this refused to
-// reopen planning on the grounds of the flag it was about to clear. Nothing
-// else writes the flag, so the campaign stopped accepting orders after one
-// block.
+// The guard asks whether a block is still in flight, NOT what STRAT_turnPhase
+// says: this function is the only writer of that flag back to "planning", so
+// guarding on it would refuse to reopen planning on the grounds of the very
+// flag it was about to clear.
 //
 // STRAT_fnc_resolveTurn clears STRAT_resolutionRunning immediately before
 // calling STRAT_fnc_advanceClock, which calls this, so by the time control
@@ -36,10 +32,9 @@ if (!isNil "STRAT_resolutionRunning" && {STRAT_resolutionRunning}) exitWith {
 
 STRAT_turnPhase = "planning";
 
-// Drop the selection carried over from the previous phase. Selection is drawn
-// as a ring by the campaign layer rather than stamped onto the army as reduced
-// marker alpha, so clearing the variable is the whole of it - there is no
-// presentation state left to restore on the way out.
+// Drop the selection carried over from the previous phase. The ring is emitted
+// by the draw list only while this variable is set, so clearing it is the whole
+// of it - there is no presentation state to restore.
 STRAT_selectedArmy = nil;
 
 // Retire completed orders; a still-running order stands, so an army the player

@@ -2,14 +2,12 @@
 	Function: STRAT_fnc_issueOrder
 
 	Description:
-		Writes a movement order to an army's "pendingOrder" (section 9, stage
-		1). Nothing moves here: the order is queued and only takes effect when
-		the block is committed.
+		Writes a movement order to an army's "pendingOrder". Nothing moves here:
+		the order is queued and only takes effect when the block is committed.
 
 		The destination lives on the order, not on the army, because battle
-		deployment reads it back to compute facing. The order therefore
-		survives commit and resolution and is only retired once the army
-		arrives.
+		deployment reads it back to compute facing. The order therefore survives
+		commit and resolution and is retired only once the army arrives.
 
 	Parameters:
 		0: HASHMAP - army record

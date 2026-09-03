@@ -5,23 +5,18 @@
 		Prints what side the drill's probe vehicle is currently reading as, and
 		whether any of the player's own men are pointed at it.
 
-		Split out from TEST_fnc_vehicleProbe because three separate moments
-		need the same readout - the empty baseline, the crewed reading five
-		seconds after somebody climbs in, and the moment the thing is shot -
-		and two of those happen inside event handlers, which cannot see a
+		Split out from TEST_fnc_vehicleProbe because three moments need the same
+		readout and two of them happen inside event handlers, which cannot see a
 		function local to the scope that added them.
 
-		SIDE IS THE PROXY, NOT THE VERDICT. The bug this whole line of testing
-		came out of was never visible in a side call: the men were in an
-		INDEPENDENT group and would have reported INDEPENDENT the entire time
-		they were shooting each other. So this prints the relation the engine
-		actually reads - getFriend, where anything below 0.6 is hostile - and
-		who is currently aiming at the probe, and leaves `side` in as context
-		rather than as the answer.
+		SIDE IS THE PROXY, NOT THE VERDICT: the men in the infantry bug reported
+		INDEPENDENT the entire time they were shooting each other. So this
+		prints the relation the engine actually reads - getFriend, hostile below
+		0.6 - and who is currently aiming at the probe, leaving `side` in as
+		context.
 
-		Reported to systemChat and diag_log rather than hintSilent. A hint is
-		overwritten by the planning readout and by the drill's own control
-		hint, and leaves nothing behind to paste at somebody afterwards.
+		systemChat and diag_log rather than hintSilent: a hint is overwritten by
+		the planning readout and leaves nothing behind to paste afterwards.
 
 	Parameters:
 		0: OBJECT - the probe vehicle

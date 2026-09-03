@@ -6,23 +6,14 @@
 		body in it, and opens the map's command mode. A drill: the command
 		interface with the battle taken out from under it.
 
-		It exists because the three things being tested at the moment - the
-		handover between the stock interface and the map's command mode, what
-		the command layer draws, and selection - are all properties of the
-		command layer alone. A real engagement is a poor place to test them:
-		the fight ends while the map is being looked at, the units under
-		inspection are being shot, and the battle clock takes the map away at
-		TACT_battleRealSecondsMax whether or not the tester was finished.
+		A drill has no opposition and therefore no victory condition, so it does
+		not conclude on its own: it runs until TEST_fnc_endDrill is called,
+		which SHIFT+B does. That is why this is not TEST_fnc_spawnBattle with
+		one army - the battle lifecycle is written around two sides classifying
+		each other's exit, and a one-sided engagement handed to
+		TACT_fnc_resolveVictory reads as an annihilation on its first tick.
 
-		A drill has no opposition and therefore no victory condition, so it
-		does not conclude on its own. It runs until TEST_fnc_endDrill is called,
-		which SHIFT+B does. That is the whole reason this is not
-		TEST_fnc_spawnBattle with one army: the battle lifecycle is written
-		around two sides classifying each other's exit, and a one-sided
-		engagement handed to TACT_fnc_resolveVictory reads as an annihilation
-		on its first tick.
-
-		What it does NOT do is fake the layer it is testing. Deployment is
+		IT DOES NOT FAKE THE LAYER IT IS TESTING. Deployment is
 		TACT_fnc_deployVehicles and TACT_fnc_deployMen, the body is taken by
 		TACT_fnc_dropIn, the boundary is TACT_fnc_drawBoundary, and the map
 		draws through TACT_fnc_buildCommandList like any battle. Only the
@@ -30,20 +21,17 @@
 		share.
 
 		The record it holds is engagement-shaped - `attacker`, `attackerGroup`,
-		`defender`, `defenderGroup` - so TACT_fnc_dropIn takes it unchanged.
-		The defender is an empty record rather than a missing key: dropIn walks
-		both sides, and a side that is nil is a different kind of absent from a
-		side with no men in it.
+		`defender`, `defenderGroup` - so TACT_fnc_dropIn takes it unchanged. The
+		defender is an EMPTY record rather than a missing key: dropIn walks both
+		sides, and a nil side is a different kind of absent from a side with no
+		men in it.
 
-		Section 6 is the one exception to "does not fake the layer it is
-		testing", and it is bounded on purpose. With TEST_iconProbeEnabled set
+		Section 6 is the one bounded exception. With TEST_iconProbeEnabled set
 		it seeds STRAT_drawTextureCache so the command layer's silhouettes draw
-		as plain squares, which separates a texture that will not resolve from
-		an icon drawn too small to see - the two explanations for a map showing
-		its labels and none of its icons. It substitutes the texture and
-		nothing else: the resolver, the draw list and the renderer run exactly
-		as they ship, which is what makes the result mean anything. The cache is
-		shared with the campaign layer, so TEST_fnc_endDrill hands it back.
+		as plain squares; it substitutes the texture and nothing else, so the
+		resolver, the draw list and the renderer run exactly as they ship. The
+		cache is shared with the campaign layer, so TEST_fnc_endDrill hands it
+		back.
 
 	Parameters:
 		0: STRING or ARRAY - drill name in TEST_drills, or an inline army spec
@@ -143,13 +131,11 @@ _army set ["inBattle", true];
 private _bearing = 0;
 
 // The shipping path, both calls, exactly as TACT_fnc_initiateBattle makes
-// them. The drill briefly owned its own placement while the side-conversion
-// technique was on trial; that technique now lives in TACT_fnc_deployMen, so
-// the harness copy is gone and a drill tests what a battle runs.
+// them, so a drill exercises what a battle runs.
 //
-// No road lookup. `midpointConverge` lines vehicles up along the approach road
-// into a fight; there is no fight and no approach, so the deployment bearing
-// is what fn_deployVehicles falls back to anyway.
+// No road lookup: `midpointConverge` lines vehicles up along the approach road
+// into a fight, and there is neither here, so the deployment bearing is what
+// fn_deployVehicles falls back to anyway.
 [_army, [], _position, _bearing] call TACT_fnc_deployVehicles;
 
 private _group = [_army, _position, _bearing] call TACT_fnc_deployMen;
@@ -259,25 +245,19 @@ hint format [
 // ------------------------------------------------------------------------ //
 // 6. THE ICON PROBE                                                         //
 // ------------------------------------------------------------------------ //
-// Off unless TEST_iconProbeEnabled says otherwise, and the reasoning for it is
-// with the switch in init.sqf. In short: the command layer is drawing its
-// labels and none of its silhouettes, an icon and its label are the same
-// drawIcon call differing in two arguments, and this rules one of the two out.
+// Off unless TEST_iconProbeEnabled says otherwise; init.sqf has the switch and
+// how to read one off.
 //
 // STRAT_fnc_mapIconTexture answers out of STRAT_drawTextureCache before it
 // reads config, so seeding that cache substitutes the texture without the
-// resolver, the draw list or the renderer knowing anything happened. That is
-// the point: the probe must not change the path it is measuring. A resolver
-// edited to return a square would be testing an edited resolver.
+// resolver, the draw list or the renderer knowing anything happened - the probe
+// must not change the path it is measuring.
 //
-// Seeded here rather than at boot because the cache is shared with the
-// campaign layer. A drill owns it for as long as the drill runs, and
-// TEST_fnc_endDrill hands it back.
-//
-// Last, after the drop-in has succeeded, because TEST_fnc_endDrill is what
-// unseeds it and the failure paths above never reach it. Seeded before that
-// guard, an abandoned drill would leave white squares in a cache the
-// campaign map goes on reading for the rest of the mission.
+// Seeded here rather than at boot because the cache is shared with the campaign
+// layer, and LAST, after the drop-in has succeeded: TEST_fnc_endDrill is what
+// unseeds it and the failure paths above never reach it, so an abandoned drill
+// would otherwise leave white squares in a cache the campaign map goes on
+// reading.
 if (!isNil "TEST_iconProbeEnabled" && {TEST_iconProbeEnabled}) then {
 
 	// Every class the command layer can ask for. The first three are named by

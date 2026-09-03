@@ -2,13 +2,12 @@
 	Function: STRAT_fnc_projectArrival
 
 	Description:
-		Projects how long a route takes an army to walk, in block time. The
-		planning phase must show what an order costs before it is committed, so
-		this is called when the order is issued rather than after resolution.
+		Projects how long a route takes an army to walk, in block time. Called
+		when the order is issued, not after resolution: anything the player is
+		penalised for has to be visible at planning time.
 
-		Fatigue on arrival and route exposure belong in this projection too;
-		they are not modelled yet and are deliberately absent rather than
-		guessed at.
+		Fatigue on arrival and route exposure belong in this projection too and
+		are deliberately absent rather than guessed at.
 
 	Parameters:
 		0: HASHMAP - army record

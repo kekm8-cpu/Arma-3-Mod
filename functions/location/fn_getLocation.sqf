@@ -2,9 +2,9 @@
 	Function: STRAT_fnc_getLocation
 
 	Description:
-		Looks up a location record by id. Keeps the shape of the registry in
-		one place, so callers reference locations by id — which is what an
-		order or a test-harness call carries — rather than holding a record.
+		Looks up a location record by id, keeping the shape of the registry in
+		one place so callers reference locations by id rather than holding a
+		record.
 
 	Parameters:
 		0: STRING - location id

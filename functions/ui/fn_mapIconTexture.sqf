@@ -4,16 +4,14 @@
 	Description:
 		Resolves a CfgMarkers class to the texture path the engine would draw
 		for a marker of that class, so a drawn icon and an authoring marker are
-		the same artwork rather than two icon sets that drifted apart (section
-		11).
+		the same artwork.
 
 		Cached. Both list builders call this once per icon per frame and
 		CfgMarkers does not change mid-mission.
 
 		A class that resolves to nothing must not take the map down with it -
-		armies are drawn now, so a thrown error here is an empty strategic map
-		- so the fallback is a procedural colour, which is the one texture that
-		cannot fail to resolve.
+		armies are drawn, so an error here is an empty strategic map - hence a
+		procedural colour, the one texture that cannot fail to resolve.
 
 	Parameters:
 		0: STRING - CfgMarkers class name, e.g. "b_inf"

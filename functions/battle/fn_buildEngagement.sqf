@@ -2,18 +2,17 @@
 	Function: TACT_fnc_buildEngagement
 
 	Description:
-		Builds the engagement record (section 9, stage 5). Every battle type
+		Builds the engagement record (lifecycle stage 5). Every battle type
 		produces one of these and the lifecycle reads it rather than branching
-		on type: conclusion, sync-back, and the return to the strategic map are
-		written once against this record.
+		on type - one lifecycle, three parameter sets.
 
-		Minimal open-field version. The deployment split and the edge-deployment
-		geometry are a later milestone, so `deployment` names the placement that
-		actually runs today rather than the one that is intended.
+		Open-field only: no `capturePoint`, no `sprung`, and `deployment` names
+		the placement that actually runs rather than the one intended. Set-piece
+		and ambush extend this, they do not replace it.
 
 		Each side's position at the moment the battle opens is recorded, because
-		exit classification needs to know where the army came from and where it
-		was trying to go.
+		exit classification needs where the army came from and where it was
+		trying to go.
 
 	Parameters:
 		0: HASHMAP - first army
@@ -46,9 +45,8 @@ private _anchor = [
 if (isNil "TACT_nextEngagementId") then { TACT_nextEngagementId = 0 };
 TACT_nextEngagementId = TACT_nextEngagementId + 1;
 
-// Roles are symmetric in an open field meeting engagement - neither army is
-// assaulting a position - so the assignment is arbitrary and only matters for
-// battle types where the defender is already in place.
+// Roles are symmetric in a meeting engagement, so the assignment is arbitrary.
+// It only matters for battle types where the defender is already in place.
 createHashMapFromArray [
 	["id", format ["ENG_%1", TACT_nextEngagementId]],
 	["type", "openField"],
@@ -61,13 +59,11 @@ createHashMapFromArray [
 	["boundaryAnchor", _anchor],
 	["boundaryRadius", TACT_boundaryRadius],
 
-	// Both groups converge on the anchor today. Edge deployment facing the
-	// destination bearing belongs to the deployment split.
 	["deployment", "midpointConverge"],
 
-	// Only the conditions that are actually evaluated are listed. Rout and
-	// surrender need a morale model and a surrender model respectively, and
-	// neither exists yet; listing them here would claim they are live.
+	// Only conditions actually evaluated are listed. Rout needs a morale model
+	// and surrender the set-piece capture point; listing either here would
+	// claim it is live.
 	["victoryConditions", ["annihilation", "breakthrough", "repulse", "blockClockExpiry"]],
 
 	["blockTimeRemaining", _blockHoursRemaining]

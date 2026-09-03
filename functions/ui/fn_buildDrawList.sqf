@@ -2,35 +2,31 @@
 	Function: STRAT_fnc_buildDrawList
 
 	Description:
-		Derives the campaign layer's draw list from campaign state (section
-		11). One list, read by two callers: STRAT_fnc_drawCampaignLayer renders
-		it and STRAT_fnc_onMapClick hit-tests against it. If what is drawn and
-		what is clickable were computed in two places they would drift, and the
-		drift is invisible until a player clicks something that is not there.
+		Derives the campaign layer's draw list from campaign state. ONE LIST,
+		read by two callers: STRAT_fnc_drawCampaignLayer renders it and
+		STRAT_fnc_onMapClick hit-tests against it. Computed in two places they
+		would drift, and the drift is invisible until a player clicks something
+		that is not there.
 
-		An entity emits a *group* of items, not several icons that happen to
-		sit near each other. Every item in a group carries the same `group` id
-		and the same `anchor` array - the record's own position array, held by
-		reference, never copied - so an army and its adornments cannot come
-		apart. Items are built through one local constructor that demands the
-		group id, which is why an adornment that cannot state its group is not
-		merely a bug here but unconstructable.
+		An entity emits a GROUP of items, not several icons that happen to sit
+		near each other. Every item carries the same `group` id and the same
+		`anchor` array - the record's own position array, by reference, never
+		copied - and items are built through one local constructor that demands
+		the group id, so an adornment that cannot state its group is
+		unconstructable rather than merely a bug.
 
-		Positions and sizes are in *icon units*, resolved to metres once per
-		draw pass by STRAT_fnc_mapUnitMetres. An adornment placed at the icon's
-		edge says `0.5` and stays at the edge at every zoom, which is the
-		alignment section 11 opens with and the reason armies are drawn rather
-		than marked.
+		Positions and sizes are in ICON UNITS, resolved to metres once per draw
+		pass by STRAT_fnc_mapUnitMetres, so an adornment placed at `0.5` stays
+		on the icon's edge at every zoom.
 
-		Presentation is derived here from `faction` and `owner` and is never
-		stored on a record. Colour is presentation only and is never read back
-		- hostility comes from STRAT_fnc_areHostile.
+		Presentation is derived here from `faction` and `owner` and stored on no
+		record. Colour is never read back - hostility comes from
+		STRAT_fnc_areHostile.
 
-		Rebuilt every draw frame. That is deliberate: armies move on every tick
-		of a resolving block, and a cached list is exactly how the drawn and
-		the clickable start to disagree. At campaign scale - a handful of
-		armies and locations - the cost is a few HashMaps a frame. Only the
-		config texture lookups are cached, because those never change.
+		Rebuilt every draw frame: armies move on every tick of a resolving
+		block, and a cached list is how the drawn and the clickable start to
+		disagree. At a handful of armies that costs a few HashMaps a frame; only
+		the config texture lookups are cached, because those never change.
 
 	Item keys:
 		group     STRING  - id of the group this item belongs to
@@ -190,10 +186,8 @@ if (!isNil "STRAT_locations") then {
 		["textSize", STRAT_drawLabelUnits]
 	]] call _fnc_item;
 
-	// Adornment 1: selection. A ring around the icon, not a change to the icon
-	// - the marker version faded the army to half alpha, which read as the
-	// army being dimmed rather than picked, and left presentation state that
-	// every exit path had to remember to restore.
+	// Adornment 1: selection. A ring AROUND the icon rather than a change to
+	// the icon, so there is no presentation state for an exit path to restore.
 	if (_id != "" && {_id == _selectedId}) then {
 		[_id, "army", _army, _anchor, "selectionRing", createHashMapFromArray [
 			["shape", "ellipse"],
@@ -202,10 +196,10 @@ if (!isNil "STRAT_locations") then {
 		]] call _fnc_item;
 	};
 
-	// Adornment 2: the standing order, drawn from the icon's edge to where the
-	// army has been told to be. This is the adornment that proves the group
-	// shape - it has to originate at the icon's edge rather than its centre,
-	// which is precisely what cannot be done across the renderer boundary.
+	// Adornment 2: the standing order, drawn from the icon's EDGE to where the
+	// army has been told to be. Originating at the edge rather than the centre
+	// is precisely what cannot be done across a renderer boundary, which is why
+	// armies are drawn rather than marked.
 	private _order = _army getOrDefault ["pendingOrder", createHashMap];
 
 	if (count _order > 0 && {(_order getOrDefault ["status", ""]) != "complete"}) then {

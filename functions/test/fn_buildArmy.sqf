@@ -6,16 +6,13 @@
 		`activeArmies`, ready for the turn model or for a directly spawned
 		engagement.
 
-		This is harness code, not campaign code. It is a thin front end over
-		STRAT_fnc_generateArmy, STRAT_fnc_addMan and STRAT_fnc_addVehicle and
-		adds no state of its own - anything it produces is indistinguishable
-		from an army built by hand, so nothing downstream has to know a test
-		set it up.
+		A thin front end over STRAT_fnc_generateArmy, STRAT_fnc_addMan and
+		STRAT_fnc_addVehicle that adds no state of its own, so what it produces
+		is indistinguishable from an army built by hand.
 
-		Rosters are looked up by name in `TEST_rosters` so that an engagement
-		is reproducible: a roster fixed in one place cannot drift between the
-		scenarios that share it. An inline roster is accepted for one-off
-		experiments.
+		Rosters are looked up by name in `TEST_rosters` so an engagement is
+		reproducible - a roster fixed in one place cannot drift between the
+		scenarios that share it. An inline roster is accepted for one-offs.
 
 	Parameters:
 		0: ARRAY - army spec:
@@ -94,21 +91,19 @@ private _vehicleClasses = _vehicleSpec call _fnc_expand;
 // ------------------------------------------------------------------------ //
 // 2. BUILD                                                                  //
 // ------------------------------------------------------------------------ //
-// The spec carries no presentation. It used to pick a marker type and colour
-// per faction here; armies are drawn by the campaign layer now, which derives
-// both from `faction` at draw time, so a scenario reads as rosters and
+// The spec carries no presentation - the campaign layer derives icon and
+// colour from `faction` at draw time - so a scenario reads as rosters and
 // positions and nothing else.
 //
-// Copied, not handed over: the spec tables in init.sqf are shared between
-// scenarios and engagements, and an army that held its table's position array
-// by reference would rewrite the table the first time it marched.
+// The position is COPIED, not handed over: the spec tables in init.sqf are
+// shared between scenarios and engagements, and an army holding its table's
+// array by reference would rewrite the table the first time it marched.
 private _army = [_name, +_position, nil, _faction] call STRAT_fnc_generateArmy;
 
 // Which man the player takes when this army fights. Defaulted rather than
-// required: the player's own faction flags its leader, because a commander who
-// cannot command is not a starting state anyone wants, and everyone else flags
-// nobody. Pass a slot explicitly to put the player somewhere else in the
-// roster, or 0 to leave an army of the player's faction with no body in it.
+// required: the player's own faction flags its leader and everyone else flags
+// nobody. Pass a slot to put him elsewhere in the roster, or 0 to leave a
+// player-faction army with no body in it.
 private _slot = _playerSlot;
 if (_slot < 0) then {
 	_slot = if (_faction == "player") then {1} else {0};

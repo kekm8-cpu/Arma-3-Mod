@@ -5,17 +5,10 @@
 		Appends a soldier record to an army's roster. Leaders get a higher
 		default skill.
 
-		One man in an army may be flagged `isPlayer`. He is an ordinary soldier
-		in every respect - he is spawned by deployment like the rest, he is
-		counted in the army's strength, he can be killed, and sync-back writes
-		his condition back into this record - and the flag only says which body
-		the player looks through once a battle has deployed. See
-		TACT_fnc_dropIn.
-
-		That is what keeps the battle layer from needing to know about the
-		player at all. There is no commander standing outside the roster to
-		exclude from casualty counts and centre-of-mass sums; there is a
-		soldier, and one of the soldiers happens to be you.
+		One man in an army may be flagged `isPlayer`. The flag says only which
+		body the player looks through once a battle has deployed (see
+		TACT_fnc_dropIn); he is an ordinary soldier in every other respect, and
+		nothing in the battle layer special-cases him.
 
 	Parameters:
 		0: HASHMAP - army object
@@ -52,10 +45,9 @@ private _soldierObject = createHashMapFromArray [
     ["isLeader", _isLeader],
 	["isPlayer", _isPlayer],  // Which body the player takes when this army fights
 	["obj", objNull],
-	// Fatigue lives on the soldier, not the army, so detachments can merge and
-	// split without inheriting each other's condition (section 6). Nothing
-	// accumulates into these yet - that is build plan 2.6 - but
-	// STRAT_fnc_armyFatigue already derives an army-level value from them.
+	// Fatigue lives on the soldier, never on the army, so detachments merge and
+	// split without inheriting each other's condition. Nothing writes these yet
+	// (build plan 2.6); STRAT_fnc_armyFatigue already derives from them.
 	["exertion", 0],        // Hours of foot movement carried, reset by sleep
 	["hoursSinceSleep", 0]  // Unread until the 24h cycle lands (3.10)
 ];

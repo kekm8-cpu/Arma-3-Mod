@@ -3,37 +3,28 @@
 
 	Description:
 		Puts one empty BLUFOR-classed vehicle in front of the drill's squad and
-		reports what side it reads as, so the question the infantry fix left
-		open can be answered: does a vehicle carry its config side the way a
-		soldier did?
+		reports what side it reads as: does a vehicle carry its config side the
+		way a soldier does (manifest section 13.1)?
 
-		It is an open question because nothing has tested it. Every drill so
-		far has been dismounted by design, and TACT_fnc_deployVehicles creates
-		its vehicles with a bare createVehicle - no group, no side, nothing to
-		join. The anchor trick that fixed the infantry does not transfer: a
-		vehicle reports grpNull, so there is no group for it to be carried into.
+		TACT_fnc_deployVehicles creates its vehicles with a bare createVehicle -
+		no group, no side - and the anchor trick that fixed the infantry does
+		not transfer, because a vehicle reports grpNull and there is no group to
+		be carried into.
 
-		Three readings, covering both states that matter:
+		Three readings:
 
-		  EMPTY   at spawn. A vehicle with nobody in it is what deployment
-		          produces for the moment between placing it and seating the
-		          men, and if config side sticks to an empty hull that window
-		          is a window where our own transport is a target.
-		  CREWED  TEST_probeSettleDelay seconds after the first man climbs in,
-		          which is the state a vehicle spends a battle in. The delay is
-		          there to let anything that resolves side asynchronously
-		          finish before the reading is taken.
-		  HIT     whenever it is shot, naming who shot it. This is the actual
-		          verdict and the other two are instrumentation: the infantry
-		          bug was never visible in a side call, and the thing that made
-		          it undeniable was men firing at something they should not
-		          have been firing at.
+		  EMPTY   at spawn, which is the state deployment produces between
+		          placing a vehicle and seating its men.
+		  CREWED  TEST_probeSettleDelay seconds after the first man climbs in.
+		          The delay lets anything resolving side asynchronously finish.
+		  HIT     whenever it is shot, naming who shot it. THE VERDICT - the
+		          other two are instrumentation, because the infantry bug was
+		          never visible in a `side` call.
 
-		Deliberately NOT part of the army record. A vehicle in `vehicles` is a
-		vehicle TACT_fnc_deployMen will try to seat men in, TACT_fnc_syncBack
-		will read condition off, and TEST_fnc_clearArmies will delete on its
-		own schedule. The probe is none of those things - it is a lump of
-		instrumentation - so it is held in a global of its own and removed by
+		Deliberately NOT part of the army record: a vehicle in `vehicles` is one
+		deployment will seat men in, sync-back will read condition off, and
+		TEST_fnc_clearArmies will delete on its own schedule. The probe is
+		instrumentation, so it lives in a global of its own and is removed by
 		TEST_fnc_endDrill.
 
 	Parameters:

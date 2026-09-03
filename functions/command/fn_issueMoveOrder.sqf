@@ -5,25 +5,13 @@
 		Sends a set of command entities to a world position. One destination,
 		issued once, and that is the whole of it.
 
-		There is no route here and no queue. Arma's doMove takes a single
-		destination and does not chain, and a subordinate inside a player-led
-		group drifts back into formation rather than holding where it was sent.
-		Both of those were worked around for a while by a script that watched
-		for arrivals and re-issued orders; the workaround needed guards against
-		dragging men out of cover and against overriding the stock squad bar,
-		and every guard was another condition under which commanding behaved
-		differently.
-
-		Chained waypoints and held ground move to the group level instead,
-		where Arma does them natively - a group with no player in it executes
-		an addWaypoint chain on its own, HOLD waypoints included. A player who
-		wants one man to flank wide or watch a ridge detaches him into a group
-		of one. Until that exists, an individual takes a destination and
-		nothing more.
+		NO ROUTE AND NO QUEUE. doMove takes a single destination and does not
+		chain, and a subordinate inside a player-led group drifts back into
+		formation rather than holding where it was sent. Chained waypoints and
+		held ground belong at the GROUP level, where Arma does them natively.
 
 		Orders go out with doMove rather than commandMove: silent, and precise.
-		The map has already shown where they were sent, so radio chatter would
-		be reporting something the player is looking at.
+		The map has already shown where they were sent.
 
 	Parameters:
 		0: ARRAY - command entities (see TACT_fnc_commandEntities)

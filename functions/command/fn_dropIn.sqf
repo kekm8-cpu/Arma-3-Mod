@@ -5,35 +5,23 @@
 		Hands the player the body of the soldier his army flagged `isPlayer`,
 		once the battle has deployed, and turns on the map's command mode.
 
-		Nothing is moved and nothing is inserted. Deployment has already
-		spawned the whole roster, the flagged man among them, standing where
-		the deployment plan put him - in whatever vehicle the rotation gave
-		him, or on foot in his formation slot if it ran out of seats before it
-		reached him. All this does is change which of those bodies the player
-		is looking through, with selectPlayer.
+		NOTHING IS MOVED AND NOTHING IS INSERTED. Deployment already spawned the
+		whole roster, the flagged man among them; all this does is change which
+		of those bodies the player looks through, with selectPlayer. That is why
+		no victory condition, casualty count or position sum has a special case
+		for him.
 
-		That is why the battle layer needs no special case for the player. He
-		is a soldier with a soldier record: he is counted in the army's
-		strength, his position is part of its centre of mass, sync-back writes
-		his condition back into his record, and he can die. No victory
-		condition has to know he exists.
+		He also has to LEAD, because the stock F-key UI addresses a group
+		through its leader. The isPlayer flag and the leader flag are usually
+		the same man; when they are not, the player takes command anyway.
 
-		He also has to lead, because the stock F-key commanding UI addresses a
-		group through its leader. The flag and the leader flag are usually the
-		same man; when they are not, the player takes command anyway - there is
-		no version of this interface that works from inside the ranks.
+		The one thing touched beyond the body is the speed cap deployment puts
+		on a partly mounted column, lifted where the player turns out to be the
+		driver: the cap exists to hold an AI driver to the men on foot, and
+		there is no AI driver to hold.
 
-		The one thing it touches beyond the body is the speed cap deployment
-		puts on a partly mounted column, which is lifted where the player turns
-		out to be the driver. That is not a special case in the battle layer -
-		the cap exists to hold an AI driver to the men on foot, and where the
-		player is driving there is no AI driver to hold.
-
-		The avatar the player came from is left where it stands, with its
-		simulation stopped, because that is the body TACT_fnc_dropOut gives
-		back when the battle ends. It is already hidden, invulnerable and
-		captive - a civilian placeholder that init.sqf put in that state at
-		mission start and that nothing ever takes it out of.
+		The avatar the player came from is left standing with its simulation
+		stopped, because that is the body TACT_fnc_dropOut gives back.
 
 	Parameters:
 		0: HASHMAP - engagement record, already deployed
@@ -91,12 +79,11 @@ if (isNull _unit) exitWith {
 // Remembered before the switch, because afterwards `player` is somebody else.
 // Put away rather than deleted: it is the body control comes back to.
 //
-// init.sqf already hid it, made it invulnerable and set it captive at mission
-// start, so the two protections below are no-ops on the normal path. The
-// hideObject is not: hiding does not reliably take on a unit that is currently
-// the player, and by this line the avatar is an ordinary object, so this is
-// where it actually lands. Simulation is the one piece that genuinely belongs
-// here, and fn_dropOut restores it.
+// init.sqf already hid it and made it invulnerable, so those two are no-ops on
+// the normal path. The hideObject is not: hiding does not reliably take on a
+// unit that is currently the player, and by this line the avatar is an ordinary
+// object. Simulation is the one piece that belongs here; fn_dropOut restores
+// it.
 private _avatar = player;
 
 if (isNull TACT_campaignAvatar) then { TACT_campaignAvatar = _avatar };
@@ -113,15 +100,14 @@ if (!isNull _avatar && {_avatar != _unit}) then {
 	_avatar enableSimulation false;
 };
 
-// Deployment caps a partly mounted column at foot pace so its trucks stay with
-// the men walking behind them (TACT_fnc_deployMen). That cap is meant for an AI
-// driver. Whether limitSpeed binds a player-driven vehicle is not something the
-// wiki settles, so the cap is lifted where he is the one driving rather than
-// left to be discovered as a truck that will not go over 10 km/h with no visible
-// reason why.
+// Deployment caps a partly mounted column at foot pace (TACT_fnc_deployMen),
+// and that cap is meant for an AI driver. Whether limitSpeed binds a
+// player-driven vehicle is not settled by the wiki, so it is lifted where he is
+// the one driving rather than discovered as a truck that will not exceed
+// 10 km/h for no visible reason.
 //
-// Only where he drives. A player riding as a passenger leaves an AI at the
-// wheel, and that AI should still be holding the truck to the foot element.
+// ONLY where he drives: a passenger leaves an AI at the wheel, and that AI
+// should still be held to the foot element.
 private _playerVehicle = objectParent _unit;
 
 if (!isNull _playerVehicle && {driver _playerVehicle == _unit}) then {
@@ -134,11 +120,10 @@ if (!isNull _playerVehicle && {driver _playerVehicle == _unit}) then {
 	_playerVehicle limitSpeed _noLimit;
 };
 
-// If the body dies, control goes back to the campaign avatar rather than to
-// the death screen. The battle carries on without him and concludes normally -
-// his record is dropped by sync-back like any other casualty, and the army
-// fights the next one with nobody flagged. Without this the first bullet that
-// finds the player ends the campaign.
+// If the body dies, control goes back to the campaign avatar rather than the
+// death screen. The battle concludes normally and his record is dropped by
+// sync-back like any other casualty. Without this the first bullet that finds
+// the player ends the campaign.
 _unit addEventHandler ["Killed", {
 	params ["_dead"];
 	_dead removeAllEventHandlers "Killed";
@@ -157,12 +142,10 @@ TACT_commandArmyId         = _army get "id";
 
 call TACT_fnc_closeContextMenu;
 
-// A battle starts with no detachments and the naming starts at one. Both are
-// cleared HERE rather than in TACT_fnc_dropOut, because dropping out is not
-// the end of a detachment: a commander who is killed leaves his detachments
-// on the field, still his army's men, still counted, still fighting.
-// TACT_fnc_concludeBattle is what ends them, because that is what ends the
-// battle.
+// Cleared HERE rather than in TACT_fnc_dropOut: dropping out is not the end of
+// a detachment. A commander who is killed leaves his detachments on the field,
+// still his army's men, still counted, still fighting.
+// TACT_fnc_concludeBattle is what ends them.
 TACT_commandDetachments = [];
 TACT_commandDetachCount = 0;
 

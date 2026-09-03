@@ -2,18 +2,15 @@
 	Function: TACT_fnc_runBattle
 
 	Description:
-		Runs one battle to its conclusion (section 9, stages 8 and 9) and
-		concludes it. The tactical layer is realtime Arma, so this runs at 1:1
-		real time - nothing about a firefight wants compressing - and the
-		strategic layer holds still while it does.
+		Runs one battle to its conclusion (lifecycle stages 8 and 9) and
+		concludes it. Runs at 1:1 real time while the strategic layer holds.
 
-		The battle clock is the cap: at TACT_battleRealSecondsMax neither side
-		has broken the other and the engagement ends in mutual disengage. It is
-		displayed while the battle runs, because it is the mechanic that makes
-		time in cover expensive rather than free.
+		The battle clock is the cap: at TACT_battleRealSecondsMax the engagement
+		ends in mutual disengage. It is displayed while the battle runs because
+		it is a load-bearing mechanic, not UI decoration.
 
-		A battle always gets its full length, whenever in the block it starts.
-		What it costs the strategic clock is the caller's business: this returns
+		A battle always gets its full length whenever in the block it starts.
+		What it costs the strategic clock is the caller's business - this returns
 		how long it took and the caller converts and clamps.
 
 		Must be spawned or called from a spawned scope - this function sleeps.

@@ -5,111 +5,46 @@
 		Derives the battle command layer's draw list: what the map shows while
 		the player is commanding on the ground. The tactical counterpart of
 		STRAT_fnc_buildDrawList, emitting the same item shape into the same
-		renderer, so a route drawn here and an order arrow drawn on the
-		campaign map are the same lines by the same law.
+		renderer, on the same terms - every item carries its group id and the
+		entity's own anchor, and adornments are placed in icon units off it.
 
-		One group per command entity, on the same terms section 11 sets for the
-		campaign layer: every item carries its group id and the entity's own
-		position array, and adornments are placed in icon units off that
-		anchor.
-
-		Four things are drawn, and the split between them is the tactical
-		map's visibility rule. The right-hand column is the CONTROL rule, and
-		the two are not the same question:
+		Four things are drawn. The right-hand column is the CONTROL rule, which
+		is a different question from the visibility one:
 
 		  the player          one icon, his own            never selectable
 		  his group's units   one icon each                selectable, singly
 		  his other groups    one icon over each leader    selectable, whole
 		  allied groups       one icon over each leader    never selectable
 
-		The right-click context menu is NOT in this list. It is built from real
-		controls on the map's display by TACT_fnc_openContextMenu - see there
-		for why - so it is not a drawn thing at all and nothing here has to
-		reserve a place for it or worry about drawing over it.
+		His own group is never ALSO collapsed: no group icon is emitted for it,
+		because that would draw the same men twice. Selectability lives here in
+		the draw list rather than in the click handler - a click target that
+		exists and is then refused is one that will one day stop being refused.
 
-		A group that is not his own collapses because its composition is not his
-		to arrange, and because forty other soldiers drawn man by man bury the
-		eight that are his. His own group is never collapsed - it is drawn as
-		its units, and no group icon is emitted for it, because one would draw
-		the same men a second time as a body he does not command.
+		Selection is held as GROUPS in TACT_commandGroupSelection, never as the
+		men inside one: membership changes under casualties and a leader can be
+		promoted mid-frame, and neither is a change to what was selected.
 
-		A COLLAPSED GROUP OF HIS OWN IS SELECTABLE, and an ally's is not. That
-		is the split TACT_fnc_playerGroups and TACT_fnc_alliedGroups were
-		written to hold: one list is groups the command layer could give orders
-		to, the other is groups it never will, and selection reaching only the
-		first is the first thing the split buys. Selecting a group does not
-		order it yet - a body of men has no map order until waypoints arrive -
-		so what it currently buys the player is a ring and a count, and what it
-		buys the interface is the ruler the group icon is sized against.
+		TWO ICON SOURCES, split on individual versus aggregate (manifest section
+		11). Command entities and the commander take stock per-unit artwork
+		through STRAT_fnc_mapUnitTexture, rotated to heading; a collapsed group
+		takes the NATO box from STRAT_drawFactionIcon and passes direction 0.
+		The two families do not fill their textures alike, so each carries its
+		own compensation - STRAT_drawUnitArtScale and STRAT_drawGroupArtScale -
+		applied to the drawn box rather than to the item's `size`, which the
+		ring and the click area are calibrated against.
 
-		Selection is held as GROUPS, in TACT_commandGroupSelection, and never as
-		the men inside one. A group is the thing being selected; its membership
-		changes under casualties and its leader can be promoted mid-frame, and
-		neither of those is a change to what was selected.
+		Colour comes from STRAT_drawFactionColour and STRAT_drawFactionIcon, the
+		campaign layer's own tables read here unchanged; there is no battle-only
+		palette. The commander is the one thing coloured by role instead:
+		TACT_commandPlayerColour.
 
-		TWO ICON SOURCES, split on individual versus aggregate. A command
-		entity and the commander are individuals and take the stock per-unit
-		artwork through STRAT_fnc_mapUnitTexture - a rounded silhouette with a
-		pointed end, rotated to the entity's heading, which is how the engine's
-		own map draws a unit. A collapsed group is an aggregate and keeps the
-		NATO box from STRAT_drawFactionIcon. A box over one rifleman says
-		something false about what he is, and it reads upright so it cannot
-		carry heading; a body of men has no single heading to carry. The two
-		symbols mean different things and the map now says which it means.
+		The right-click context menu is NOT in this list - it is real controls
+		on the map's display, built by TACT_fnc_openContextMenu.
 
-		The two also do not fill their textures alike, so each family carries
-		its own compensation: STRAT_drawUnitArtScale on the unit silhouettes,
-		STRAT_drawGroupArtScale on the group boxes. A NATO box is drawn edge to
-		edge; a unit silhouette is a small glyph in a mostly transparent
-		square, and drawn at the same size it reads as a speck. That
-		compensation scales the box the texture is stretched into and not the
-		item's `size`, so the glyph grows while the ring and the click area
-		stay calibrated against the figure they were chosen for.
-
-		The group figure is nominally 1 - a box needs no rescue - and is
-		carried anyway, because it is where the collapsed groups' apparent size
-		is tuned. How heavy a body of men reads against the men beside it is a
-		judgement made by looking at the map, and this is the one place it can
-		be made without dragging a label, a ring or a click area off the icon
-		it belongs to.
-
-		Colour comes from STRAT_drawFactionColour, and a collapsed group's
-		silhouette from STRAT_drawFactionIcon - the CAMPAIGN layer's tables,
-		read here unchanged. There is no battle-only palette. An army the player watched
-		march across the strategic map is the same colour and the same shape as
-		the men he is now standing among, which is the whole reason the two
-		maps can be looked at as one system. The scheme and the reasoning behind
-		it are in init.sqf, beside the tables.
-
-		The commander is the one thing on this map coloured by role rather than
-		by faction: TACT_commandPlayerColour, yellow. His force is blue and he
-		is yellow, and the distinction is deliberate - one is his army and the
-		other is him, and confusing the two is how a commander gets ordered
-		about like a rifleman.
-
-		A group with no faction stamp still colours correctly. The half the
-		player detaches is created by the engine and will never carry one, but
-		TACT_fnc_playerGroups resolves it to the stamp of the group it came out
-		of before the draw sees it, so the case with no identity of its own
-		inherits the right one.
-
-		The player is drawn and never hit-tested. A commander is worth seeing
-		on the map, and is not something to select and order.
-
-		Facing is drawn for individuals and for nobody else. Section 15 held
-		this open on the grounds that rotating a NATO silhouette is the wrong
-		way to show heading, which is still true - it is why the aggregates
-		pass 0. The stock unit artwork is built to turn, so the entities can
-		have it for the cost of one argument.
-
-		Nothing here draws orders yet beyond the selection ring. An individual
-		unit's move order is a single destination it is already walking to, and
-		a body of men has no map order to draw until group-level command
-		arrives to give it one.
-
-		Rebuilt every frame, like the campaign list, and for the same reason:
-		units move continuously during a battle, and a cached list is exactly
-		how the drawn and the clickable start to disagree.
+		Rebuilt every frame, like the campaign list: units move continuously,
+		and a cached list is how the drawn and the clickable start to
+		disagree.
 
 	Parameters:
 		none
@@ -173,22 +108,14 @@ private _friendly = STRAT_drawFactionColour getOrDefault [_playerFaction, [0.25,
 // COLLAPSED GROUPS                                                          //
 // ------------------------------------------------------------------------ //
 // One icon per group, over its leader, for both lists. Emitted first so they
-// draw behind the player's own units: where one of these and one of his men
-// overlap, his man is the one he needs to see and click.
+// draw behind the player's own units, and allies before his own groups, so
+// where any two overlap the one he can click reads on top.
 //
-// HIS OWN GROUPS ARE CLICKABLE; an ally's is not. That is the widening this
-// block always said it would take, and it took the half it said it would: an
-// ally is never his to move, so a click target on one is a target he cannot
-// use sitting on top of units he can, which is a way to lose orders.
-//
-// The click radius is the group's own, TACT_commandGroupHitUnits, because it is
-// chosen against the group's own icon size. The hit-test in
-// TACT_fnc_onCommandClick tests the individuals before the groups, so a man
-// standing under a group icon - his own leader, most often - wins the tie and
-// stays as clickable as he was before groups had an area at all.
-//
-// Allies are emitted before his own groups so that where the two overlap, his
-// reads on top.
+// HIS OWN GROUPS ARE CLICKABLE; an ally's is not - a click target he cannot use
+// sitting on top of units he can is a way to lose orders. The click radius is
+// the group's own, chosen against the group's own icon size, and
+// TACT_fnc_onCommandClick tests individuals before groups so a man standing
+// under a group icon wins the tie.
 private _fnc_groupIcons = {
 	params ["_record", "_kind"];
 
@@ -230,10 +157,8 @@ private _fnc_groupIcons = {
 	]] call _fnc_item;
 
 	// Its own radius rather than the individuals', because it is drawn around
-	// the group's own icon size - and because it is the ruler the group icon is
-	// tuned against, which is a job that wants to move without moving theirs.
-	// The colour is the shared one: a selection is a selection, whatever kind
-	// of thing is in it.
+	// the group's own icon size and is the ruler STRAT_drawGroupArtScale is
+	// tuned against. Shared colour: a selection is a selection.
 	if (_selected) then {
 		[_id, _kind, _record, _anchor, "selectionRing", createHashMapFromArray [
 			["shape", "ellipse"],
@@ -280,15 +205,12 @@ private _fnc_groupIcons = {
 		_friendly
 	};
 
-	// The stock per-unit artwork, not a NATO box. A box means "a body of men of
-	// this type" and this is one man or one truck; and the box reads upright,
-	// so it has no way to show which way he is looking. The engine's own
-	// silhouette is asymmetric precisely so that rotating it does, which is
-	// where the facing below comes from.
+	// Stock per-unit artwork, not a NATO box: this is one man or one truck, and
+	// the silhouette is asymmetric so rotating it shows heading.
 	//
-	// The NATO class is still named, as the fallback: a vehicle whose config
-	// carries no icon draws as a box rather than as a blank, because a wrong
-	// symbol is legible and an empty one is a unit the player cannot identify.
+	// The NATO class is still named as the FALLBACK - a vehicle whose config
+	// carries no icon draws as a box rather than a blank, because a wrong
+	// symbol is legible and an empty one is a unit that cannot be identified.
 	[_id, "commandEntity", _entity, _anchor, "icon", createHashMapFromArray [
 		["shape", "icon"],
 		["texture", [
@@ -333,16 +255,14 @@ private _fnc_groupIcons = {
 // ------------------------------------------------------------------------ //
 // THE COMMANDER                                                             //
 // ------------------------------------------------------------------------ //
-// Emitted last so it draws over the units, and with no hit area: there is no
-// such thing as ordering yourself, and a click target sitting on top of the
-// men you are trying to select is a way to lose orders.
+// Emitted last so it draws over the units, and with NO hit area: there is no
+// such thing as ordering yourself, and a click target on top of the men being
+// selected is a way to lose orders.
 private _playerAnchor = getPosATL (vehicle player);
 
-// The same artwork as his men, because he is one of them - an individual on the
-// ground, not an aggregate. He was a b_hq flag while every icon was a NATO box
-// and that was the only way to tell him apart; the yellow does that job now,
-// and a flag among unit silhouettes reads as a command post rather than as the
-// man himself. TACT_commandPlayerIcon is the one line to change it back.
+// The same artwork as his men, because he is an individual and not an
+// aggregate; the yellow is what tells him apart. TACT_commandPlayerIcon is the
+// one line to change it back to a flag.
 ["CMD_PLAYER", "commander", createHashMap, _playerAnchor, "icon", createHashMapFromArray [
 	["shape", "icon"],
 	["texture", [

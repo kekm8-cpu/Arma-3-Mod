@@ -3,16 +3,16 @@
 
 	Description:
 		Closes a battle out and hands the survivors back to the strategic layer
-		(section 9, stages 9 to 11). Applies the classified outcome to each
-		army's standing order, moves each army's strategic position to where its
-		survivors actually ended up, syncs the battle back into data, deletes
-		the entities and the boundary, and clears `inBattle`.
+		(lifecycle stages 9 to 11). Applies the classified outcome to each army's
+		standing order, moves each army's strategic position to where its
+		survivors ended up, syncs the battle back into data, deletes the entities
+		and the boundary, and clears `inBattle`.
 
-		Position is taken before sync-back, because sync-back deletes the
-		entities that hold it. It is taken off each army's `men` records rather
-		than off its group, so a detachment the player split out on the map
-		still counts toward where the army ended up. An army whose record still claimed its pre-battle
-		position would teleport back onto the field it just left and re-engage.
+		Position is taken BEFORE sync-back, which deletes the entities that hold
+		it, and off each army's `men` records rather than off its group, so a
+		detachment the player split out still counts. An army whose record kept
+		its pre-battle position would teleport back onto the field it just left
+		and re-engage.
 
 		What the outcome does to the order:
 		  breakthrough - the order stands and the army marches on
@@ -21,8 +21,8 @@
 		  repulse      - the block is lost, the order is retired where it stands
 		  destroyed    - the army leaves the map
 
-		Marching back toward origin after a repulse, and spending the block time
-		a battle leaves over, are block-time accounting and are not done here.
+		Marching back toward origin after a repulse is post-battle march work
+		and is not done here.
 
 	Parameters:
 		0: HASHMAP - engagement record
@@ -63,16 +63,12 @@ private _armiesRemoved = [];
 	// ------------------------------------------------------------------ //
 	// 1. STRATEGIC POSITION, READ OFF THE SURVIVORS BEFORE THEY ARE GONE  //
 	// ------------------------------------------------------------------ //
-	// Off the ARMY RECORD, not off the group. A detachment the player split out
-	// on the map is a different group and the same army, so counting the group
-	// would leave its men out of the centre of mass the army's strategic
-	// position is taken from - and an army that detached a flanking element
-	// would come off the field standing wherever the rest of it happened to be.
-	// The same rule and the same reasoning as TACT_fnc_resolveVictory, which
-	// has the long version.
+	// Off the ARMY RECORD, not off the group: a detachment is a different group
+	// and the same army, so counting the group would leave its men out of the
+	// centre of mass. Same rule as TACT_fnc_resolveVictory.
 	//
-	// This runs BEFORE sync-back, which is what makes it possible: sync-back
-	// nulls every `obj` on its way through.
+	// Runs BEFORE sync-back, which is what makes it possible - sync-back nulls
+	// every `obj` on its way through.
 	private _living = [];
 	{
 		private _obj = _x getOrDefault ["obj", objNull];
@@ -137,11 +133,10 @@ private _armiesRemoved = [];
 // ------------------------------------------------------------------------ //
 // The groups the player split off with "New Group" are not either army's
 // deployed group, so the deleteGroup above does not reach them. They are
-// created deleteWhenEmpty and sync-back has just deleted every man in them, so
-// the engine takes them on its own; this is the backstop for the case where it
-// has not yet, and the one place the list is emptied.
+// deleteWhenEmpty, so the engine takes them on its own; this is the backstop,
+// and the one place the list is emptied.
 //
-// After sync-back, deliberately: deleteGroup on a group that still has men in
+// AFTER sync-back, deliberately: deleteGroup on a group that still has men in
 // it is refused, and until sync-back runs these groups still have men.
 if (isNil "TACT_commandDetachments") then { TACT_commandDetachments = [] };
 

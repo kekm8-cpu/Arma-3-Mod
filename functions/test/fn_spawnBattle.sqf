@@ -2,23 +2,19 @@
 	Function: TEST_fnc_spawnBattle
 
 	Description:
-		Build plan 1.5. Spawns a named engagement directly with fixed rosters,
-		bypassing the turn entirely: no planning phase, no order, no march, no
-		contact detection. Two armies exist, a battle opens between them, and
-		it runs to a classified conclusion through the same lifecycle a
-		detected contact does.
+		Spawns a named engagement directly with fixed rosters, bypassing the
+		turn entirely: no planning phase, no order, no march, no contact
+		detection.
 
-		It bypasses the turn but not the battle code. TACT_fnc_buildEngagement,
+		IT BYPASSES THE TURN, NOT THE BATTLE CODE. TACT_fnc_buildEngagement,
 		TACT_fnc_initiateBattle, TACT_fnc_runBattle and TACT_fnc_concludeBattle
 		are called exactly as STRAT_fnc_resolveTurn calls them, so what is
-		tested here is what ships. The only thing supplied by hand is the
-		block time the engagement believes it has, which the turn would
-		otherwise have counted down.
+		tested is what ships. The only thing supplied by hand is the block time
+		the engagement believes it has.
 
 		The battle runs asynchronously - TACT_fnc_runBattle sleeps - so this
 		returns as soon as deployment has succeeded or failed. The strategic
-		layer is returned to the planning phase once the fight ends, with
-		whoever survived standing where they finished.
+		layer returns to planning once the fight ends.
 
 	Parameters:
 		0: STRING or ARRAY - engagement name in TEST_engagements, or an inline

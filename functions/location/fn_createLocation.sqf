@@ -5,18 +5,17 @@
 		Creates a strategic location record and registers it in STRAT_locations.
 
 		Minimal per build plan 1.2: `id`, `type`, `position`, `owner`,
-		`garrison`, `flagPos`. `opinion` and per-location benefits are phase
-		3.8 and are deliberately absent rather than stubbed — an empty key
-		invites code to start reading it before the mechanic exists.
+		`garrison`, `flagPos`. `opinion` and per-location benefits are phase 3.8
+		and are absent rather than stubbed — an empty key invites code to read
+		it before the mechanic exists.
 
-		A garrison is a static roster, not an army. It carries `men` and
-		`vehicles` in exactly the record format an army uses, so sync-back and
-		deployment stay one code path, but it has no `pendingOrder`, no
-		`path`, no `speed`, and it never appears in activeArmies.
+		A garrison is a static roster, not an army: it carries `men` and
+		`vehicles` in the record format an army uses, so sync-back and
+		deployment stay one code path, but it has no `pendingOrder`, no `path`,
+		no `speed`, and never appears in activeArmies.
 
-		Ids are authored rather than minted. Locations are few, fixed, and
-		referenced by name from orders and from the test harness, so a stable
-		readable id beats a counter and serialises without a lookup table.
+		Ids are authored rather than minted — locations are few, fixed, and
+		referenced by name from orders and from the test harness.
 
 	Parameters:
 		0: STRING - unique id, e.g. "tanoa_plantation_north"
@@ -68,7 +67,7 @@ private _location = createHashMapFromArray [
 	["id", _id],
 	["type", _type],
 	["position", _position],
-	["owner", _owner],                  // Faction string, per section 8
+	["owner", _owner],                  // Faction string
 	["garrison", createHashMapFromArray [
 		["men", []],
 		["vehicles", []]

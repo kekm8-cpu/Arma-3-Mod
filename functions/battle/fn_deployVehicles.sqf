@@ -7,32 +7,25 @@
 		stored damage and hitbox state.
 
 		The column follows the approach road while there is road to follow and
-		continues along its last bearing after that. Previously the road path
-		was the only source of positions, so an army whose ends were both more
-		than 150 m from a road - fn_calculateRoadPath returns an empty array
-		for that - deployed no vehicles at all, and a path shorter than the
-		roster silently dropped the tail of it. Off-road deployment now costs
-		the column its road alignment and nothing else.
+		continues along its last bearing after that, so an army out of road
+		range (fn_calculateRoadPath returns nothing beyond 150 m) deploys
+		off-road rather than not at all.
 
-		Only as many vehicles are placed as the roster can put a driver in.
-		A vehicle nobody can crew is left with `obj` null, which fn_syncBack
-		reads as never deployed and returns to the army untouched - a truck
-		short of a driver sits out the battle rather than standing on the
-		field as a target that cannot move or shoot back.
+		Only as many vehicles are placed as the roster can put a driver in. A
+		vehicle nobody can crew is left with `obj` null, which fn_syncBack reads
+		as never deployed and returns untouched - a truck short of a driver sits
+		the battle out rather than standing on the field unable to move or
+		shoot.
 
 		fn_deployMen lays its foot formation out *behind* the same deployment
 		point, so the two do not contest the same ground.
 
-		Vehicles are placed stationary. They used to be injected with 30 km/h
-		of velocity along the column to read as a force caught mid-march, and
-		that stopped being safe: a partly mounted army's trucks pull away from
-		their own foot element before the AI has an order to obey, and an
-		off-road column - which is now a thing that happens - drives into the
-		scrub at speed, on ground it was placed on with CAN_COLLIDE and before
-		it has settled. fn_initiateBattle issues the group `move` in the same
-		frame, so the AI has them rolling within a second under its own
-		control; the mid-march read is carried by the column geometry and the
-		facing, which are still here.
+		VEHICLES ARE PLACED STATIONARY. Injecting column velocity to read as a
+		force caught mid-march is not safe now that part of a roster may be on
+		foot and a column may be laid out off-road: trucks pull away from their
+		own infantry before the AI has an order to obey, and an off-road column
+		placed with CAN_COLLIDE drives into the scrub before it has settled on
+		terrain. fn_initiateBattle issues the group `move` a frame later.
 
 	Parameters:
 		0: HASHMAP - army object

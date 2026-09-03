@@ -2,14 +2,12 @@
 	Function: STRAT_fnc_moveArmyAlongPath
 
 	Description:
-		Advances one army along its remaining "path" by a bounded slice of
-		block time, then returns. This is a single resolution pass, not a loop:
-		it does not sleep, does not spawn, and does not run to completion. The
-		turn loop calls it once per tick for every army so that they advance
-		concurrently.
+		Advances one army along its remaining "path" by a bounded slice of block
+		time, then returns. A single resolution pass, not a loop: it does not
+		sleep, does not spawn, and does not run to completion. The turn loop
+		calls it once per tick for every army so they advance concurrently.
 
-		The distance budget maths is the same as the old realtime version - a
-		per-slice metre budget consumed node by node, with a linear
+		A per-slice metre budget is consumed node by node, with a linear
 		interpolation along the final partial segment.
 
 	Parameters:
@@ -66,9 +64,9 @@ while {_budget > 0 && {count _path > 0}} do {
 	};
 };
 
-// The record owns the position, and now it is the only thing that does. The
-// campaign layer reads `location` straight off the record every frame the map
-// is drawn, so there is no view of it left to keep in step.
+// The record owns the position and is the only thing that does: the campaign
+// layer reads `location` off the record every frame the map is drawn, so there
+// is no view of it to keep in step.
 _army set ["location", _currentPos];
 
 // Unspent budget only survives when the route ran out early.

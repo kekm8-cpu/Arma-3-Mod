@@ -5,38 +5,29 @@
 		Puts one genuine WEST soldier on the ground near the drill's vehicle
 		probe and watches whether he opens fire on the player sitting in it.
 
-		This is the reciprocal of the question TEST_fnc_vehicleProbe asks. That
-		one asks whether our own men shoot our own transport. This asks whether
-		the ENEMY will shoot it, which is the direction that decides whether a
-		battle happens at all: if config side reaches the enemy's friend/foe
-		test, a cartel rifleman looks at a Hunter full of mercenaries and sees a
-		friendly truck. Nothing engages, nothing resolves, and the battle layer
-		quietly does nothing - a worse failure than the loud one that started
-		all this, because it looks like peace rather than like a bug.
+		The reciprocal of TEST_fnc_vehicleProbe's question, and the one that
+		decides whether a battle happens at all: if config side reaches the
+		ENEMY's friend/foe test, a cartel rifleman sees a Hunter full of
+		mercenaries as a friendly truck, nothing engages, and the battle layer
+		quietly does nothing - a failure that looks like peace.
 
 		He is a B_ class in a WEST group, so config side and group side agree
 		and he needs no conversion: whatever is wrong elsewhere, this man is
-		unambiguously WEST, which is what makes him usable as a measuring
-		instrument.
+		unambiguously WEST, which is what makes him a measuring instrument.
 
-		REVEALED, NOT ORDERED. He is handed knowledge of the target with
-		`reveal` and then left alone. Ordering him onto it with doTarget or
-		doFire would force the shot and prove nothing - the whole question is
-		whether his own friend/foe logic decides to take it. Revealing removes
-		"he never spotted it" as an explanation without answering the question
-		for him.
+		REVEALED, NOT ORDERED. `doTarget` would force the shot and prove
+		nothing - the question is whether his own friend/foe logic takes it.
+		Revealing only removes "he never spotted it" as an explanation.
 
-		The verdict is fire, not a side reading, for the reason the whole
-		investigation now runs on behaviour: the infantry bug was never visible
-		in a `side` call.
+		The verdict is FIRE, not a side reading: the infantry bug was never
+		visible in a `side` call.
 
 		A silent window is not automatically a failed one, and the report says
 		so. With the player inside a BLUFOR-classed vehicle there are two
-		friendly-looking things in front of this man - the vehicle and the
-		player, who is himself a B_ class carried onto INDEPENDENT - so the
-		report prints his relation to each and what he knows about each. The
-		clean way to separate them is to get out and stand in the open: shot on
-		foot but not in the truck is the truck.
+		friendly-looking things in front of this man, so the report prints his
+		relation to each and what he knows about each. To separate them, get out
+		and stand in the open: shot on foot but not in the truck is the
+		truck.
 
 	Parameters:
 		0: OBJECT - the vehicle the player is in, and the thing to be shot at

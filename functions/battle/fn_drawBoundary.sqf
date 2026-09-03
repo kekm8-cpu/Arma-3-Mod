@@ -40,8 +40,8 @@ if (_existingEHID != -1) then {
 if (!_showCircle) exitWith { true };
 
 // --- SETUP VARIABLES ON THE UI CONTROL ---
-// Since UI event handlers can't use _thisArgs, we stamp our variables 
-// directly onto the map control object so the draw loop can read them inline.
+// UI event handlers cannot take _thisArgs, so the variables are stamped onto
+// the map control itself for the draw loop to read inline.
 _mapCtrl setVariable ["TACT_mapBoundary_Pos", _midpoint];
 _mapCtrl setVariable ["TACT_mapBoundary_Radius", _radius];
 

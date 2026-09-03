@@ -6,68 +6,44 @@
 		but are NOT the group he is standing in, so the command layer can draw
 		each of them as a single icon over its leader.
 
-		This is one half of the tactical map's visibility rule; the other is
-		TACT_fnc_alliedGroups. The player's group is shown man by man because it
-		is the thing he commands and every icon in it is a click target.
-		Everything else is shown as one icon per group, because its internal
-		composition is not his to arrange from where he stands, and drawing
-		forty other soldiers individually buries his own eight.
+		One half of the tactical map's visibility rule; TACT_fnc_alliedGroups is
+		the other. The split between them is about CONTROL, not allegiance:
+		these are groups the command layer could one day order - a detached half
+		of his own group is the case group-level command exists for - and an
+		ally's never will be. Keeping the lists apart means that widening
+		reaches one and provably cannot reach the other.
 
-		The player's group is excluded rather than collapsed. Its members are
-		already drawn individually by TACT_fnc_commandEntities, so emitting a
-		group icon for it too would draw the same men twice: once as the units
-		he orders and once as a body he does not.
+		The player's own group is EXCLUDED rather than collapsed: its members
+		are already drawn individually by TACT_fnc_commandEntities, so a group
+		icon would draw the same men twice.
 
-		His side is what these groups have in common - a half of his group he
-		detached, a second contractor army that arrived to reinforce him, a
-		garrison of his faction holding the ground being fought over. All of
-		them are his side's, none of them is the group he is standing in, and
-		none of them is currently his to order. That last part is why they are
-		still separated from an ally: these are groups the command layer could
-		one day give orders to, and TACT_fnc_alliedGroups returns groups it
-		never will.
+		SIDE, NOT THE FACTION STAMP, because the stamp cannot answer this
+		question: a group the player detaches is created by the engine, not by
+		TACT_fnc_deployMen, so it carries no stamp and never will - and it is
+		the case this rule exists for. `side (group player)` rather than a
+		literal `independent`, so the rule follows whoever the player is.
 
-		Side rather than the faction stamp, deliberately, because the stamp
-		cannot answer this question. A group the player detaches is created by
-		the engine at the moment he splits it, not by TACT_fnc_deployMen, so it
-		carries no stamp and never will - and it is the case this rule exists
-		for. Side is what a detached group inherits for free, which is exactly
-		the property needed. `side (group player)` rather than a literal
-		`independent`, so the rule follows whoever the player is instead of
-		asserting who he must be. Those are the same side today: only the
-		player's faction maps to INDEPENDENT.
+		A narrower question than STRAT_fnc_areHostile's, and both are live:
+		hostility between armies is read from `faction`, and which groups are
+		the player's own on the field is read from `side`.
 
-		This is a narrower question than the one STRAT_fnc_areHostile answers,
-		and both are live. Hostility between armies decides who fights, and is
-		read from `faction` because the bloc table is the source of truth for
-		it. Which groups the player commands or fights beside is decided on the
-		field, where a detached half of his own group has to count and has
-		nothing but its side to say so with.
+		No spatial filter is needed to mean "in this battle" - the strategic
+		layer never spawns, so every group standing on a map is in the fight by
+		construction. The campaign avatar is excluded by name as a backstop; it
+		fails the side test already.
 
-		No spatial filter is needed to mean "in this battle". An army outside a
-		battle is a record with `obj` set to objNull - the strategic layer never
-		spawns - so every group of his standing on a map is in the fight by
-		construction. The campaign avatar is excluded by name: it is a CIVILIAN
-		placeholder and so fails the side test already, but the exclusion is
-		kept as the backstop for the day that changes.
-
-		Rebuilt every frame, for the same reason the entity list is: groups take
-		casualties and lose leaders mid-battle, and a cached list is how the
-		drawn and the real start to disagree.
+		Rebuilt every frame: groups take casualties and lose leaders mid-battle,
+		and a cached list is how the drawn and the real start to disagree.
 
 	Group keys:
 		group   GROUP  - the group itself
 		leader  OBJECT - what the icon is drawn over
 		anchor  ARRAY  - the leader's position, read once for the frame
 		men     ARRAY  - its living members
-		faction STRING - allegiance, and the key both draw tables are read with:
-		                 STRAT_drawFactionColour for the colour and
-		                 STRAT_drawFactionIcon for the silhouette, the same two
-		                 the campaign map uses. Resolved here rather than at
-		                 draw time so the detached group - which the engine
-		                 creates and which carries no stamp of its own - reaches
-		                 the draw already wearing the faction of the group it
-		                 came out of.
+		faction STRING - the key both draw tables are read with. Resolved HERE
+		                 rather than at draw time, so the detached group - which
+		                 the engine creates without a stamp - reaches the draw
+		                 already wearing the faction it came out of.
 
 	Parameters:
 		none

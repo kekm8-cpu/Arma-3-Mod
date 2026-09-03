@@ -3,19 +3,17 @@
 
 	Description:
 		The map control's Draw event handler. Picks which list the map is
-		showing and hands it to STRAT_fnc_drawItems, which is the only thing
-		that actually draws (section 11).
+		showing and hands it to STRAT_fnc_drawItems, the only thing that
+		actually draws.
 
-		The map has two modes and they do not overlap. Outside a battle it
-		shows the campaign: armies and locations across the whole island.
-		Inside one, with the player commanding on the ground, it shows the
-		fight: the player's own units, what is selected, and the routes they
-		have been given. The strategic icons stand down for the duration -
-		there are exactly two of them, they sit on top of the battle they
-		represent, and they would compete for the same clicks.
+		The map has two modes and they do not overlap: the campaign outside a
+		battle, the fight while the player is commanding one. The strategic
+		icons stand down for the duration - there are two of them, they sit on
+		top of the battle they represent, and they would compete for the same
+		clicks.
 
-		The mode switch lives here rather than in the attachment, so there is
-		one Draw handler on the control for the whole mission and the layers
+		The mode switch lives HERE rather than in the attachment, so there is
+		one Draw handler on the control for the whole mission and the two layers
 		cannot both think they own the canvas.
 
 		Runs every frame the map is open, so it must not sleep or spawn.
@@ -27,9 +25,9 @@
 		nothing
 */
 
-// A UI event handler passes the control in `_this`, and whether that arrives
-// bare or wrapped in a one-element array is not worth betting an empty
-// strategic map on. Both shapes are accepted.
+// A UI event handler passes the control in `_this`; whether that arrives bare
+// or wrapped in a one-element array is not worth betting an empty strategic map
+// on, so both shapes are accepted.
 private _map = controlNull;
 
 if (_this isEqualType controlNull) then {

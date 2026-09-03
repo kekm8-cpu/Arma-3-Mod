@@ -11,11 +11,9 @@
  * Returns: 
  * HASHMAP: The complete army object container.
  *
- * The record carries no presentation. It used to mint a map marker here and
- * hold its name, plus a marker type and colour to build it with; armies are
- * now drawn by the campaign layer (section 11), which derives icon and colour
- * from `faction` at draw time and stores neither. `location` was already
- * authoritative, so nothing that read this record lost information.
+ * The record carries no presentation at all: the campaign draw layer derives
+ * icon and colour from `faction` at draw time and stores neither, which is
+ * what makes "colour is never read back" structural.
  */	
 
 params [
@@ -26,8 +24,8 @@ params [
 ];
 
 // 1. Mint a unique id. Identity is compared on this, never with isEqualTo,
-// which content-compares HashMaps and produces false positives between two
-// armies that happen to hold the same roster.
+// which content-compares HashMaps and would produce false positives between
+// two armies holding the same roster.
 if (isNil "STRAT_nextArmyId") then { STRAT_nextArmyId = 0 };
 STRAT_nextArmyId = STRAT_nextArmyId + 1;
 private _id = format ["ARMY_%1", STRAT_nextArmyId];

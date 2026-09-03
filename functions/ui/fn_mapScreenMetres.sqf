@@ -2,31 +2,23 @@
 	Function: STRAT_fnc_mapScreenMetres
 
 	Description:
-		Returns how many world metres the map control currently spans across
-		the width of the screen. The raw measurement the whole scaling law is
-		built on, and the only place it is taken (section 11).
+		Returns how many world metres the map control currently spans across the
+		width of the screen. The raw measurement the whole scaling law is built
+		on, and the only place it is taken.
 
-		It lives on its own rather than inside STRAT_fnc_mapUnitMetres because
-		two different questions need it and they need different answers from
-		it. STRAT_fnc_mapUnitMetres asks "how many metres is one icon unit",
-		which is a policy question and has three answers depending on
-		STRAT_drawIconScaleMode. STRAT_fnc_drawItems additionally needs the raw
-		figure, because drawIcon's size arguments are screen space: turning a
-		world-metre size into a screen fraction means dividing by exactly this.
+		Separate from STRAT_fnc_mapUnitMetres because two questions need it:
+		that one asks how many metres an icon unit is, which is policy and has
+		three answers; STRAT_fnc_drawItems needs the raw figure, because
+		drawIcon's size arguments are screen space and converting a world size
+		into a screen fraction means dividing by exactly this.
 
-		Section 11's original problem was that a marker's rendered extent
-		cannot be queried - `getMarkerSize` returns the multiplier that was
-		set, not an extent, and the base dimensions sit in `CfgMarkers` behind
-		an engine constant. This sidesteps it rather than fitting it: map
-		screen space runs 0..1 across the control, so two points a known screen
-		distance apart give metres-per-screen exactly, at whatever zoom the
-		player is at right now. Nothing here depends on knowing what
-		`ctrlMapScale`'s number means.
+		MEASURED, not read off a config. A marker's rendered extent cannot be
+		queried and `ctrlMapScale`'s number means nothing on its own, but map
+		screen space runs 0..1 across the control - so two points a known screen
+		distance apart give metres-per-screen exactly, at the current zoom.
 
-		Cheap enough to call twice a pass. It is two ctrlMapScreenToWorld calls
-		and a square root, and the alternative - returning a pair and teaching
-		every caller to unpack it - buys a few microseconds at the cost of the
-		one clear question each function asks.
+		Cheap enough to call twice a pass: two ctrlMapScreenToWorld calls and a
+		square root.
 
 	Parameters:
 		0: CONTROL - the map control (display 12, control 51)

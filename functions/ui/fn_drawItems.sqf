@@ -2,38 +2,31 @@
 	Function: STRAT_fnc_drawItems
 
 	Description:
-		Renders a draw list onto a map control. The one renderer section 11
-		asks for: the campaign layer and the battle command layer both come
-		through here, so a strategic order arrow and a tactical route arrow
-		cannot be drawn by two different laws.
+		Renders a draw list onto a map control. THE one renderer: the campaign
+		layer and the battle command layer both come through here, so a
+		strategic order arrow and a tactical route arrow cannot be drawn by two
+		different laws.
 
 		Every item is POSITIONED through one metres-per-icon-unit figure,
-		resolved once for the whole pass. That is what makes an entity and its
-		adornments a single object rather than several icons that agree by
-		coincidence: there is only one anchor and one placement factor to pick
-		up, so a label, a ring and an order arrow cannot drift off the icon
-		they belong to at any zoom.
+		resolved once for the whole pass, so a label, a ring and an order arrow
+		cannot drift off the icon they belong to at any zoom.
 
 		Every item is SIZED by turning that same figure into a fraction of the
-		screen and handing it to drawIcon, because drawIcon's width, height and
-		text size are screen space rather than world metres. Both spaces are
-		driven by the one icon-unit figure, so they agree by construction: an
-		icon drawn at 0.85 units and a hit radius of 0.60 units stay in that
-		proportion under every scaling mode, and the drawn and the clickable
-		cannot come apart.
+		screen, because drawIcon's width, height and text size are SCREEN space
+		rather than world metres. Both spaces are driven by the one icon-unit
+		figure, so an icon at 0.85 units and a hit radius at 0.60 stay in
+		proportion under every scaling mode.
 
-		Which is also why no scaling mode appears in this function. Mode 0, 1
-		and 2 differ only in what STRAT_fnc_mapUnitMetres returns; the renderer
-		divides by the measured span and draws, and would not behave any
-		differently if a fourth mode arrived.
+		Which is why NO SCALING MODE APPEARS HERE. The modes differ only in what
+		STRAT_fnc_mapUnitMetres returns; this divides by the measured span and
+		draws, and would not behave differently if a fourth mode arrived.
 
 		Anything with a real extent on the ground - the boundary circle, where
 		an order arrow points, how far a shaft stands off an icon's edge - stays
-		in world metres and goes on scaling with the terrain, because those are
-		distances and not symbols.
+		in world metres and goes on scaling with the terrain.
 
-		Runs inside a Draw event handler, so it must not sleep, spawn, or
-		mutate state.
+		Runs inside a Draw event handler, so it must not sleep, spawn, or mutate
+		state.
 
 	Parameters:
 		0: CONTROL - the map control
@@ -60,11 +53,8 @@ if (_metresPerUnit <= 0) exitWith {};
 private _metresPerScreen = [_map] call STRAT_fnc_mapScreenMetres;
 if (_metresPerScreen <= 0) exitWith {};
 
-// One icon unit as a fraction of the screen's width, right now. This is where
-// the three scaling modes actually become visible: under mode 0 it is the
-// constant STRAT_drawIconScreenSize, under mode 1 it falls as the player zooms
-// out, and under mode 2 it is the first until the clamp bites and the second
-// after. The renderer does not know which - it divides, and the mode is
+// One icon unit as a fraction of the screen's width, right now. The renderer
+// does not know which scaling mode produced it - it divides, and the mode is
 // STRAT_fnc_mapUnitMetres's business.
 private _screenPerUnit = _metresPerUnit / _metresPerScreen;
 
@@ -122,31 +112,20 @@ private _fnc_head = {
 			// is what keeps the ring and the click area calibrated against it.
 			private _art = _item get "artScale";
 
-			// SIZE is icon units -> screen fraction -> drawIcon argument.
-			// POSITION went through _metresPerUnit above. That split is the
-			// whole of the scaling law and it is not a compromise: the two
-			// arguments live in two different spaces, and this is the one
-			// place that knows it.
+			// SIZE is icon units -> screen fraction -> drawIcon argument, while
+			// POSITION went through _metresPerUnit above. The two arguments
+			// live in two different spaces and this is the one place that knows
+			// it: multiplying the size by _metresPerUnit is what once made
+			// icons GROW as the player zoomed out.
 			//
-			// drawIcon's width, height and text size are screen space. They
-			// were once multiplied by _metresPerUnit on the assumption they
-			// were world metres, which is what made an icon grow as the player
-			// zoomed out - the factor that was supposed to cancel the zoom
-			// compounded it instead.
+			// Rotation is the item's own, and 0 for everything that is not an
+			// individual - a NATO box reads upright and an aggregate has no
+			// single facing to show.
 			//
-			// Rotation is the item's own, and is 0 for everything that is not
-			// an individual. The stock unit silhouettes are asymmetric and
-			// turning one is how the engine's map shows heading; a NATO box
-			// reads upright and an aggregate has no single facing to show, so
-			// those pass 0 and look the same as they always did.
-			//
-			// The two Arg scales are pure engine calibration: what number
-			// drawIcon wants for a given fraction of the screen. They carry no
-			// policy, which is why the scaling mode does not appear here. Two
-			// of them rather than one because width/height and text size do not
-			// share a base - a label is 0.30 icon units against an icon's 0.85
-			// by the constants, and those two only come out in that proportion
-			// on screen if each is converted through its own figure.
+			// The two Arg scales are pure engine calibration. Two of them
+			// rather than one because width/height and text size do not share a
+			// base, so each needs its own conversion to come out in the
+			// proportion the constants ask for.
 			_map drawIcon [
 				_item get "texture",
 				_colour,
@@ -183,10 +162,9 @@ private _fnc_head = {
 				private _length = sqrt ((_dx * _dx) + (_dy * _dy));
 				private _bearing = _dx atan2 _dy;
 
-				// The shaft starts at the icon's edge, not at its centre. An
-				// arrow drawn from the centre spends its first stretch
-				// underneath the icon it belongs to, and at low zoom that is
-				// most of a short order.
+				// The shaft starts at the icon's EDGE, not its centre: an arrow
+				// from the centre spends its first stretch underneath the icon
+				// it belongs to, which at low zoom is most of a short order.
 				private _edge = (_item get "fromEdge") * _metresPerUnit;
 
 				// A destination closer than the icon's own edge has no arrow
@@ -211,11 +189,8 @@ private _fnc_head = {
 		// one adornment of one entity however many legs it happens to have.
 		//
 		// Currently emitted by nothing. Kept rather than deleted because an
-		// unreachable case in a switch is inert - it cannot be entered, so it
-		// cannot surprise anyone or drift - and routes return as soon as
-		// group-level command has waypoint chains to draw. That is a different
-		// case from a conditional inside a live shape, which changes how that
-		// shape behaves for every caller and was removed with the held post.
+		// unreachable case cannot be entered and so cannot drift, and routes
+		// return with group waypoint chains.
 		case "polyline": {
 			private _points = _item get "points";
 

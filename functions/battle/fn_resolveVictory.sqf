@@ -2,28 +2,22 @@
 	Function: TACT_fnc_resolveVictory
 
 	Description:
-		Conclusion detection and outcome classification (section 9, stage 9).
+		Conclusion detection and outcome classification (lifecycle stage 9).
 		Evaluates the engagement's live victory conditions once and reports
 		whether the battle is over and what happened.
 
-		Classification is per army, not per battle, because the same act means
-		opposite things depending on direction: an army that leaves the boundary
-		toward its destination has broken through, and one that leaves away from
-		it has been repulsed. That is what makes withdrawal legible without a
-		separate "flee" mechanic.
+		Classification is PER ARMY, not per battle: leaving the boundary toward
+		its destination is a breakthrough and away from it a repulse, which is
+		what makes withdrawal legible without a separate "flee" mechanic.
 
-		Strength is read from each army's own `men` records rather than from
-		the group it deployed as, because those two are not the same set once
-		the player can detach men into a group of their own. See the counting
-		loop.
+		Strength is read from each army's own `men` records, not from the group
+		it deployed as - those two stop being the same set once the player can
+		detach men into a group of their own. See the counting loop.
 
 		Conditions evaluated here: annihilation, breakthrough, repulse. The
-		battle clock is not read here - TACT_fnc_runBattle owns it and forces
-		the conclusion when a fight reaches its cap without either side
-		breaking, which is what `_forceDisengage` reports.
-
-		Rout and surrender are listed in section 10.1 but need a morale model
-		and a surrender model. Neither exists, so neither is claimed here.
+		battle clock is TACT_fnc_runBattle's, which forces the conclusion at the
+		cap through `_forceDisengage`. Rout and surrender need a morale model
+		and the set-piece capture point, so neither is claimed here.
 
 	Parameters:
 		0: HASHMAP - engagement record
@@ -83,23 +77,15 @@ private _centroids = [];
 	private _army = _x;
 
 	// LIVING STRENGTH IS COUNTED OFF THE ARMY RECORD, not off the group it was
-	// deployed as. The two were the same set for as long as an army was one
-	// group; they stop being the same set the moment the player splits a
-	// detachment off on the map, and `units _group` would then miss every man
-	// in it. An army with half its men detached and fighting would read as half
-	// destroyed, and an army that detached everything would read as annihilated
-	// while it was winning.
+	// deployed as. The two stop being the same set the moment the player splits
+	// a detachment off, and `units _group` would then miss every man in it - an
+	// army that detached everything would read as annihilated while winning.
+	// Detaching does not touch the record, which is the same rule
+	// TACT_fnc_syncBack reads by.
 	//
-	// The record does not have that failure mode, because detaching does not
-	// touch it: a soldier record belongs to the army, and which group its body
-	// happens to be standing in is a fact about the battlefield rather than
-	// about the army. This is the "data records own the truth" invariant of
-	// section 12, and it is the same rule TACT_fnc_syncBack already reads by.
-	//
-	// A record with a null `obj` was never deployed - an infantry-only army
-	// that could not be placed, a man left behind - and is not on this field to
-	// be killed on it. Absent is not dead, which is exactly the distinction
-	// syncBack makes when it leaves those records untouched.
+	// A record with a null `obj` was never deployed and is not on this field to
+	// be killed on it: absent is not dead, the same distinction syncBack
+	// makes.
 	private _living = [];
 	{
 		private _obj = _x getOrDefault ["obj", objNull];
@@ -183,11 +169,10 @@ private _result = createHashMap;
 			private _dot = ((_toDestination select 0) * (_toExit select 0)) + ((_toDestination select 1) * (_toExit select 1));
 			_exitedForward = _dot > 0;
 		};
-		// An army with no standing order has no bearing to be measured
-		// against, so leaving the field can only read as breaking off. This is
-		// the interim rule for the ambiguous case; the fallback for a
-		// destination lying behind an army's own edge is still an open
-		// decision.
+		// An army with no standing order has no bearing to measure against, so
+		// leaving the field can only read as breaking off. Interim rule: the
+		// fallback for a destination lying behind an army's own edge is still
+		// an open decision.
 
 		private _byArmy = createHashMap;
 		_byArmy set [_army get "id", if (_exitedForward) then {"breakthrough"} else {"repulse"}];

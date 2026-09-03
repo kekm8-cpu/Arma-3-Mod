@@ -2,17 +2,13 @@
 	Function: STRAT_fnc_areHostile
 
 	Description:
-		Answers whether two factions are hostile to each other. `faction` is the
-		source of truth for allegiance, so this reads the faction strings and
-		never marker colour or the Arma side the units happen to be spawned on.
+		Answers whether two factions are hostile to each other. This is where
+		the blocs are decided (manifest section 8): it reads faction strings and
+		never colour or the Arma side the units are spawned on. Same bloc is a
+		rendezvous, not a battle.
 
-		Two blocs, per section 8: the player's contractors and their CSAT patron
-		against the druglords and their NATO backer. Same bloc is a rendezvous,
-		not a battle.
-
-		The faction→Arma-side map used at deployment is a separate concern
-		and lives in STRAT_fnc_factionSide. Sides are how the engine is told
-		about the blocs; this function is where the blocs are decided.
+		The faction->side map used at deployment is a separate concern and lives
+		in STRAT_fnc_factionSide.
 
 	Parameters:
 		0: STRING - first faction

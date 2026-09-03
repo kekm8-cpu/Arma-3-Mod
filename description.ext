@@ -1,28 +1,19 @@
 // ------------------------------------------------------------------------ //
 // BATTLE COMMAND CONTEXT MENU                                               //
 // ------------------------------------------------------------------------ //
-// The right-click menu the map's command mode opens over a selection. These
-// are CONTROL CLASSES rather than a dialog class: TACT_fnc_openContextMenu
-// builds the menu with ctrlCreate onto display 12, the map's own display,
-// instead of calling createDialog.
+// The right-click menu the map's command mode opens over a selection. CONTROL
+// CLASSES rather than a dialog class: TACT_fnc_openContextMenu ctrlCreates
+// these onto display 12, the map's own display, so the map keeps its input and
+// z-order settles itself - see manifest section 14.
 //
-// That is the difference that matters. A dialog is a display of its own and
-// would open on top of the map, taking focus from it; controls created on
-// display 12 are part of the map screen, so the map keeps its own input and a
-// click that misses the menu is still a click on the map. It also settles
-// z-order for free: a control created later draws over the ones already there,
-// and there are none created later than these.
+// Sizes are in the UI coordinate space ctrlSetPosition uses, which is the space
+// the mouse handlers report in, so the menu opens exactly at the cursor. The
+// figures are in init.sqf as fractions of the safe zone.
 //
-// The engine owns the geometry from here. Sizes are in the UI coordinate space
-// ctrlSetPosition uses, which is the same space the mouse event handlers report
-// their position in, so a menu can be put exactly where the cursor was. The
-// figures themselves are in init.sqf as fractions of the safe zone, which is
-// what keeps the menu the same size on a 1080p monitor and a 4K one.
-//
-// Colour lives HERE and not in init.sqf, unlike the rest of the layer's
-// presentation. A config class cannot read a mission variable, and a colour
-// declared in both places is a colour that will eventually disagree with
-// itself. The map's DRAWN colours stay in init.sqf; the menu's are these.
+// COLOUR LIVES HERE, unlike the rest of the layer's presentation: a config
+// class cannot read a mission variable, and a colour declared in both places
+// will eventually disagree with itself. The map's DRAWN colours stay in
+// init.sqf; the menu's are these.
 
 // The backing plate. Pale, and one margin larger than the rows on every side,
 // so what shows around them reads as a thin border rather than as a gap.
@@ -39,15 +30,13 @@ class TACT_RscMenuFrame {
     colorBackground[] = {0.85, 0.87, 0.90, 0.75};
 };
 
-// One row. A button rather than a static with a click handler, because a
-// button is what the engine already knows how to highlight under the pointer -
-// colorBackgroundActive is the hover state, and it costs nothing to have the
-// row light up the way every other button in the game does.
+// One row. A button rather than a static with a click handler, because the
+// engine already highlights a button under the pointer - colorBackgroundActive
+// is the hover state.
 //
-// The offsets and the sounds are zeroed deliberately. A stock button slides
-// down a pixel and clicks when pressed; a menu row that moves under the cursor
-// as it is chosen is a row that can be missed, and the click belongs to the
-// map's own soundscape rather than to the main menu's.
+// The offsets and sounds are zeroed deliberately: a stock button slides down a
+// pixel when pressed, and a row that moves under the cursor as it is chosen is
+// a row that can be missed.
 class TACT_RscMenuButton {
     idc = -1;
     type = 1;                        // CT_BUTTON
@@ -126,10 +115,8 @@ class CfgFunctions {
             class attachMapLayer {};
         };
     };
-    // Build plan 1.5. Harness only: named rosters, named starting states, and
-    // a named engagement spawned straight into a battle without a turn. It is
-    // a third prefix on purpose - it is neither strategic nor tactical layer,
-    // and keeping it separate is what makes it removable in one piece.
+    // Harness only, and a third prefix on purpose: neither layer may call it
+    // and it holds no state either layer reads, so it lifts out in one piece.
     class TEST {
         class Harness {
             file = "functions\test";

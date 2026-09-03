@@ -2,24 +2,22 @@
 	Function: STRAT_fnc_attachMapLayer
 
 	Description:
-		Owns the campaign draw layer's attachment lifecycle (section 11).
+		Owns the campaign draw layer's attachment lifecycle.
 
-		Display 12 does not exist while the map is closed, and a Draw handler
-		attached to a null control fails silently and renders nothing. Since
-		armies are drawn rather than marked, that failure is not cosmetic - it
-		is an empty strategic map - so attachment is driven by the map opening
-		and never by anything in campaign state changing.
+		DISPLAY 12 DOES NOT EXIST WHILE THE MAP IS CLOSED, and a Draw handler
+		attached to a null control fails silently and renders nothing - which,
+		with armies drawn rather than marked, is an empty strategic map. So
+		attachment is driven by the map opening and never by state changing.
 
-		Called once at boot. It installs a single scope that then owns the
-		lifecycle for the rest of the mission: wait for the map to be open and
-		its control built, attach, hold while it is open, and go round again on
-		the next opening. Map open is observed directly rather than taken from
-		a mission event handler, because the thing that actually has to be true
-		before attaching is that control 51 exists, and that is a frame or more
-		behind the event.
+		Called once at boot. It installs a single scope that owns the lifecycle
+		for the rest of the mission: wait for the map to be open and its control
+		built, attach, hold while it is open, go round again. Map open is
+		observed directly rather than taken from a mission event handler,
+		because what has to be true before attaching is that control 51 exists,
+		and that is a frame or more behind the event.
 
-		Three things attach, and they are here together because they share one
-		precondition - the map is open and its control exists - and one owner:
+		Four handlers, here together because they share one precondition and one
+		owner:
 
 		  Draw            the campaign layer, which picks its own list by mode
 		  MouseButtonDown records where a press started, and eats the CTRL press
@@ -28,44 +26,30 @@
 		  MouseButtonDblClick
 		                  eats the double click so the map does not drop a marker
 
-		Mouse handling is split across down and up because the map's own
-		panning is a click and drag. Acting on the press would fire an order
-		every time the player grabbed the map to move it, so a click is a
-		release that landed close to where its press did. The handlers are also
-		where CTRL comes from: `onMapSingleClick` reports SHIFT and ALT and
-		nothing else, and command-mode selection needs CTRL.
+		Mouse handling is split across down and up because the map's own panning
+		is a click and drag: acting on the press would issue an order every time
+		the player grabbed the map to move it, so a click is a release that
+		landed close to where its press did. These handlers are also where CTRL
+		and the RIGHT button come from - `onMapSingleClick` reports neither.
+		Left converts its position to the world, because an order is given at a
+		place on the ground; right passes the screen position straight through,
+		because a menu opens at the cursor.
 
-		TWO STOCK MAP GESTURES ARE TAKEN AWAY WHILE COMMANDING, and both for
-		the same reason: they are built out of the clicks this layer needs, so
-		the player cannot perform one without performing the other. CTRL+drag
-		draws a freehand line, and CTRL is how a selection is built up one
-		unit at a time. A double click drops a marker, and a double click is
-		two selections of the same unit. Each is consumed by the handler that
-		sees it first - the press for the line, MouseButtonDblClick for the
-		marker - on the narrowest condition that covers the clash, and nowhere
-		else does this layer consume anything. Both gestures still work on the
-		campaign map, where the player is planning rather than fighting.
+		TWO STOCK MAP GESTURES ARE TAKEN AWAY WHILE COMMANDING, because they are
+		built out of the clicks this layer needs: CTRL+drag draws a freehand
+		line and CTRL builds a selection; a double click drops a marker and is
+		also two selections of the same unit. Each is consumed by the handler
+		that sees it first, on the narrowest condition covering the clash, and
+		nowhere else does this layer consume anything. Both still work on the
+		campaign map.
 
-		The release handler is also where the
-		RIGHT button comes from, which `onMapSingleClick` does not report at
-		all. Both buttons go through the same press-and-travel test and then
-		split: left selects or orders, right opens the context menu. The left
-		button converts its position to the world, because an order is given
-		at a place on the ground; the right button passes the screen position
-		straight through, because a menu opens at the cursor and is made of
-		controls positioned in that same space.
-
-		While the map is open and the player is commanding, the stock squad bar
-		is hidden. It is checked every frame rather than switched once, so
+		The stock squad bar is checked every frame rather than switched once, so
 		command mode beginning or ending underneath an open map is handled by
 		the same line as the map opening.
 
-		Handler ids are stored on the control, so a re-attach removes its own
-		predecessors by id rather than clearing every handler on the map -
-		which would take the battle boundary's Draw handler with it. That
-		covers both engine behaviours: if the display is destroyed on close the
-		new control simply has no ids stored, and if it survives, the stale
-		handlers are removed before the new ones go on.
+		HANDLER IDS ARE STORED ON THE CONTROL, so a re-attach removes its own
+		predecessors by id rather than clearing every handler on the map - which
+		would take the battle boundary's Draw handler with it.
 
 		Must be called from a scope that can spawn.
 
@@ -118,21 +102,17 @@ STRAT_mapLayerRunning = true;
 		_map setVariable ["STRAT_campaignLayerEH", _drawId];
 
 		// The press is only remembered, never acted on: the map pans by click
-		// and drag, and an order issued on the press would fire every time the
-		// player grabbed the map to move it.
+		// and drag.
 		//
 		// It is also where the map's own CTRL+drag FREEHAND DRAWING is taken
-		// away. CTRL is the selection modifier - it is how a selection is built
-		// up one unit at a time - and the engine reads the same chord as "start
-		// drawing a line", so every unit added to a selection left a scribble on
-		// the map behind it. The line starts on the press, so the press is where
-		// it can be stopped: returning true consumes the event and the engine
+		// away - the engine reads the selection modifier as "start drawing a
+		// line", so every unit added to a selection left a scribble behind it.
+		// The line starts on the press, so returning true here means the engine
 		// never begins one.
 		//
-		// Consumed ONLY with CTRL down and ONLY while commanding, which is the
-		// whole of the overlap. A plain drag still pans, because that press is
-		// not consumed; drawing still works on the campaign map, because the
-		// player is not commanding there and CTRL means nothing to this layer.
+		// ONLY with CTRL down and ONLY while commanding, which is the whole of
+		// the overlap: a plain drag still pans, and drawing still works on the
+		// campaign map.
 		private _pressId = _map ctrlAddEventHandler ["MouseButtonDown", {
 			params ["_control", "_button", "_x", "_y", "_shift", "_ctrl"];
 			_control setVariable ["STRAT_mapPressAt", [_button, _x, _y]];
@@ -154,11 +134,8 @@ STRAT_mapLayerRunning = true;
 
 			// Command mode only, the button it started on, and only a release
 			// that landed on its own press - anything further is a pan, and a
-			// pan is not an order. The travel guard covers the right button as
-			// well as the left: the map does not pan on the right today, but
-			// putting one button under a different law than the other is how
-			// the two end up behaving differently for reasons nobody
-			// remembers.
+			// pan is not an order. The travel guard covers the right button
+			// too, so the two buttons stay under one law.
 			if (_commanding && {count _press == 3} && {(_press select 0) == _button}) then {
 				private _travel = sqrt (
 					(((_press select 1) - _x) ^ 2) + (((_press select 2) - _y) ^ 2)
@@ -167,16 +144,13 @@ STRAT_mapLayerRunning = true;
 				if (_travel <= STRAT_mapClickSlop) then {
 					private _world = _control ctrlMapScreenToWorld [_x, _y];
 
-					// The two buttons ask two different questions of the same
-					// selection: the left one changes it or orders it, the
-					// right one asks what can be done with it.
+					// Two questions of the same selection: left changes or
+					// orders it, right asks what can be done with it.
 					//
-					// And they take their position in two different spaces,
-					// which is not an inconsistency. An order is given at a
-					// place on the ground, so the left button converts to
-					// world. A menu opens at the cursor, so the right button
-					// hands on the screen coordinates untouched - they are
-					// already in the space ctrlSetPosition takes.
+					// Two coordinate spaces, deliberately: an order is given at
+					// a place on the ground, so left converts to world; a menu
+					// opens at the cursor, so right hands on the screen
+					// coordinates ctrlSetPosition already takes.
 					switch (_button) do {
 						case 0: { [_world, _ctrl, _shift] call TACT_fnc_onCommandClick };
 						case 1: { [[_x, _y]] call TACT_fnc_openContextMenu };
@@ -188,22 +162,16 @@ STRAT_mapLayerRunning = true;
 		}];
 		_map setVariable ["STRAT_mapReleaseEH", _releaseId];
 
-		// The map's other stock gesture, and the other one that collides. A
-		// double left click opens the insert-marker dialog, and on this map a
-		// double click is not a gesture at all - it is two selections of the
-		// same unit, which is what clicking a unit twice quickly looks like when
-		// the player is deciding. Reaching for a second click and getting a text
-		// box over the battlefield is the whole of the problem.
+		// The other colliding stock gesture: a double left click opens the
+		// insert-marker dialog, and on this map a double click is two
+		// selections of the same unit.
 		//
-		// Consumed rather than answered: this layer has nothing it wants to do
-		// with a double click, so it takes the event and returns nothing. The
-		// two clicks underneath it still arrive as their own presses and
-		// releases and still select, so the gesture degrades into what it should
-		// have been.
+		// Consumed rather than answered - the two clicks underneath still
+		// arrive as their own presses and releases and still select, so the
+		// gesture degrades into what it should have been.
 		//
 		// Left button and commanding only, on the same terms as the CTRL press
-		// above: the player keeps his own markers on the campaign map, where he
-		// is planning rather than fighting and a marker is a note to himself.
+		// above: markers still work on the campaign map.
 		private _doubleId = _map ctrlAddEventHandler ["MouseButtonDblClick", {
 			params ["_control", "_button"];
 
@@ -230,10 +198,8 @@ STRAT_mapLayerRunning = true;
 		};
 
 		// The map is closed: the stock commanding UI is the interface again,
-		// whether or not a battle is still running. A context menu does not
-		// survive that - its controls live on the map's display, so one left
-		// open is a menu the player cannot see, cannot dismiss, and would find
-		// waiting to eat his first click the next time he opened the map.
+		// whether or not a battle is still running. A context menu cannot
+		// survive that - its controls live on the map's display.
 		call TACT_fnc_closeContextMenu;
 		[false] call TACT_fnc_setCommandHud;
 	};

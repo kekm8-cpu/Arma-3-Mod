@@ -2,18 +2,15 @@
 	Function: TACT_fnc_detectContact
 
 	Description:
-		Post-movement contact detection (section 9, stage 4). Sweeps every
+		Post-movement contact detection (lifecycle stage 4). Sweeps every
 		unordered pair of active armies and returns the hostile pairs that have
 		closed inside the contact radius.
 
-		This is the turn-based replacement for the old realtime
-		`fn_battleDetectionLoop`. It collects pairs and returns them; it never
-		initiates a battle and never touches `activeArmies`, so the caller can
-		act once iteration has closed.
+		It COLLECTS pairs and returns them: it never initiates a battle and
+		never touches `activeArmies`, so the caller acts once iteration closes.
 
 		Pairs already fought this block are skipped. Without that, two armies
-		still standing within contact range of each other after a battle would
-		re-engage on the very next tick.
+		still inside contact range after a battle re-engage on the next tick.
 
 	Parameters:
 		none

@@ -2,32 +2,21 @@
 	Function: STRAT_fnc_armyFatigue
 
 	Description:
-		Derives an army-level fatigue value from its soldier records.
+		Derives an army-level fatigue value from its soldier records. Nothing
+		writes `exertion` yet (build plan 2.6), so this currently returns 0 for
+		every army; the interface is what exists, not the numbers.
 
-		Build plan 1.4. Deployment (section 9, stage 7) applies fatigue as
-		skill and morale modifiers and needs something to read; this is that
-		something. Nothing accumulates into `exertion` yet - per-block
-		accumulation, the effects at deployment, and the projection shown at
-		planning time are all build plan 2.6 - so in the current build this
-		returns 0 for every army. The interface is what is being fixed here,
-		not the numbers.
-
-		Derived, never stored. Fatigue is a property of the men, so the army
-		value is recomputed on demand rather than cached; an army that merges,
-		splits, or loses its most exhausted men gets the right answer with no
-		invalidation step. This also means it reads a garrison roster
-		unchanged, since a garrison carries the same `men` array.
+		Derived, never stored, so an army that merges, splits or loses its most
+		exhausted men needs no invalidation step. It also reads a garrison
+		roster unchanged, since a garrison carries the same `men` array.
 
 		Each soldier is curved individually and the results averaged, rather
-		than averaging exertion and curving once. Fatigue is the man's, and
-		one spent soldier in a fresh company should register as one spent
-		soldier rather than be smoothed away before the curve sees him.
+		than averaging exertion and curving once: one spent soldier in a fresh
+		company should register rather than be smoothed away before the curve
+		sees him.
 
-		The curve is the shape section 6 asks for: free below a threshold,
-		gentle for the first hour past it, steepening after. Its three
-		constants live in init.sqf and are placeholders - fatigue is tuned in
-		phase two against played battles, because its whole visible effect is
-		on the battlefield.
+		Curve shape and constants are manifest section 6; the constants live in
+		init.sqf and are untuned placeholders.
 
 	Parameters:
 		0: HASHMAP - army record, or any roster carrying `men` (a garrison

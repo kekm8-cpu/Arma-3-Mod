@@ -7,70 +7,41 @@
 
 		Built from REAL CONTROLS on display 12 - the map's own display - with
 		ctrlCreate, rather than drawn into the map layer or opened with
-		createDialog. Both alternatives were tried against this one:
-
-		  drawn      would put the menu under the map's scaling law, which is
-		             the tidier story and buys nothing. A rectangle, a font
-		             metric and a hover highlight all hand-rolled in world
-		             coordinates against a renderer built for map symbols, with
-		             every row's position described twice - once to draw it and
-		             once to hit-test it. The engine does all of that already.
-		  createDialog would open a display of its own on top of the map and
-		             take focus from it. The map would stop being the thing the
-		             player is interacting with for as long as the menu was up,
-		             and a click that missed the menu would be a click on a
-		             dialog rather than on the map underneath.
-
-		Controls on the map's display are neither. The map keeps its input, a
-		click that misses the menu is still a click on the map, and z-order
-		settles itself: a control created later draws over the ones already
-		there, and nothing is created later than these.
+		createDialog; manifest section 14 has the comparison. What it buys: the
+		map keeps its input, a click that misses the menu is still a click on
+		the map, and z-order settles itself because nothing is created after
+		these.
 
 		POSITION comes straight from the mouse. Control event handlers report
-		where the pointer is in the same coordinate space ctrlSetPosition takes,
-		so the menu's top-left corner is exactly where the click was, with no
-		conversion in between. It flips back over the cursor at the right or
+		the pointer in the same coordinate space ctrlSetPosition takes, so no
+		conversion is needed. It flips back over the cursor at the right or
 		bottom edge of the screen rather than opening off it.
 
-		THE ENTITY CONTAINER ONLY. The selection is two containers - men and
-		vehicles in TACT_commandSelection, whole groups in
-		TACT_commandGroupSelection - and all three of this menu's options are
-		orders for individuals. So a selection of nothing but groups opens
-		nothing, exactly as an empty selection does, and a mixed selection
-		offers the options for the individuals in it and leaves the groups
-		alone. That stops being the right answer the day a group has orders of
-		its own; until then, offering "Stop" over a body of men that cannot be
-		stopped would be a row that does nothing.
+		THE ENTITY CONTAINER ONLY. All three options are orders for individuals,
+		so a selection of nothing but groups opens nothing and a mixed selection
+		offers the options for the individuals in it. That stops being right the
+		day a group has orders of its own.
 
-		The menu addresses the SELECTION and never changes it. Right-clicking
-		is not a way to pick a unit, anywhere on the map, on or off an icon:
-		the selection is built with the left button and CTRL, and the right
-		button asks what can be done with it. A right-click landing on an
-		unselected man does not quietly discard the four the player spent four
-		clicks assembling.
-
-		Which is also why an empty selection opens nothing. There is no
-		general "map menu" here - every option acts on units, so with no units
-		there is no menu to open, and the click is silent rather than showing
-		a panel of dead entries.
+		The menu addresses the SELECTION and never changes it: the right button
+		asks what can be done, the left button picks. A right-click on an
+		unselected man does not discard the four the player spent four clicks
+		assembling - and an empty selection opens nothing at all rather than a
+		panel of dead rows.
 
 		Two options are always present and one is conditional:
 
 		  Stop      hold where you are, out of formation
 		  Regroup   resume your place in the commander's formation
-		  New Group split the selection off as a group of its own - only with
-		            two or more entities selected, because one entity is not a
-		            body of men and splitting it produces a group the player
-		            cannot yet address
+		  New Group split the selection off as a group of its own - two or more
+		            entities only
 
-		Each row CARRIES ITS OWN OPTION on the control, so nothing has to keep
-		a parallel list of what the rows are or what order they are in. A row
-		cannot run the wrong option, because the only place the option is
-		written down is the thing that was clicked.
+		Each row CARRIES ITS OWN OPTION on the control, so nothing keeps a
+		parallel list of what the rows are or what order they are in, and a row
+		cannot run the wrong option.
 
-		The selection is pruned first, against the live entity list, for the
-		same reason TACT_fnc_onCommandClick prunes - a casualty still sitting
-		in the selection would count toward the two entities "New Group" needs.
+		The selection is pruned first against the live entity list: a casualty
+		still sitting in it would count toward the two entities "New Group"
+		needs.
 
 	Parameters:
 		0: ARRAY - [x, y] screen position of the click, as the mouse event

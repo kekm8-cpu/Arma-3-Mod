@@ -5,16 +5,14 @@
 		Empties the strategic map so a scenario or a spawned engagement starts
 		from a known state. Deletes any entity an army record still points at,
 		then clears `activeArmies` and the selection. Nothing has to be
-		unmarked: an army is drawn from `activeArmies` every frame, so dropping
-		it from the array is what takes it off the map.
+		unmarked - an army is drawn from `activeArmies` every frame.
 
-		Records normally hold `objNull` - TACT_fnc_syncBack nulls every `obj`
-		on the way out of a battle - but a harness reset can land mid-battle,
-		so anything still on the ground is removed here rather than left
-		orphaned with no record pointing at it.
+		Records normally hold `objNull` (sync-back nulls every `obj` on the way
+		out of a battle), but a harness reset can land mid-battle, so anything
+		still on the ground is removed here rather than left orphaned.
 
-		Refuses while a block is resolving. STRAT_fnc_resolveTurn iterates
-		`activeArmies` across sleeps and clearing it underneath that loop would
+		REFUSES WHILE A BLOCK IS RESOLVING: STRAT_fnc_resolveTurn iterates
+		`activeArmies` across sleeps, and clearing it underneath that loop would
 		leave it walking freed records.
 
 	Parameters:
@@ -30,14 +28,11 @@ if (!isNil "STRAT_resolutionRunning" && {STRAT_resolutionRunning}) exitWith {
 };
 
 // A drill points at armies this function is about to delete, and one of their
-// men is the body the player is looking through. Control comes back BEFORE the
-// deletion pass, for the reason conclusion returns it before sync-back: the
-// alternative is a player looking through an object that no longer exists.
+// men is the body the player is looking through, so control comes back BEFORE
+// the deletion pass.
 //
-// This is the reset path, not the normal one. A drill is normally closed by
+// The reset path, not the normal one: a drill is normally closed by
 // TEST_fnc_endDrill, which reads the survivors back into the record first.
-// Arriving here means something cleared the map out from under it, and there
-// is nothing left to read back.
 if (!isNil "TEST_activeDrill" && {count TEST_activeDrill > 0}) then {
 	call TACT_fnc_dropOut;
 	TEST_activeDrill = createHashMap;

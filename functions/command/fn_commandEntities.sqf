@@ -5,30 +5,25 @@
 		Resolves the player's group into the things that can be drawn on the
 		map, clicked, and given a move order.
 
-		A command entity is not a soldier. Deployment mounts as many men as
-		there are seats, so a fully mounted group opens a battle inside one
-		MRAP: eight icons stacked on one point, seven of which cannot go
-		anywhere on their own. An entity is therefore either a dismounted
-		soldier or a vehicle carrying at least one of the group's men, which is
-		what the player actually has to move.
+		AN ENTITY IS NOT A SOLDIER. It is either a dismounted man or a vehicle
+		carrying at least one of the group's men - what the player actually has
+		to move. Without that, a fully mounted group opens a battle as eight
+		icons stacked on one MRAP, seven of which cannot go anywhere alone.
 
-		A partly mounted group - more men on the roster than seats in the
-		column - resolves to both kinds at once, and needs no special case
-		here: the men who did not fit are already on foot, so they are already
-		entities.
+		A partly mounted group resolves to both kinds at once and needs no
+		special case: the men who did not fit are already on foot.
 
-		That also settles what clicking a mounted man means. He resolves to his
-		vehicle, because his vehicle is the entity he is part of - selecting
-		the man and selecting the truck he is riding in are the same act.
+		It also settles what clicking a mounted man means - he resolves to his
+		vehicle, because that is the entity he is part of.
 
 		Each entity carries the units to actually order. For a soldier that is
-		himself; for a vehicle it is the driver, because a passenger given a
+		himself; for a vehicle it is the DRIVER, because a passenger given a
 		move order climbs out and walks. A vehicle whose driver is not ours
-		cannot be ordered and says so rather than silently ignoring clicks.
+		cannot be ordered and says so rather than ignoring clicks.
 
-		The player is never an entity. A commander cannot order himself, and
-		including him would make the group's own leader a click target sitting
-		on top of the units he is trying to select.
+		The player is never an entity: a commander cannot order himself, and
+		including him would put a click target on top of the units he is trying
+		to select.
 
 	Entity keys:
 		obj      OBJECT - what is drawn and hit-tested

@@ -7,13 +7,11 @@
 		the campaign draw list and selects what it landed on.
 
 		Selection resolves against the same list STRAT_fnc_drawCampaignLayer
-		renders, converted to metres through the same STRAT_fnc_mapUnitMetres
-		call, so what is clickable is what is drawn by construction. It used to
-		go through `ctrlMapMouseOver`, which resolved a marker under the
-		cursor; armies are drawn rather than marked now (section 11), so the
-		engine has nothing to resolve and the hit-test is ours to write. That
-		is the cost section 11 accepts, and it buys the alignment that a marker
-		with an unqueryable extent cannot give.
+		renders, converted through the same STRAT_fnc_mapUnitMetres call, so
+		what is clickable is what is drawn by construction. `ctrlMapMouseOver`
+		resolves a marker under the cursor and armies are not marked, so the
+		hit-test is written by hand here - the cost manifest section 11
+		accepts.
 
 		Clicks only do anything during the planning phase. An order does not
 		move anything - it is queued to the army's "pendingOrder" and takes
@@ -49,11 +47,9 @@ if (!isNil "STRAT_selectedArmy" && {STRAT_selectedArmy isEqualType createHashMap
     private _accepted = [STRAT_selectedArmy, _pos] call STRAT_fnc_issueOrder;
 
     if (_accepted) then {
-        // Dropping the variable is the whole of the deselection. The ring is
+        // Dropping the variable is the whole of the deselection: the ring is
         // emitted by the draw list only while it is set, so there is no
-        // presentation state to put back - which is what made the old
-        // half-alpha marker fragile, since every exit path, including the one
-        // a rejected order takes, had to remember to restore it.
+        // presentation state for any exit path to put back.
         STRAT_selectedArmy = nil;
     };
 
@@ -118,11 +114,9 @@ switch (_hitItem get "kind") do {
 		];
 	};
 
-	// A location has no mechanic to click yet - capture, ownership transfer
-	// and local opinion are phase 3.8 - so this reports the record and stops.
-	// It is here because the hit-test resolves whatever the draw list emits,
-	// and a group that draws but cannot be clicked at all would be the same
-	// drift in the other direction.
+	// A location has no mechanic to click yet (phase 3.8), so this reports the
+	// record and stops. It is here because a group that draws but cannot be
+	// clicked at all is the same drift in the other direction.
 	case "location": {
 		private _garrison = _record getOrDefault ["garrison", createHashMap];
 

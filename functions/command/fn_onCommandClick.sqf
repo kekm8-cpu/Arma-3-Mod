@@ -14,61 +14,36 @@
 		  on terrain    - with units selected, a move order to exactly those
 		                  units. With nothing selected, nothing at all.
 
-		TWO CONTAINERS, ONE SELECTION. A man is an object and a group is a
-		GROUP, so they are held in TACT_commandSelection and
-		TACT_commandGroupSelection separately - see init.sqf for why one array
-		would not do. The player is not asked to know that: a bare click
-		replaces both, so clicking a man clears the groups and clicking a group
-		clears the men, and only CTRL - which is how a selection is built up
-		deliberately - can hold the two kinds at once.
+		TWO CONTAINERS, ONE SELECTION. A bare click replaces both, so clicking a
+		man clears the groups and clicking a group clears the men; only CTRL can
+		hold the two kinds at once.
 
-		SELECTING A GROUP DOES NOT ORDER IT. A body of men has no map order
-		until group waypoints arrive, so a terrain click with groups selected
-		moves whatever individuals are selected and says what it did not do
-		with the rest. That last part is a departure from the silence below and
-		is deliberate: silence is for a click that addressed nobody, and a
-		player who selected a group and then clicked ground addressed
-		something. Telling him nothing there is how a feature that is not
-		finished looks like one that is broken.
+		SELECTING A GROUP DOES NOT ORDER IT - a body of men has no map order
+		until group waypoints arrive - so a terrain click with groups selected
+		moves the individuals and SAYS what it did not do with the rest. That is
+		the one departure from the silence rule below, because a click that
+		reached a deliberate selection is not an accidental click.
 
-		A FOURTH CASE SITS IN FRONT OF ALL THREE. The right button's context
-		menu is built from controls of its own, so a click on one of its rows
-		is consumed by that row and never reaches this function; a click that
-		DOES reach it while a menu is open is a click that missed the menu, and
-		it dismisses it and stops. It never falls through to a move order -
-		clicking away from a menu is how a player cancels, and answering that
-		with an order sends his men somewhere he was in the act of not asking
-		for. The menu is opened through TACT_fnc_openContextMenu; this function
-		only ever closes one.
+		A FOURTH CASE SITS IN FRONT OF ALL THREE: a click arriving here with the
+		context menu open is one that MISSED it, since a click on a row is
+		consumed by that row. It dismisses the menu and stops, never falling
+		through to a move order.
 
 		A terrain click addresses whoever is selected, and an empty selection
-		addresses nobody. It does not fall back to the whole group: the player
-		leads that group, so the only order it can be given from the map is one
-		that competes with him for control of his own subordinates. Whatever
-		the group does as a body it does by following him.
+		addresses nobody - it never falls back to the whole group, which the
+		player leads himself. Silent, because open ground is the easiest thing
+		on the map to click by accident.
 
-		Orders for a body of men will arrive as group-level command, where the
-		engine carries them - a group with no player in it executes an
-		addWaypoint chain natively. Until then this is silent rather than
-		hinted at: a click on open ground is the easiest click to make by
-		accident, and a line of chat every time is worse than nothing
-		happening.
+		Hit-testing runs against the list the map is DRAWING, filtered to items
+		that declared a hit radius and converted through the same
+		STRAT_fnc_mapUnitMetres call, so the click target is the drawn icon
+		rather than an approximation of it and what is not drawn cannot be
+		clicked.
 
-		Hit-testing runs against the list the map is drawing - the same
-		TACT_fnc_buildCommandList output, filtered to the items that declared a
-		hit radius - converted through the same STRAT_fnc_mapUnitMetres call.
-		The click target is therefore the drawn icon rather than an
-		approximation of it, and an entity that is not drawn cannot be clicked.
-		Hit radii are in icon units, so a unit stays as easy to click zoomed
-		out as zoomed in.
-
-		The selection holds objects and groups rather than the records they
-		came in, because the records are rebuilt every frame - a man who
-		dismounts stops being part of a vehicle entity and becomes one of his
-		own, and a group's membership and leader both change under fire. Stale
-		entries are pruned here against the live lists rather than left to
-		accumulate, and each kind is pruned against its own: a group tested for
-		membership of a list of objects is not stale, it is absent.
+		The selection holds objects and groups rather than the records they came
+		in, because the records are rebuilt every frame. Stale entries are
+		pruned here, each kind against its own live list: a group tested against
+		a list of objects is not stale, it is absent.
 
 	Parameters:
 		0: ARRAY - world position clicked
@@ -90,15 +65,9 @@ if (count _position < 2) exitWith { false };
 // ------------------------------------------------------------------------ //
 // A CLICK THAT REACHED THE MAP WITH A MENU OPEN IS A DISMISS                //
 // ------------------------------------------------------------------------ //
-// The menu's rows are controls of their own, so a click ON one is consumed by
-// it and never arrives here. A click that does arrive is therefore a click
-// that MISSED the menu, and there is exactly one thing that means.
-//
-// It stops here and does not fall through to the terrain click below.
-// Clicking away from a menu is how a player says "not that after all", and
-// answering it with a move order is the worst reading available - the men go
-// somewhere he never asked for, and the menu he was cancelling is what sent
-// them.
+// A click ON a row is consumed by that row and never arrives here, so a click
+// that does arrive MISSED the menu. It stops here and does not fall through to
+// the terrain click below.
 //
 // Before the map is measured, so a menu can be dismissed on a frame the scale
 // cannot be read on.
@@ -116,9 +85,9 @@ if (_metresPerUnit <= 0) exitWith {
 };
 
 // One list, built once, used for the hit-test, the prune and the order. The
-// commander's own items are in here too and are skipped by the hit radius
-// filter, because he was emitted without one - and so is every allied group,
-// which is how "an ally is never his" is enforced here rather than restated.
+// commander and every allied group are in it and are skipped by the hit-radius
+// filter, because they were emitted without one - which is where "an ally is
+// never his" is enforced, rather than restated here.
 private _list = call TACT_fnc_buildCommandList;
 
 private _entityItems = _list select {
@@ -134,10 +103,8 @@ if (count _entityItems == 0 && {count _groupItems == 0}) exitWith { false };
 private _entities = _entityItems apply {_x get "record"};
 
 // Prune first: anything that stopped being drawn since the last click - a
-// dismounted rider's vehicle, a casualty, a group wiped out or emptied into
-// another - is no longer selectable and must not sit in the selection soaking
-// up orders. Each kind against its own live list, because a group is not
-// missing from a list of objects, it was never eligible for one.
+// dismounted rider's vehicle, a casualty, a group wiped out - must not sit in
+// the selection soaking up orders. Each kind against its OWN live list.
 private _liveObjects = _entities apply {_x get "obj"};
 private _liveGroups  = _groupItems apply {(_x get "record") get "group"};
 
@@ -147,11 +114,9 @@ if (isNil "TACT_commandGroupSelection") then { TACT_commandGroupSelection = [] }
 TACT_commandSelection      = TACT_commandSelection select {_x in _liveObjects};
 TACT_commandGroupSelection = TACT_commandGroupSelection select {_x in _liveGroups};
 
-// Toggle in place, and the same operation for both kinds. CTRL is how a
-// selection is built up one thing at a time and also how a thing is taken back
-// out of one, so the same modifier has to do both directions. An index rather
-// than array subtraction because this has to be as right about two group
-// handles as it is about two objects.
+// Toggle in place, the same operation for both kinds: CTRL adds and removes.
+// An index rather than array subtraction, because this has to be as right about
+// two group handles as it is about two objects.
 private _fnc_toggle = {
 	params ["_selection", "_thing"];
 
@@ -159,11 +124,9 @@ private _fnc_toggle = {
 	if (_index < 0) then { _selection pushBack _thing } else { _selection deleteAt _index };
 };
 
-// What the player is holding, said in one line. An empty selection addresses
-// nobody - see the header - and the report used to claim orders fell back to
-// the whole group, which is what this function did before the fallback came
-// out; reading that while deselecting the last unit is how a working deselect
-// looks like a broken one.
+// What the player is holding, in one line. An empty selection addresses nobody
+// and the report must say exactly that - anything suggesting a fallback to the
+// whole group makes a working deselect look like a broken one.
 private _fnc_report = {
 	private _men    = count TACT_commandSelection;
 	private _groups = count TACT_commandGroupSelection;
@@ -179,11 +142,9 @@ private _fnc_report = {
 // ------------------------------------------------------------------------ //
 // WHAT WAS UNDER THE CLICK                                                  //
 // ------------------------------------------------------------------------ //
-// The individuals are tested BEFORE the groups and the comparison below is
-// strict, so a tie goes to the man. That is the case that decides whether
-// groups having an area at all costs anything: a group's icon sits over its
-// leader, and where the player's own man is standing at the same spot he is
-// the finer thing to have meant and stays as clickable as he was.
+// Individuals are tested BEFORE the groups and the comparison is strict, so a
+// tie goes to the man: a group's icon sits over its leader, and where his own
+// man is standing at that spot he is the finer thing to have meant.
 private _hitItem = createHashMap;
 private _hitDistance = -1;
 
@@ -204,10 +165,9 @@ private _hitDistance = -1;
 // AN ICON: SELECTION                                                        //
 // ------------------------------------------------------------------------ //
 // A bare click replaces the WHOLE selection, both containers, which is what
-// keeps two arrays reading as one selection. CTRL toggles inside the container
-// the clicked thing belongs to and leaves the other alone, so a mixed
-// selection is something the player builds rather than something he inherits
-// from the last click.
+// keeps two arrays reading as one. CTRL toggles inside the clicked thing's own
+// container and leaves the other alone, so a mixed selection is built
+// deliberately and never inherited.
 if (count _hitItem > 0) exitWith {
 	private _record = _hitItem get "record";
 
@@ -244,9 +204,8 @@ if (count _hitItem > 0) exitWith {
 // ------------------------------------------------------------------------ //
 // TERRAIN: A MOVE ORDER FOR THE SELECTION, OR NOTHING                       //
 // ------------------------------------------------------------------------ //
-// Silently, when nothing at all is selected. See the header: an empty selection
-// addresses nobody, and open ground is the easiest thing on the map to click by
-// accident.
+// Silently, when nothing at all is selected: an empty selection addresses
+// nobody, and open ground is the easiest thing on the map to misclick.
 if (count TACT_commandSelection == 0 && {count TACT_commandGroupSelection == 0}) exitWith { false };
 
 private _targets = _entities select {(_x get "obj") in TACT_commandSelection};
@@ -259,19 +218,16 @@ private _ordered = [
 if (_ordered > 0) then {
 	systemChat format ["%1 selected ordered to move.", _ordered];
 
-	// Said rather than swallowed, because SHIFT does something here and the
-	// player has every reason to expect it to stack.
+	// Said rather than swallowed: SHIFT does something elsewhere and the player
+	// has every reason to expect it to stack here.
 	if (_shift) then {
 		systemChat "An individual unit takes one destination. Routes are a group order.";
 	};
 };
 
-// A group in the selection took nothing, and is told so. This is the one place
-// the silence rule does not apply - a click that reached a deliberate selection
-// is not an accidental click - and it is where group orders plug in: the
-// engine executes an addWaypoint chain for a group with no player in it, which
-// is the whole reason orders for a body of men were held back to this level
-// rather than scripted at the individual's.
+// A group in the selection took nothing, and is told so - the one place the
+// silence rule does not apply. This is also where group orders plug in when
+// waypoint chains arrive.
 private _groups = count TACT_commandGroupSelection;
 
 if (_groups > 0) then {

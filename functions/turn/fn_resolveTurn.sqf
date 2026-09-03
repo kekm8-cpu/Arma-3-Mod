@@ -2,25 +2,17 @@
 	Function: STRAT_fnc_resolveTurn
 
 	Description:
-		Resolves one committed block (section 9, stage 3). Every army advances
-		concurrently against the same elapsed block time: one pass per tick
-		over all of them, not one army run to completion before the next
-		starts.
+		Resolves one committed block (lifecycle stages 3-13). Every army advances
+		concurrently against the same elapsed block time: one pass per tick over
+		all of them, not one army run to completion before the next starts. Each
+		tick applies a slice of block time to movement, then looks for contact
+		on the positions that movement just produced.
 
-		The block always resolves in compressed real time with the player
-		watching. The exchange rate between real seconds and block hours is
-		STRAT_realSecondsPerBlockHour.
-
-		Each tick applies a slice of block time to movement, then looks for
-		contact on the positions that movement just produced.
-
-		The two layers keep different clocks. Marching is compressed at
-		STRAT_realSecondsPerBlockHour; a battle runs at 1:1 real time and the
-		strategic clock holds while it does. When the battle ends, the block
-		clock is charged what the fight cost, everyone who was not in it is
-		advanced by that same amount, and the block carries on with whatever is
-		left. A battle's cost is clamped to the block it opened in, so no block
-		boundary ever holds a battle in progress.
+		The two clocks (manifest section 5) meet here. Marching is compressed at
+		STRAT_realSecondsPerBlockHour; a battle runs at 1:1 and the strategic
+		clock holds while it does, after which the block is charged what the
+		fight cost, everyone not in it is advanced by that same amount, and the
+		block carries on with what is left.
 
 		Must be spawned - this function sleeps.
 
@@ -82,10 +74,11 @@ while {_blockElapsed < _blockSecondsTotal} do {
 	// ------------------------------------------------------------------ //
 	// Evaluated after movement has been applied for this slice. Detection
 	// collects pairs and returns them; battles are opened out here, once
-	// iteration over activeArmies has closed.
+	// iteration over activeArmies has closed - activeArmies is never mutated
+	// while it is being walked.
 	//
-	// Ambush zones and location boundaries are the other two contact sources.
-	// Neither exists yet, so proximity is the only one evaluated.
+	// Ambush zones and location boundaries are the other two contact sources
+	// and neither exists yet, so proximity is the only one evaluated.
 	if (_blockHoursLeft > 0) then {
 		private _contacts = [] call TACT_fnc_detectContact;
 
@@ -107,10 +100,10 @@ while {_blockElapsed < _blockSecondsTotal} do {
 				// -------------------------------------------------------- //
 				// STAGES 8 AND 9: THE BATTLE, AT 1:1 REAL TIME              //
 				// -------------------------------------------------------- //
-				// The strategic clock holds while this runs. Marching armies
+				// The strategic clock holds while this runs: marching armies
 				// cannot advance in real time - forty minutes of it would be
-				// twenty blocks - so they are held and then advanced by what
-				// the battle cost, below.
+				// twenty blocks - so they are held and advanced below by what
+				// the battle cost.
 				private _battleRealSeconds = [_engagement] call TACT_fnc_runBattle;
 
 				TACT_activeEngagements = TACT_activeEngagements select {
@@ -172,9 +165,8 @@ while {_blockElapsed < _blockSecondsTotal} do {
 };
 
 // No battle can be in flight here: TACT_fnc_runBattle does not return until it
-// has concluded, and its block-time cost is clamped to the block it opened in.
-// A block boundary therefore never holds a battle in progress, which is what
-// makes it a save point.
+// has concluded, and its block-time cost is clamped to the block it opened in -
+// which is what makes a block boundary a save point.
 
 // Retire orders whose route has been walked out. An unfinished order stands
 // and carries into the next block.

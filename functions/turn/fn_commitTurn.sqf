@@ -2,13 +2,12 @@
 	Function: STRAT_fnc_commitTurn
 
 	Description:
-		Closes the planning phase (section 9, stage 2) and hands the block to
+		Closes the planning phase (lifecycle stage 2) and hands the block to
 		resolution. Every pending order becomes an active one and its route is
 		copied onto the army as the path remaining to walk this block.
 
-		Commitment is absolute: once this returns there is no further input
-		until the block ends. Orders are not cleared here - they must survive
-		into battle setup.
+		Orders are NOT cleared here: battle deployment reads the destination
+		back off pendingOrder, so it must survive into battle setup.
 
 	Parameters:
 		none
@@ -22,8 +21,8 @@ if (STRAT_turnPhase != "planning") exitWith {
 	false
 };
 
-// Drop the selection before input closes. Nothing has to be restored: the
-// selection ring is emitted by the draw list only while the variable is set.
+// Drop the selection before input closes. Nothing to restore - the ring is
+// emitted by the draw list only while the variable is set.
 STRAT_selectedArmy = nil;
 
 private _marching = 0;

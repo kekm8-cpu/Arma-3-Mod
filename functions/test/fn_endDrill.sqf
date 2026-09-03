@@ -6,28 +6,25 @@
 		counterpart of TEST_fnc_spawnDrill, and the only way a drill ends -
 		there is no opposition and therefore no victory condition to end it.
 
-		It is the conclusion half of TACT_fnc_concludeBattle with the parts
-		that need two sides taken out: no outcome to classify, no order to
-		retire, and no pair to record as resolved this block. What is left is
-		the teardown, and it runs in the same order and for the same reasons -
-		control back to the campaign avatar first, position read off the
-		survivors second, sync-back third - because those three are ordered by
-		what deletes what, and that does not change when the fight does.
+		TACT_fnc_concludeBattle's teardown with the parts that need two sides
+		taken out: no outcome to classify, no order to retire, no pair to record
+		as resolved. What is left runs in the same order and for the same
+		reason - dropOut first, position read off the survivors second,
+		sync-back third - because those three are ordered by what deletes what.
 
-		Deliberately not shared with TACT_fnc_concludeBattle. Reaching that
-		function with a one-sided record would mean teaching the campaign's
-		conclusion path about a case the campaign never has, and the harness is
-		meant to lift out whole.
+		Deliberately NOT shared with TACT_fnc_concludeBattle: reaching that
+		function with a one-sided record would teach the campaign's conclusion
+		path about a case the campaign never has, and the harness lifts out
+		whole.
 
 		Safe to call when no drill is running. Every path out of command mode
-		has to be able to call it - the key, the player's death, a drill being
-		replaced - and a teardown that has to be guarded by its callers is a
-		teardown that will eventually run twice.
+		has to be able to call it, and a teardown guarded by its callers is one
+		that will eventually run twice.
 
-		It also gives back what the drill borrowed rather than owned. The icon
-		probe seeds STRAT_drawTextureCache, which the campaign layer reads too,
-		so the seeded keys come back out here - by the list the drill recorded,
-		not by the switch that set it.
+		It also gives back what the drill borrowed: the icon probe seeds
+		STRAT_drawTextureCache, which the campaign layer reads too, so the
+		seeded keys come back out here - by the list the drill recorded, not by
+		the switch that set it.
 
 	Parameters:
 		none

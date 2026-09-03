@@ -4,20 +4,15 @@
 	Description:
 		Accrues NATO Aggression and returns the new balance.
 
-		This is the hook, not the mechanic. Build plan 1.3 asks for the
-		balance and the call point only: the accrual triggers, decay, display
-		and the druglords' spending of it are phase 3.7.
+		The hook, not the mechanic: accrual triggers, decay, display and the
+		druglords' spending of it are phase 3.7. It exists this early so the
+		explosive-ordnance paths built during the phase two battle deep dive
+		have somewhere to report.
 
-		It exists this early because aggression accrues from *tactical*
-		conduct - indirect fire, mines, collateral damage near civilians - so
-		every explosive-ordnance path built during the phase two battle deep
-		dive needs somewhere to report. A battle layer built with nothing to
-		report to means retrofitting all of those paths later.
-
-		Aggression only ever rises here. Decay is a scheduled tick that
-		belongs in STRAT_fnc_applyUpkeep on the day boundary (section 5), not
-		a negative passed through this function, so a negative amount is
-		rejected rather than quietly running the mechanic backwards.
+		Aggression only ever rises here. Decay is a scheduled tick in
+		STRAT_fnc_applyUpkeep, not a negative passed through this function, so a
+		negative amount is rejected rather than quietly running the mechanic
+		backwards.
 
 	Parameters:
 		0: NUMBER - aggression accrued (must be positive)

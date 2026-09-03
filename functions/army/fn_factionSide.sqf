@@ -2,27 +2,12 @@
 	Function: STRAT_fnc_factionSide
 
 	Description:
-		Maps a story faction onto the Arma side its units are spawned on, per
-		section 8.
+		Maps a story faction onto the Arma side its units are spawned on
+		(manifest section 8). Only the packing - allegiance itself is decided by
+		STRAT_fnc_areHostile, which reads faction strings and never sides.
 
-		`faction` stays the source of truth for allegiance — hostility is
-		decided by STRAT_fnc_areHostile, which reads faction strings and never
-		sides. This function is only the packing of four story factions into
-		Arma's four sides, so that engine-level relations, group AI and
-		targeting line up with the blocs rather than fighting them.
-
-			player    -> INDEPENDENT   friendly to EAST, hostile to WEST
-			csat      -> EAST          friendly to INDEPENDENT
-			drugLords -> WEST
-			nato      -> WEST          shares the cartel side with drugLords
-
-		Arma's side relations are global, so this map and the setFriend block
-		in init.sqf are two halves of one decision and must be changed
-		together. Putting drugLords on WEST is what buys NATO intervention for
-		free: the backer shares a side with the faction it backs.
-
-		Previously fn_deployMen put drugLords on EAST, which collided with
-		CSAT and made the patron and the cartel engine-level allies.
+		Arma's side relations are global, so this map and the setFriend block in
+		init.sqf are two halves of one decision and must change together.
 
 	Parameters:
 		0: STRING - faction string

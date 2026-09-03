@@ -2,21 +2,18 @@
 	Function: TACT_fnc_syncBack
 
 	Description:
-		Writes a battle back into data (section 9, stage 10). Reads condition
-		off every spawned entity into its owning record, drops the dead, nulls
-		every `obj`, and deletes the entities.
+		Writes a battle back into data (lifecycle stage 10). Reads condition off
+		every spawned entity into its owning record, drops the dead, nulls every
+		`obj`, and deletes the entities.
 
-		Data outlives entities: after this runs the army is a pure record again
-		and nothing about the battle survives in object form. This is the step
-		the persistence pillar rests on - anything not read here is lost when
-		the entities are deleted.
+		ANYTHING NOT READ HERE IS LOST when the entities are deleted: after this
+		runs the army is a pure record again.
 
-		Health is stored where 1.0 is pristine; Arma stores damage where 0 is
-		pristine. Every read here inverts once, on the way in, and nowhere else.
+		Health is stored where 1.0 is pristine; Arma stores damage where 0 is.
+		Every read here inverts once, on the way in, and nowhere else.
 
-		Records that were never deployed (`obj` is objNull - an infantry-only
-		army that could not be placed, a soldier left behind) are kept
-		untouched. Absent from the battle is not the same as dead in it.
+		Records that were never deployed (`obj` is objNull) are kept untouched -
+		absent from the battle is not the same as dead in it.
 
 	Parameters:
 		0: HASHMAP - army record

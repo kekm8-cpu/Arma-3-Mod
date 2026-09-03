@@ -2,22 +2,17 @@
 	Function: TACT_fnc_initiateBattle
 
 	Description:
-		Opens a battle from an engagement record (section 9, stage 7): places
-		both rosters, gives each group its marching orders, and draws the
-		boundary.
+		Opens a battle from an engagement record (lifecycle stage 7): places both
+		rosters, gives each group its marching orders, and draws the boundary.
 
-		The armies stay in `activeArmies` and are flagged `inBattle` instead of
-		being pulled out of it. Strategic resolution skips them while the flag
-		is up, and the return to the strategic map is then just clearing it -
-		nothing has to remember to put them back.
+		The armies stay in `activeArmies` and are flagged `inBattle` rather than
+		being pulled out of it, so the return to the strategic map is just
+		clearing the flag - nothing has to remember to put them back.
 
-		Deployment still converges both groups on the anchor: each army is
-		placed at its own strategic position facing the anchor, which is what
-		the engagement record's `deployment` key names as `midpointConverge`.
-		Placing each army at its own boundary edge facing its *destination*
-		bearing is part of the deployment split and is not done here yet - it
-		changes the two positions and two bearings computed below and nothing
-		inside the deployment routines themselves.
+		Deployment is still `midpointConverge`: each army placed where it
+		already stands, facing the anchor. Edge deployment facing the
+		destination bearing (2.1) changes the two positions and two bearings
+		computed below and nothing inside the deployment routines.
 
 	Parameters:
 		0: HASHMAP - engagement record (see TACT_fnc_buildEngagement)
@@ -40,11 +35,9 @@ private _radius   = _engagement get "boundaryRadius";
 _attacker set ["inBattle", true];
 _defender set ["inBattle", true];
 
-// 2. Deployment point and bearing per army. `midpointConverge` puts each one
-// where it already stands, facing the anchor, so the two forces are pointed at
-// each other along the line between them. Both deployment routines take these
-// rather than deriving them, which is what makes the geometry one thing that
-// changes in one place.
+// 2. Deployment point and bearing per army. Both deployment routines take
+// these rather than deriving them, which is what keeps the geometry one thing
+// that changes in one place.
 private _fnc_bearingTo = {
 	params ["_from", "_to"];
 	private _v = [(_to select 0) - (_from select 0), (_to select 1) - (_from select 1), 0];
@@ -79,11 +72,10 @@ private _defenderGroup = [_defender, _defenderPos, _defenderDir] call TACT_fnc_d
 _engagement set ["attackerGroup", _attackerGroup];
 _engagement set ["defenderGroup", _defenderGroup];
 
-// 5. Deployment can still legitimately produce nothing, though only for an
-// army whose roster is empty of men - infantry-only and partly mounted armies
-// both deploy now. A side that cannot field anybody must not be counted as
-// annihilated, so the engagement is abandoned and both rosters are put back
-// untouched.
+// 5. Deployment legitimately produces nothing for an army whose roster is
+// empty of men. A side that cannot field anybody must NOT be counted as
+// annihilated, so the engagement is abandoned and both rosters put back
+// untouched: the failure costs a battle, never a roster.
 if (count (units _attackerGroup) == 0 || {count (units _defenderGroup) == 0}) exitWith {
 	diag_log format [
 		"TACT Battle: deployment failed (%1: %2 units, %3: %4 units), engagement abandoned.",
@@ -103,10 +95,10 @@ if (count (units _attackerGroup) == 0 || {count (units _defenderGroup) == 0}) ex
 	false
 };
 
-// 6. Marching orders. Each group is sent toward its own strategic destination,
-// not at the enemy: the reason to advance is that there is somewhere to be, and
-// the block clock is what makes standing still expensive. An army with no
-// standing order has nowhere to be and holds at the anchor.
+// 6. Marching orders. Each group is sent toward its own strategic destination
+// rather than at the enemy - the block clock, not a tactical rule, is what
+// makes standing still expensive. An army with no standing order holds at the
+// anchor.
 {
 	_x params ["_army", "_group"];
 
@@ -126,10 +118,10 @@ if (count (units _attackerGroup) == 0 || {count (units _defenderGroup) == 0}) ex
 // 7. Draw the boundary the engagement actually enforces.
 [_anchor, true, _radius] call TACT_fnc_drawBoundary;
 
-// 8. If one of these armies is the player's, he leads it. Done after the
-// marching orders so the group already has somewhere to be when its new leader
-// arrives, and after the deployment check so a failed engagement never drops
-// him into a group that is about to be abandoned.
+// 8. If one of these armies is the player's, he leads it. After the marching
+// orders, so the group already has somewhere to be when its new leader
+// arrives, and after the deployment check, so a failed engagement never drops
+// him into a group about to be abandoned.
 [_engagement] call TACT_fnc_dropIn;
 
 // The turn loop owns the hint during resolution and refreshes it twice a
