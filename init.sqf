@@ -309,7 +309,7 @@ TACT_commandIconUnits = 0.85;   // Command icons sit slightly under an army icon
 // against STRAT_drawUnitArtScale - and it is split for the same reason. Tune
 // the appearance with the art scale; move this only when what a group MEANS
 // relative to a man has changed.
-TACT_commandGroupIconUnits = 1.00;
+TACT_commandGroupIconUnits = 8;
 
 // A GROUP IS A CLICK TARGET. These are its click radius and its selection ring,
 // and they are the group's own rather than the individuals' because they are
@@ -329,8 +329,8 @@ TACT_commandGroupIconUnits = 1.00;
 // art scale 1.00 the box's corners fall at 0.71 and the ring stands just
 // outside them, and the box reaches the ring at about 1.20. That is the mark to
 // tune the art scale against.
-TACT_commandGroupHitUnits  = 0.70;  // Click radius around a collapsed group
-TACT_commandGroupRingUnits = 0.85;  // Selection ring radius for a collapsed group
+TACT_commandGroupHitUnits  = 1;  // Click radius around a collapsed group
+TACT_commandGroupRingUnits = 3;  // Selection ring radius for a collapsed group
 
 // Yellow: the commander is not another unit to be ordered and should not read
 // as one.

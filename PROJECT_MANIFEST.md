@@ -1,34 +1,18 @@
 # Project Manifest — Strategic Layer Mod (Arma 3 / Tanoa)
 
-Attach this as project context. It describes the intended scope, the data model,
-current implementation state, and the invariants that must not be broken.
+Attach this as project context. It is a **design document**: scope, structure,
+the rules that must not be broken, and what is left to decide.
 
-**Revision note:** the strategic layer was originally prototyped as realtime.
-It is now specified as turn-based (WEGO). Sections 5, 7, and 14 reflect that
-decision; parts of the existing codebase still assume realtime and are flagged
-in section 14.
+It is deliberately not a technical reference. Function behaviour, parameters,
+and the reasoning behind any particular implementation live in the header blocks
+and comments of the code itself. If a statement here can only be verified by
+reading a `.sqf` file, it does not belong here.
 
-**Earlier revisions** added section 10, the battle type model, closing two open
-decisions (execution presentation, boundary enforcement) that the battle model
-forced; and replaced the flat milestone list with the three-phase build plan
-(section 16) — a strategic minimum, a battle-layer deep dive, then a return to
-the strategic layer and story progression. Sections 14 and 15 are annotated
-with the phase each item belongs to.
-
-**An earlier revision** added section 11, map rendering, and renumbered the
-sections after it. The first draft of it split the map between markers and a
-Draw layer. That split does not survive contact with the engine: marker extent
-cannot be queried, so nothing drawn beside a marker can be aligned to it or
-scaled with it. Section 11 now carries the rule that follows — one entity, one
-renderer — and armies move off markers entirely. Sections 1, 5, 7, 12, 14 and
-16 were updated accordingly.
-
-**This revision** adds section 13, SQF Quirks and Workarounds, and renumbers the
-sections after it. It exists because `createUnit` does not put a unit on its
-group's side, that cost a day to find, and the code that works around it looks
-like overwrought nonsense unless the finding is written down next to it. Entries
-go in when an engine behaviour contradicts what the documentation implies AND
-the code carries a workaround for it — not for every surprise.
+**The one exception is Appendix A, engine quirks.** Those are facts about Arma,
+not about this codebase — they outlive any function that currently works around
+them, they are what several of the design rules below exist to accommodate, and
+rediscovering one costs an afternoon. It is the only technical section in this
+document, and nothing else may grow into one.
 
 ---
 
@@ -52,21 +36,19 @@ The tactical layer is realtime Arma. The strategic layer is not.
 1. **Persistence over spectacle.** Soldiers are data first, entities second.
    Names, skill, health, and condition survive across battles. A named rifleman
    who takes a leg wound in battle three deploys wounded in battle four.
-2. **The favor economy.** Two mirrored currencies drive escalation:
-   - **CSAT Favor** — spent on rare CSAT vehicles, airstrikes, spec-ops
-     reinforcement, intel.
-   - **NATO Aggression** — accrues from the player's own conduct (indirect fire,
-     mines, collateral damage near civilians) and pays out the same categories
-     of asset to the druglords.
-   Every tactical shortcut has a strategic price. This is the central tension.
+2. **The favor economy.** Two mirrored currencies drive escalation. **CSAT
+   Favor** buys rare vehicles, airstrikes, spec-ops reinforcement and intel.
+   **NATO Aggression** accrues from the player's own conduct — indirect fire,
+   mines, collateral damage near civilians — and pays out the same categories of
+   asset to the druglords. Every tactical shortcut has a strategic price. This
+   is the central tension.
 3. **Commit, then live with it.** Orders are issued during a planning phase and
-   cannot be revised mid-block. The game rewards anticipation rather than
-   vigilance.
-4. **The map means something.** Docks, airfields, plantations, and towns confer
+   cannot be revised mid-block. The game rewards anticipation, not vigilance.
+4. **The map means something.** Docks, airfields, plantations and towns confer
    distinct benefits and carry distinct garrison strength. Airports are heavily
    defended and heavily rewarded.
-5. **Command, don't solo.** In battles the player attends, they issue orders
-   while personally vulnerable. In battles elsewhere, they may drop in as the
+5. **Command, don't solo.** In battles the player attends, he issues orders
+   while personally vulnerable. In battles elsewhere he may drop in as the
    army's commander or observe from above.
 
 ---
@@ -80,137 +62,69 @@ The tactical layer is realtime Arma. The strategic layer is not.
 | CSAT Favor | Completing CSAT objectives, restraint | Rare vehicles, airstrikes, spec-ops backup |
 | NATO Aggression | Collateral damage, explosive ordnance near civilians | *(Adversarial — spent by the druglords)* |
 
-Transport capacity is not a currency but functions as one. See section 6.
-
-Prisoners are a prospective resource. They are recorded on capture; their
-disposition is deferred. See section 10.
+Transport capacity is not a currency but functions as one (section 6).
+Prisoners are a prospective resource: recorded on capture, disposition deferred
+(section 9).
 
 ---
 
 ## 4. Conventions
 
-- **`STRAT_fnc_*`** — strategic layer. Lives in `functions\<domain>\`.
-- **`TACT_fnc_*`** — tactical layer: battle lifecycle in `functions\battle\`,
-  and the player's command of a deployed group in `functions\command\`.
-- **`TEST_fnc_*`** — test harness. Lives in `functions\test\`. Neither layer,
-  and deliberately a third prefix: everything under it is scaffolding for
-  development and comes out in one piece. Nothing in `STRAT_` or `TACT_` may
-  call it, and nothing in it may hold state the other two read.
-- All functions are registered in `description.ext` under `CfgFunctions`.
-- File naming is `fn_<name>.sqf`, matching the class entry.
-- Every function carries a header block: purpose, params, return.
-- Army/soldier/vehicle records are **HashMaps**, never arrays-by-index.
-- Data records own the truth; spawned entities are transient views of that data.
-
-### File layout
-
-```
-description.ext              CfgFunctions registry
-init.sqf                     World bootstrap, side relations, event hooks
-mission.sqm                  Player start
-functions/
-  army/                      fn_generateArmy, fn_addMan, fn_addVehicle,
-                             fn_areHostile, fn_factionSide, fn_armyFatigue
-  favor/                     fn_addAggression, fn_spendFavor
-  location/                  fn_createLocation, fn_getLocation,
-                             fn_addGarrisonMan, fn_addGarrisonVehicle
-  movement/                  fn_calculateRoadPath, fn_moveArmyAlongPath
-  turn/                      fn_beginPlanning, fn_issueOrder,
-                             fn_projectArrival, fn_commitTurn, fn_resolveTurn,
-                             fn_applyUpkeep, fn_advanceClock
-  command/                   fn_dropIn, fn_dropOut, fn_setCommandHud,
-                             fn_commandEntities, fn_playerGroups,
-                             fn_alliedGroups, fn_onCommandClick,
-                             fn_issueMoveOrder, fn_buildCommandList
-  ui/                        fn_onMapClick, fn_mapUnitMetres,
-                             fn_mapIconTexture, fn_buildDrawList,
-                             fn_drawItems, fn_drawCampaignLayer,
-                             fn_attachMapLayer
-  battle/                    fn_detectContact, fn_buildEngagement,
-                             fn_initiateBattle, fn_deployMen, fn_deployVehicles,
-                             fn_drawBoundary, fn_resolveVictory,
-                             fn_concludeBattle, fn_syncBack
-                             (planned) fn_captureLoop, fn_autoResolve
-  command/                   fn_dropIn, fn_dropOut, fn_setCommandHud,
-                             fn_commandEntities, fn_playerGroups,
-                             fn_alliedGroups, fn_onCommandClick,
-                             fn_issueMoveOrder, fn_buildCommandList
-  test/                      fn_buildArmy, fn_clearArmies, fn_setupScenario,
-                             fn_spawnBattle, fn_spawnDrill, fn_endDrill,
-                             fn_vehicleProbe, fn_hostileProbe, fn_probeReport
-```
+- **`STRAT_fnc_*`** — strategic layer.
+- **`TACT_fnc_*`** — tactical layer: battle lifecycle and the player's command
+  of a deployed group.
+- **`TEST_fnc_*`** — test harness. Neither layer, and a third prefix on purpose:
+  it is scaffolding and must come out in one piece. Nothing in `STRAT_` or
+  `TACT_` may call it, and nothing in it may hold state the other two read.
+- Army, soldier, vehicle and location records are **HashMaps**, never
+  arrays-by-index.
+- Data records own the truth; spawned entities are transient views of them.
+- Every function carries a header block: purpose, params, return. That header,
+  not this document, is where implementation detail is recorded.
 
 ---
 
 ## 5. The Turn Model
 
 **WEGO with fixed blocks.** Both sides plan, both sides commit, the block
-resolves simultaneously. Not IGOUGO — coordinated multi-asset operations
-require concurrent resolution.
+resolves simultaneously. Not IGOUGO — coordinated multi-asset operations need
+concurrent resolution.
 
 - **Block length: 4 hours.** Six blocks per day.
-- **No mid-block interruption.** Orders stand for the full block. This is the
-  commitment that distinguishes the model from realtime, and it must be
-  enforced without exception.
-- **Planning phase** — the player issues orders for every detachment and asset.
-  Projected outcomes (arrival times, fatigue on arrival, exposure) are shown
-  before commit.
-- **Execution phase** — the block resolves. Movement, contact detection, and
-  battle initiation all happen inside it. The player watches; they do not act.
+- **No mid-block interruption.** Orders stand for the full block, without
+  exception.
+- **Planning phase** — orders issued for every detachment, with projected
+  outcomes (arrival, fatigue on arrival, exposure) shown before commit.
+- **Execution phase** — movement, contact detection and battle initiation. The
+  player watches; he does not act.
 
 ### Execution is watched, always
 
-**Decision closed.** The block always resolves in compressed time with the
-player watching. Instant resolution with a report was the cheaper option and is
-rejected, for two reasons:
-
-1. It sells the simultaneity that justifies WEGO.
-2. It removes the ambush tell. If resolution is normally instant, then any
-   transition into the tactical layer is itself information. If watching is the
-   default, an ambush is just something that happens during a watch the player
-   was having anyway.
+The block always resolves in compressed time with the player watching. Instant
+resolution with a report was cheaper and is rejected: it sells the simultaneity
+that justifies WEGO, and it preserves the ambush. If resolution were normally
+instant, any transition into the tactical layer would itself be information.
 
 ### Battle time is block time
 
-A tactical battle is paid for out of the block it occurs in, and when it
-concludes, whatever block time remains is spent continuing the strategic march.
+The two layers keep different clocks. Marching is compressed — a block is a
+couple of minutes of watching. The tactical layer runs at 1:1; a firefight is
+what the game is about and there is nothing in it worth compressing.
 
-**The two layers keep different clocks.** The strategic execution phase is
-compressed — a whole block is a couple of minutes of watching icons move. The
-tactical layer is realtime Arma and runs at 1:1: a firefight is the thing the
-game is about and there is nothing in it worth compressing.
+Battle time and block time run **one for one**. The battle clock caps a fight,
+so a full-length battle spends a fixed share of the block and a shorter one
+costs proportionally less. A battle always gets its full length whenever it
+starts, but its cost is clamped to the block time left when it opened — so
+fighting late in a block is cheaper than fighting early. That is accepted;
+truncating a real battle at a bookkeeping line is the worse trade.
 
-Battle time and block time run **one for one**: a minute of fighting is a minute
-of the block. The battle clock caps a fight at 40 real minutes, so a
-full-length battle spends 40 of a block's 240 minutes and a shorter one costs
-proportionally less. Only marching is compressed; the fight is not.
+Consequences that are load-bearing:
 
-A sixth of a block understates what that costs. Tanoa's longest road route is
-roughly 12–14 km, about 28 minutes of block time at 30 km/h — so a full-length
-battle burns more block time than crossing the island. Time in cover is
-distance not covered, measured against the marches people actually make rather
-than against the block.
-
-**A battle always gets its full length, whenever in the block it starts.** Its
-cost is clamped to the block time that was left when it opened, so a battle
-beginning ten block-minutes before the boundary still plays out in full but
-costs ten minutes. Fighting inside the last 40 minutes of a block is therefore
-cheaper than fighting earlier in one. That is accepted: truncating a real battle
-at a bookkeeping line would be the worse trade.
-
-This is the mechanism that gives open field battles their pressure. Time spent
-hunkered in cover is distance not covered, and it is felt on the strategic map
-rather than enforced by a tactical rule. It follows that:
-
-- The battle clock is a load-bearing mechanic, not UI decoration. It is
-  displayed, counting down the real time left before the fight breaks off,
-  alongside the block time the fight has burned.
-- A battle cannot span a block boundary. If the battle clock runs out with
-  neither side broken, the engagement ends in **mutual disengage** — both armies
-  separate, fatigue is applied, no ground changes hands.
-- The strategic clock holds while a battle runs; armies not in it are advanced
-  by the battle's block-time cost once it ends. Concurrent resolution is
-  preserved, but that movement is not watched — the player was fighting.
+- The battle clock is a mechanic, not decoration. It is displayed.
+- A battle cannot span a block boundary. Clock expiry with neither side broken
+  is **mutual disengage** — both separate, no ground changes hands.
+- The strategic clock holds while a battle runs; armies elsewhere are advanced
+  by the battle's block-time cost once it ends, unwatched.
 
 ### Clock decoupling
 
@@ -221,296 +135,164 @@ Systems tick at different multiples of the block. Do not assume one rate.
 | Movement, contact, battle | Every block (4h) |
 | Fatigue accumulation | Every block |
 | Wages, upkeep, income | Every 6 blocks (daily) |
-| NATO aggression decay | TBD, likely every 6 blocks |
+| NATO aggression decay | TBD, likely daily |
 | Recruitment availability | TBD |
 
 ### Save points
 
-Block boundaries are natural save points with no in-flight state. Serialization
-happens between blocks only. Since no battle spans a block boundary, no save
-ever contains a battle in progress.
+Block boundaries are natural save points with no in-flight state. Since no
+battle spans a boundary, no save ever contains a battle in progress.
 
 ---
 
 ## 6. Movement, Gating, and Fatigue
 
-### Distance is not the limiter
+**Distance is not the limiter.** Tanoa's longest road route is roughly 12–14 km;
+any vehicle crosses the island inside one block. Accepted rather than fought —
+taxing movement inside owned ground is the least interesting friction.
 
-Tanoa's longest road route is roughly 12–14 km. Any vehicle crosses the island
-inside one block. This is accepted rather than fought: a contractor operating in
-secured territory genuinely can reposition freely, and taxing movement inside
-owned ground is the least interesting form of friction.
+**Gating is by control.** Movement is free within controlled territory.
+Expansion is gated by **strongholds**: cartel positions that must be cleared
+before the player can push further without triggering an engagement. The
+frontier is the constraint.
 
-### Gating is by control, not by distance
+**Route choice matters, route length does not.** Pathfinding earns its keep by
+shaping **exposure** — contested routes risk interception, safe routes are
+longer. Surfaced at planning time as visible information, never a hidden roll.
+Route choice also determines ambush exposure.
 
-Movement is unrestricted within controlled territory. Expansion is gated by
-**strongholds** — cartel positions that must be cleared before the player can
-push further without triggering an engagement. The frontier is the constraint.
-
-### Route choice matters, route length does not
-
-Since length is free, `fn_calculateRoadPath` earns its keep by shaping
-**exposure**. Routes through contested ground risk interception; routes that
-stay inside friendly influence are safe but longer. This trade is surfaced in
-the planning phase as visible information, not resolved as a hidden roll.
-
-Route choice also determines ambush exposure. See section 10.3.
-
-### Fatigue is the cost of foot movement
-
-Marching accumulates fatigue, which degrades combat effectiveness and morale.
-The intended long-term model is a **24-hour cycle tracked per soldier**:
-cumulative exertion builds across blocks and is reset by 8 hours of sleep (two
-blocks). This makes marching all day cost a night rather than a single block,
-so rest is a real decision instead of a free recovery.
-
-Design constraints on fatigue:
+**Fatigue is the cost of foot movement.** The intended model is a 24-hour cycle
+tracked per soldier: exertion builds across blocks and is reset by 8 hours of
+sleep. Marching all day costs a night, not a block, so rest is a real decision.
 
 - **Transport clears it.** Riding arrives fresh. This is what makes vehicle
   availability the genuine scarcity in the game.
-- **It must carry a strategic cost, not only a combat modifier.** Exhausted
-  formations move slower, respond poorly to interception, or shed stragglers.
-  Otherwise fatigue only penalises attacking, which is backwards for a campaign
-  about pushing outward.
-- **It must be visible before commit.** Under a no-interruption model, a hidden
-  penalty discovered after resolution reads as unfair.
-- **Curve:** gentle for the first hour past threshold, steepening after. If the
-  penalty at four hours isn't bad enough to make arriving a block later look
-  attractive, the system isn't doing any work.
+- **It must carry a strategic cost, not only a combat modifier.** Otherwise it
+  only penalises attacking, which is backwards for a campaign about pushing out.
+- **It must be visible before commit.**
+- **Curve:** free below a threshold, gentle for the first hour past it,
+  steepening after. If four hours isn't bad enough to make arriving a block
+  later look attractive, the system is doing no work.
 
-**Implementation staging:** fatigue lives on the soldier record from the start
-(`exertion`, `hoursSinceSleep`) so detachments can merge and split without
-inheriting each other's condition. The full sleep-cycle simulation is deferred;
-an army-level fatigue value computed *from* the soldier records is an acceptable
-interim stand-in.
+Fatigue lives on the soldier from the start so detachments can merge and split
+without inheriting each other's condition. An army-level value derived from the
+soldier records is the interim stand-in for the full sleep cycle.
 
-### Aircraft
+**Aircraft** are deliberately unconstrained by range — limited by availability,
+favor cost and NATO detection. Do not fight the fantasy of having a helicopter.
 
-Deliberately unconstrained by range. Limited instead by availability, favor
-cost, and NATO detection. Do not fight the fantasy of having a helicopter.
-
-### Fuel
-
-Deferred, and only worth building if **sourcing** is the interesting part. A
-meter that drains and refills at friendly bases is bookkeeping. Fuel drawn from
-specific captured locations, carried forward by convoys, and vulnerable to
-raiding is a supply-line game and reinforces the value of docks and airfields.
-Aviation fuel gated behind captured airfields is the strongest version.
+**Fuel** is deferred, and only worth building if *sourcing* is the interesting
+part. A meter that refills at friendly bases is bookkeeping. Fuel drawn from
+captured locations, carried by convoys and vulnerable to raiding is a supply
+game, and aviation fuel gated behind captured airfields is the strongest form.
 
 ---
 
 ## 7. Data Model
 
-### Army (HashMap)
+Field lists only. Semantics of individual keys are documented where they are
+read.
 
-| Key | Type | Notes |
-|---|---|---|
-| `id` | STRING | Unique. Identity comparison uses this, never `isEqualTo` |
-| `name` | STRING | Display name |
-| `location` | ARRAY | World position, authoritative on the strategic map |
-| `path` | ARRAY | Road objects remaining to traverse this block |
-| `speed` | NUMBER | km/h, used to resolve progress within a block |
-| `faction` | STRING | `"player"`, `"drugLords"`, `"csat"`, `"nato"` |
-| `men` | ARRAY of HashMap | Soldier records |
-| `vehicles` | ARRAY of HashMap | Vehicle records |
-| `pendingOrder` | HASHMAP | Order committed during planning, consumed on resolve |
-| `inBattle` | BOOL | Suppresses strategic resolution |
-| `prisoners` | ARRAY of HashMap | Captured soldier records held by this army |
-
-`isMoving` is a realtime artifact and is replaced by `pendingOrder`. `marker`
-is gone: armies are drawn, not marked (section 11). `location` was already
-authoritative, so nothing that read the record lost information. The record now
-carries no presentation at all — icon and colour are derived from `faction` by
-`STRAT_fnc_buildDrawList` at draw time and stored nowhere, which is what makes
-the "colour is never read back" invariant structural rather than a rule to
-remember. `STRAT_fnc_generateArmy` correspondingly lost its marker type and
-colour parameters: it now takes `[name, position, speed, faction]`.
+**Army:** `id`, `name`, `location`, `path`, `speed`, `faction`, `men`,
+`vehicles`, `pendingOrder`, `inBattle`, `prisoners`.
+*Planned:* `supplies`, `morale`, `homeLocation`, `transportCapacity`.
 
 The army's **destination** lives on `pendingOrder`, not on the army. Battle
-deployment reads it from there to compute facing (section 10.1), so
-`pendingOrder` must survive into battle setup and must not be cleared at commit.
+deployment reads it to compute facing, so `pendingOrder` must survive into
+battle setup and must not be cleared at commit. The record carries no
+presentation at all — icon and colour are derived from `faction` at draw time.
 
-*Planned additions:* `supplies`, `morale`, `homeLocation`, `transportCapacity`.
+**Soldier:** `className`, `health`, `skill`, `isLeader`, `isPlayer`, `obj`,
+`exertion`, `hoursSinceSleep`.
+*Planned:* `name`, `xp`/`rank`, `loadout`, `woundState`, `captureInfo`.
 
-### Soldier (HashMap)
+`isPlayer` marks the one man whose body the player takes when his army fights.
+It changes nothing else about the record.
 
-`className`, `health` (1.0 = healthy), `skill`, `isLeader`, `isPlayer`, `obj`
-(objNull when not deployed), `exertion`, `hoursSinceSleep`.
+**Vehicle:** `className`, `health`, `hitboxes`, `obj`.
+*Planned:* `fuel`, `ammoState`, `crewAssignments`, `seats`.
 
-`isPlayer` marks the one man in an army whose body the player takes when that
-army fights. It changes nothing about the record: he is spawned, counted,
-wounded, killed and synced back exactly like every other soldier, and the flag
-is read in one place, by `TACT_fnc_dropIn`, after deployment. If he dies his
-record is dropped like any other casualty and the army fights its next battle
-with nobody flagged.
+**Engagement:** `id`, `type`, `attacker`, `defender`, `boundaryAnchor`,
+`boundaryRadius`, `deployment`, `victoryConditions`, `blockTimeRemaining`, plus
+`capturePoint` (set-piece) and `sprung` (ambush). Built before deployment; the
+lifecycle reads it rather than branching on battle type.
 
-`exertion` and `hoursSinceSleep` are present and default to 0. Nothing writes
-to them yet — accumulation is 2.6 and the sleep cycle is 3.10 — but
-`STRAT_fnc_armyFatigue` already derives an army-level value from `exertion`, so
-deployment has something to read.
+**Location:** `id`, `type`, `position`, `owner`, `garrison`, `flagPos`. Ids are
+authored, not minted. A garrison is a static roster, not an army: it shares the
+soldier and vehicle record formats so sync-back is one code path, but it has no
+`pendingOrder`, does not move, and never enters `activeArmies`.
+*Planned:* `opinion` and per-location benefits (phase 3.8) — deliberately absent
+rather than stubbed, since an empty key invites code to read it early.
 
-*Planned additions:* `name`, `xp`/`rank`, `loadout`, `woundState`, `captureInfo`
-(when, where, from which faction).
-
-### Vehicle (HashMap)
-
-`className`, `health` (1.0 = healthy), `hitboxes` (HashMap of hitpoint name →
-damage 0–1, read from `CfgVehicles` without spawning), `obj`.
-
-*Planned additions:* `fuel`, `ammoState`, `crewAssignments`, `seats`.
-
-### Engagement (HashMap) — planned
-
-Built by `TACT_fnc_buildEngagement` before deployment. Every battle type
-produces one of these; the lifecycle reads it rather than branching on type.
-
-| Key | Type | Notes |
-|---|---|---|
-| `type` | STRING | `"openField"`, `"setPiece"`, `"ambush"` |
-| `attacker` | HASHMAP | Army record. Symmetric — may be the player or not |
-| `defender` | HASHMAP | Army record, or a location garrison |
-| `boundaryAnchor` | ARRAY | Midpoint (open field/ambush) or location centre (set-piece) |
-| `boundaryRadius` | NUMBER | Currently hardcoded 750 |
-| `deployment` | STRING | Which placement routine to run |
-| `victoryConditions` | ARRAY | Which end conditions are live for this battle |
-| `blockTimeRemaining` | NUMBER | Hours left in the block when the battle opened |
-| `capturePoint` | HASHMAP | Set-piece only. Position, radius, progress, owner |
-| `sprung` | BOOL | Ambush only. False until combat begins |
-
-### Location (HashMap)
-
-| Key | Type | Notes |
-|---|---|---|
-| `id` | STRING | Unique |
-| `type` | STRING | `"port"`, `"town"`, `"plantation"`, `"refinery"`, `"airfield"`, `"dock"` |
-| `position` | ARRAY | Centre |
-| `owner` | STRING | Faction string |
-| `garrison` | HASHMAP | Soldier and vehicle records held in place. Not an army — it has no `pendingOrder` and does not move |
-| `flagPos` | ARRAY | Capture point position, centrally located |
-
-A garrison is a static roster, not an army. It shares the soldier and vehicle
-record formats so sync-back is one code path, but it never appears in
-`activeArmies`.
-
-Ids are authored, not minted — locations are few and fixed, and orders and the
-test harness reference them by name.
-
-*Planned additions:* `opinion` (local opinion, per the settlement mechanic) and
-per-location benefits, both phase 3.8. Deliberately absent rather than stubbed:
-an empty key invites code to read it before the mechanic exists.
-
-### Health convention
-
-Data stores **health** where 1.0 is pristine. Arma stores **damage** where 0 is
-pristine. Every boundary crossing is `setDamage (1 - health)` outbound and
-`health = 1 - damage` inbound. Do not mix the two conventions inside a function.
+**Health convention.** Data stores **health**, 1.0 pristine. Arma stores
+**damage**, 0 pristine. Convert at every boundary crossing; never mix the two
+conventions inside one function.
 
 ---
 
 ## 8. Side Allocation
 
-Arma has four sides with globally shared relations, so the story factions must
-be packed into them carefully. Intended mapping:
+Arma has four sides with globally shared relations, so the story factions are
+packed into them carefully.
 
-| Story faction | Arma side | Relations |
-|---|---|---|
-| Player mercenaries | INDEPENDENT | Friendly to EAST, hostile to WEST |
-| CSAT (patron) | EAST | Friendly to INDEPENDENT |
-| Druglords | WEST | Hostile to INDEPENDENT and EAST |
-| NATO (druglord backer) | WEST | Shares a side with the druglords, which gets NATO intervention for free |
+| Story faction | Arma side |
+|---|---|
+| Player mercenaries | INDEPENDENT — friendly to EAST, hostile to WEST |
+| CSAT (patron) | EAST |
+| Druglords | WEST |
+| NATO (druglord backer) | WEST — shares a side, which gets intervention for free |
 
-The map lives in `STRAT_fnc_factionSide`; the matching `setFriend` block is in
-`init.sqf`. Arma's side relations are global, so those two are halves of one
-decision and change together. `fn_deployMen` previously put `drugLords` on EAST,
-which collided with CSAT and made the patron and the cartel engine-level allies.
+Sides are only how the engine is told about the blocs. **Hostility itself is
+decided from `faction` and never read off a side.**
 
-Sides are only how the engine is told about the blocs. Hostility itself is
-decided from `faction` by `STRAT_fnc_areHostile` and never read off a side.
+CIVILIAN is not spent here. It is wanted as itself: NATO Aggression accrues from
+ordnance near civilians, so the meter needs a populated Tanoa to measure
+against. That is what leaves three combatant sides for four factions.
 
-CIVILIAN is the fourth side and is not spent here. It is wanted as itself: NATO
-Aggression accrues from collateral damage and ordnance near civilians, so the
-meter needs a populated Tanoa to measure against. That is what leaves three
-combatant sides for four story factions, and why NATO shares the cartel's.
+The packing is deliberately asymmetric, and the asymmetry carries the future.
+Player and CSAT are one bloc across *two* sides joined by a relation flip; the
+cartel and NATO are one bloc on *one* side. So CSAT can be peeled off the player
+cheaply, and NATO can never be peeled off the cartel without respawning
+everything it has — which is right, because Favor is losable and NATO's backing
+only escalates. A CSAT turn is therefore a between-block event, never a
+mid-battle one: side relations are global and take every unit in the same frame.
 
-The packing is deliberately asymmetric, and it is the asymmetry that carries the
-future. The player and CSAT are one bloc on *two* sides made friendly by
-`setFriend`; the druglords and NATO are one bloc on *one* side. So CSAT can be
-peeled off the player with a single relation flip, and NATO can never be peeled
-off the cartel without respawning every unit it has. CSAT Favor is a spendable,
-losable resource and NATO's backing only ever escalates, so the relationship
-that can change got the allocation that can change. A CSAT turn is therefore a
-between-block event, never a mid-battle one: `setFriend` is global and takes
-every CSAT group on the map in the same frame, including any already in a fight.
-
-### The campaign avatar
-
-The `mission.sqm` unit sits on CIVILIAN and is outside this table on purpose. It
-is a placeholder: it never deploys, never joins an army, never appears in a
-roster and never fights. The player reaches a battle through `TACT_fnc_dropIn`,
-which `selectPlayer`s him into a soldier the deployment actually spawned, on
-that army's own side, and `TACT_fnc_dropOut` hands control back when the fight
-ends.
-
-Giving it a combatant side would make it a body some army has to account for.
-On INDEPENDENT it is a man his own mercenaries count and the tactical map has to
-filter; on WEST, where the editor originally left it, it was a man his
-mercenaries deployed hostile to — the sandbox scenario, with nothing hostile
-spawned anywhere, still shot at the player. Civilian is default-friendly to
-every side and asks nothing of the relation block in `init.sqf`.
-
-`init.sqf` claims it into `TACT_campaignAvatar` and makes it hidden,
-invulnerable and captive once, for the whole campaign. `fn_dropIn` stops its
-simulation on the way past and hides it again — hiding does not reliably take on
-a unit that is currently the player, and by that point it is an ordinary object.
-`fn_dropOut` restores the simulation and nothing else; unhiding it would stand an
-unarmed civilian up in the open at the end of every battle.
+**The campaign avatar** sits on CIVILIAN and is outside this table on purpose.
+It never deploys, never joins an army, never appears in a roster and never
+fights. The player reaches a battle by taking over a soldier the deployment
+actually spawned, and control returns to the avatar when the fight ends. A
+combatant side would make it a body some army has to account for.
 
 ---
 
 ## 9. The Turn and Battle Lifecycle
 
-Each stage is a distinct responsibility; do not merge them. All three battle
-types run this same lifecycle — see section 10.
+Each stage is a distinct responsibility; do not merge them. All battle types run
+this same lifecycle.
 
-1. **Planning** — player issues orders for every detachment. Projections shown:
-   arrival time, fatigue on arrival, route exposure. Orders written to
-   `pendingOrder`.
+1. **Planning** — orders issued, projections shown.
 2. **Commit** — planning closes. No further input until the block ends.
-3. **Resolution** — all armies advance concurrently against the block's elapsed
-   time. Positions and fatigue update. This replaces the realtime movement loop.
-4. **Contact detection** — after movement resolves, evaluate hostile army
-   proximity and hostile entry into ambush zones and location boundaries.
-   Collect pairs first, act after iteration closes.
-5. **Engagement construction** — build the engagement record: type, roles,
-   anchor, deployment plan, live victory conditions, block time remaining.
-6. **Battle decision** — player present or attending?
-   - **Attended:** spawn the tactical battle.
-   - **Unattended:** auto-resolve mathematically. *(Not yet implemented.)*
-7. **Deployment** — compute the anchor, place both sides per the engagement's
-   deployment plan, spawn and mount infantry, draw the boundary. Fatigue is
-   applied here as skill and morale modifiers.
-8. **Battle** — realtime Arma at 1:1. Player issues orders and fights. Favor
-   assets may be called in. The battle clock counts down the real time left
-   before the fight breaks off; `blockTimeRemaining` is what the fight can
-   charge the strategic clock, and caps that charge.
-9. **Conclusion** — a victory condition fires, or the battle clock runs out into
-   mutual disengage. Outcome is classified (breakthrough, repulse, rout,
-   surrender, capture, annihilation, disengage). *(Rout and surrender are not
-   live: they need a morale model and the set-piece capture point.)*
-10. **Sync-back** — read `damage`, `hitPointDamage`, and alive/dead state off
-    every spawned entity into its owning HashMap; move surrendered survivors to
-    the victor's `prisoners`; drop dead records; null every `obj` reference;
-    delete entities; clear the boundary. *(Prisoners wait on a surrender
-    condition to move them.)*
-11. **Post-battle march** — surviving armies spend any remaining block time
-    continuing or reversing along their route, per the outcome classification.
-    *(Continuing works; reversing after a repulse does not.)*
-12. **Upkeep** — apply per-block ticks (fatigue) and, on day boundaries, wages,
-    income, and aggression decay.
+3. **Resolution** — all armies advance concurrently against elapsed block time.
+4. **Contact detection** — hostile proximity, ambush zones, location boundaries.
+5. **Engagement construction** — type, roles, anchor, deployment plan, live
+   victory conditions, block time remaining.
+6. **Battle decision** — attended (spawn the tactical battle) or unattended
+   (auto-resolve mathematically). *Auto-resolve not implemented.*
+7. **Deployment** — place both sides per the engagement's plan, draw the
+   boundary. Fatigue applied here as skill and morale modifiers.
+8. **Battle** — realtime Arma at 1:1. Favor assets may be called in.
+9. **Conclusion** — a victory condition fires, or the clock expires into mutual
+   disengage. Outcome classified per army.
+10. **Sync-back** — condition read off every entity into its owning record;
+    surrendered survivors moved to the victor's prisoners; dead dropped; object
+    references nulled; entities deleted; boundary cleared.
+11. **Post-battle march** — survivors spend remaining block time continuing or
+    reversing along their route, per the outcome. *Reversing not implemented.*
+12. **Upkeep** — per-block ticks, and on day boundaries wages, income, decay.
 13. **Advance clock** — next planning phase opens.
 
-Stages 9 and 10 are in. The remaining gaps in the lifecycle are auto-resolution
-at stage 6 and the reversing half of stage 11.
+The remaining gaps are auto-resolution at stage 6 and the reversing half of
+stage 11.
 
 ---
 
@@ -518,138 +300,91 @@ at stage 6 and the reversing half of stage 11.
 
 There are three battle types. **They are not three systems.** They are one
 lifecycle with three parameter sets, expressed through the engagement record.
-Deployment, victory conditions, boundary anchor, and initial state are the only
-things that vary. Conclusion, sync-back, and post-battle march are shared and
-must be written once.
+Deployment, victory conditions, boundary anchor and initial state are the only
+things that vary.
 
-`TACT_fnc_initiateBattle` currently hardcodes the open-field answer to all four
-parameters. It is to be split: engagement construction first, then a deployment
-routine selected by the record.
+**Role symmetry is mandatory.** Every type must work with the player as attacker
+or defender and must auto-resolve when he is absent. The cartel attacking a
+player-held plantation is the same code path with the roles swapped.
 
-**Role symmetry is mandatory.** Every type must work with the player as either
-attacker or defender, and must auto-resolve when the player is absent. The
-cartel attacking a player-held plantation is the same code path as the player
-attacking a cartel-held one, with the roles swapped.
+### 10.1 Open field
 
-### 10.1 Open field battles
+Two armies moving to their destinations cross paths.
 
-Two armies moving to their destinations cross paths. Partially implemented.
+**Anchor:** midpoint between them. **Deployment:** each army at the boundary
+point nearest its own origin, facing its destination bearing — so the geometry
+of the tactical map encodes where everyone is trying to go. Vehicles line up
+along the approach road, infantry falls in behind, so transport and dismounts
+never contest the same ground.
 
-**Anchor:** midpoint between the two armies' positions.
+**The incentive to advance is strategic, not tactical.** Time in cover is block
+time burned and distance not covered. Nothing tactical needs to force the fight;
+the block clock does it. Two things must hold for that pressure to transmit:
+remaining block time must carry over, and the AI must feel it too — the enemy is
+ordered toward its own strategic destination, or the pressure is asymmetric.
 
-**Deployment geometry.** Each army deploys at the point on the boundary circle
-nearest its own origin — along the vector from the anchor toward its own
-position, at the boundary radius — **facing its destination bearing**, read from
-`pendingOrder`. The geometry of the tactical map therefore encodes where
-everyone is trying to go. Vehicles deploy along the approach road from that
-edge point; `fn_calculateRoadPath` supplies the road nodes as it does now, and
-where it supplies too few — it returns nothing at all for a position more than
-150 m from a road — the column carries on along its last bearing. Dismounted
-men fall in behind the same point, so infantry and its transport never contest
-the same ground.
+**Exit direction is meaningful.** Leaving the boundary toward the destination is
+a **breakthrough** — march on with the remaining block time. Leaving away from
+it is a **repulse** — block lost, army returns toward its origin. Same act,
+opposite meanings, which is what makes fleeing legible instead of a binary that
+has to be detected.
 
-**The incentive to advance is strategic, not tactical.** Both armies are trying
-to reach somewhere. Time spent in cover is block time burned and distance not
-covered. Nothing in the tactical layer needs to force the fight; the block clock
-does it.
-
-Two things must be true for that pressure to transmit:
-
-- **Remaining block time carries over** (section 5). Without this the cost of
-  dawdling is invisible.
-- **The AI must feel it too.** The enemy group is given a `move` order toward
-  its own strategic destination and behaviour biased toward pressing rather than
-  holding. Otherwise the pressure is asymmetric: the player advances because
-  they planned the route, the enemy sits in cover because nothing tells it to
-  leave.
-
-**Exit direction is meaningful.** Leaving the boundary is not one outcome:
-
-| Exit | Outcome | Consequence |
-|---|---|---|
-| Toward destination | **Breakthrough** | Continue the march with remaining block time |
-| Away from destination | **Repulse** | Block lost, army returns toward its origin |
-
-Same act, opposite meanings. This is what makes "flee" mechanically legible
-instead of a binary that has to be detected.
-
-**Divergent destinations are a valid outcome, not a failure.** If both armies
-are racing for the same town, neither can disengage and it is a real battle. If
-their destinations diverge, the correct play for both sides is to break contact
-and keep marching, and the encounter is a brief exchange of fire in passing.
-This makes destination vectors part of route planning rather than interception
-risk alone.
+**Divergent destinations are a valid outcome, not a failure.** Two armies racing
+for the same town cannot disengage and it is a real battle. If their
+destinations diverge, the correct play for both is to break contact and keep
+marching. Destination vectors are therefore part of route planning.
 
 **Victory conditions:** breakthrough, repulse, rout, surrender, annihilation,
-block-clock expiry (mutual disengage).
+block-clock expiry.
 
-### 10.2 Fixed set-piece battles
+### 10.2 Fixed set-piece
 
-An attacking army assaults a strategic location: port, town, plantation,
-refinery, airfield. These are the meticulously planned battles.
+An attacking army assaults a location. These are the meticulously planned
+battles.
 
-**Anchor:** the location's centre, not a midpoint. The battle is asymmetric —
-the defender is already in position, the attacker arrives.
+**Anchor:** the location's centre, not a midpoint — the defender is already in
+position and the attacker arrives. **Deployment:** garrison at prepared
+positions, attacker at the boundary edge nearest its approach road.
 
-**Deployment:** garrison placed at prepared positions within the location;
-attacker deployed at the boundary edge nearest its approach road.
+**The capture point** is a central flagpole flying the defender's colours,
+raised.
 
-**The capture point.** A centrally located flagpole, flying the defender's
-colours, raised.
-
-- An attacker inside the capture radius lowers the flag. When it reaches bottom
-  it rises again in the attacker's colours; when it reaches the top, the battle
-  ends and the defenders surrender.
-- **Contest is a tug of war, weighted by mass.** Net rate is a function of
-  attackers minus defenders in the radius. Five attackers against one defender
-  capture, but slowly. A defending majority drives progress back toward the
-  defender. Presence alone does not stall the flag — bodies do.
-- **Progress persists.** Nothing resets progress except the contest itself
-  driving it back. Attrition accumulates toward the objective.
-- **Reversal cannot pass the starting state.** The defender's flag begins fully
-  raised; a driven-back contest returns to that, no further.
+- An attacker inside the radius lowers the flag; at the bottom it rises again in
+  his colours, and at the top the defenders surrender.
+- **Contest is a tug of war weighted by mass.** Net rate is a function of
+  attackers minus defenders in the radius. Presence alone does not stall the
+  flag — bodies do.
+- **Progress persists.** Nothing resets it except the contest driving it back.
+- **Reversal cannot pass the starting state.**
 
 **Capture timing must not collapse the battle.** If capture is fast, the
-defender's optimal play is to stand on the flag and the assault on a plantation
-becomes one firefight in a courtyard. The timer must be long enough (order of
-60–90 seconds each direction) that a defender only needs to be able to *return*
-to the flag, keeping a perimeter defence viable.
+defender's optimal play is to stand on the flag and an assault becomes one
+firefight in a courtyard. The timer must be long enough that a defender only
+needs to be able to *return* to the flag, keeping perimeter defence viable.
 
-**Surrender is not annihilation.** A flag capture that leaves the defending
-roster alive is a distinct outcome and the reason a player would take the flag
-rather than grind the garrison down. Survivors become prisoners.
-
-**Prisoners are logged.** On surrender, surviving defender soldier records move
-to the victor's `prisoners` array with capture context. Disposition — ransom,
-recruitment, release, execution — is a deliberate later decision. Nothing else
+**Surrender is not annihilation.** A capture that leaves the roster alive is a
+distinct outcome, and the reason to take the flag rather than grind the garrison
+down. Survivors become prisoners, logged with capture context. Disposition —
+ransom, recruitment, release, execution — is a later decision, and nothing
 should be built assuming a particular answer.
 
 **Victory conditions:** flag capture, rout, surrender, annihilation, attacker
-withdrawal, block-clock expiry (assault fails, defender holds).
-
-**Hard dependency:** set-piece battles cannot exist before location records do.
-The location and garrison model must land first, at least minimally.
+withdrawal, block-clock expiry.
 
 ### 10.3 Ambushes
 
-Deferred, but architecturally cheap and worth reserving room for.
+Deferred, but architecturally cheap. Under WEGO both sides have already
+committed routes, so an ambush is **one order type and one deployment plan**:
+conceal and hold at a node, triggering when a hostile army resolves movement
+through the zone.
 
-Under WEGO both sides have already committed routes during planning, so an
-ambush is not a new system — it is **one new order type and one new deployment
-plan**. "Conceal and hold at node X," triggering when a hostile army resolves
-movement through the zone.
-
-- **Preparation costs a block spent stationary.** This makes ambushing a
-  commitment rather than a free option.
-- **Prepared assets:** mines and roadblocks placed during the preparation block.
-  Scope call between hand-placement and an abstract budget placed by script;
-  the budget is the cheaper and preferred version. Mines accrue NATO Aggression
-  like any other explosive ordnance.
-- **The victim spectates until the ambush is sprung.** They cannot act on the
-  knowledge that a battle has begun. This is safe specifically because watched
-  execution is the default presentation (section 5) — there is no tell to leak.
-- **Deployment:** ambusher concealed off the road; victim deployed in column on
-  the road, in march order, moving.
+- **Preparation costs a block spent stationary.** Ambushing is a commitment, not
+  a free option.
+- **Prepared assets:** mines and roadblocks. Mines accrue NATO Aggression like
+  any other explosive ordnance.
+- **The victim spectates until it is sprung.** Safe specifically because watched
+  execution is the default presentation — there is no tell to leak.
+- **Deployment:** ambusher concealed off the road, victim in column on it.
 
 **Victory conditions:** as open field, plus the ambusher's option to break off
 after the initial exchange.
@@ -659,1381 +394,418 @@ after the initial exchange.
 ## 11. Map Rendering
 
 Two renderers exist and they do not compose. Marker icons scale with map zoom;
-anything drawn beside them scales by whatever law the Draw handler applies. The
-deeper problem is that there is no way to ask the engine how large a marker
-currently renders — `getMarkerSize` returns the multiplier that was set, not an
-extent, and the base dimensions sit in `CfgMarkers` behind an engine constant.
-Putting a vehicle badge at the right-hand edge of an armour icon means fitting
-that constant by eye and trusting that no patch and no per-user map text scale
-moves it.
+anything drawn beside them scales by a different law, and there is no way to ask
+the engine how large a marker currently renders. Hence the governing rule:
 
-Hence the governing rule:
-
-**Anything made of more than one visual element referring to one entity is
-drawn wholesale by one renderer.** Composition across the layer boundary is not
-available, at any zoom, for any pair of elements.
-
-### 11.1 One palette, both layers
-
-`STRAT_drawFactionColour` and `STRAT_drawFactionIcon` in `init.sqf` are the only
-colour and silhouette tables in the mission, and both the campaign map and the
-battle command map read them. An army the player watched march across the
-strategic map is the same colour and the same shape as the men he is standing
-among after he drops into the fight it walked into. The battle layer briefly had
-its own pair of role colours and they are gone: a colour that changes meaning
-when the map changes is a colour that has to be re-learned on every drop-in.
-
-The scheme is two-level, and the second level is what lets one table serve both
-maps.
-
-| Faction | Colour | Silhouette | Bloc |
-|---|---|---|---|
-| `player` | Blue | `b_inf` | contractors |
-| `csat` | Green | `b_inf` | contractors |
-| `drugLords` | Red | `o_inf` | cartel |
-| `nato` | Orange | `o_inf` | cartel |
-| `civilian` | Purple | `n_inf` | neither |
-
-**Hue family carries the bloc; hue within it carries the faction.** Cool is with
-you, warm is against you, purple is neither. So one glance answers *friend or
-enemy* from the family and *which one* from the hue — and the strategic map
-keeps the distinction it genuinely needs, because the cartel and NATO mean
-different things to the player even though they fight as one Arma side.
-
-**NATO is deliberately not blue.** It is the obvious choice from the real world
-and the wrong one here: blue is what every player reads as friendly before they
-have finished looking, and NATO is an enemy sharing WEST with the cartel it
-backs. Orange keeps it warm, hostile, and unmistakably not the druglords.
-
-**Silhouette repeats the bloc, and that redundancy is the accessibility floor.**
-Red against orange, and blue against green, are the two pairs a colour-blind
-player is least able to split; the shape still says who to shoot. CSAT takes the
-`b_inf` silhouette despite being EAST, because this table answers to the bloc
-and not to the Arma side. The rule for anything added later: **a faction's
-silhouette is its bloc, its colour is itself.**
-
-`civilian` is a presentation-only key. It is not a story faction — it is in
-neither `STRAT_fnc_areHostile`'s bloc table nor `STRAT_fnc_factionSide`'s map,
-and section 8 keeps it outside on purpose. It is here so civilians and the
-campaign avatar draw as themselves instead of falling through to the unknown
-grey, and the three tables must not be assumed to share a key set.
-
-One collision is accepted knowingly. The engine paints INDEPENDENT green in its
-own UI — the squad bar, and map unit icons outside command mode, since
-`disableMapIndicators` only fires while commanding — so the engine says the
-player is green in places where this scheme says green is CSAT. The alternative,
-player-green and CSAT-blue, costs the blue-is-you convention and gives CSAT a
-thematically wrong colour. The collision lives on a different surface, and on
-the squad bar the slot number is the identifier rather than the colour.
+**Anything made of more than one visual element referring to one entity is drawn
+wholesale by one renderer.**
 
 ### The split
 
 **Armies and locations render entirely in the Draw layer.** They are precisely
 the things that accrete adornment — vehicle badge, strength count, fatigue pip,
-selection ring, opinion shading, an order arrow that has to originate at the
-icon's edge rather than its centre. Each of those is a second element beside a
-first, so the first cannot be a marker.
+selection ring, opinion shading, an order arrow originating at the icon's edge.
+Each is a second element beside a first, so the first cannot be a marker.
 
-**Markers keep atomic, non-interactive, engine-owned work.** Task and briefing
-markers, tactical-layer markers on the GPS during a battle, debug and authoring
-markers. One icon, one label, no adornment, no click behaviour, no relationship
-to anything drawn.
+**Markers keep atomic, non-interactive, engine-owned work:** task and briefing
+markers, in-battle GPS markers, debug and authoring markers. One icon, one
+label, no adornment, no click behaviour.
 
-**The map has two modes and they do not overlap.** Outside a battle it draws
-the campaign: armies and locations across the island. While the player is
-commanding a battle on the ground it draws the fight: his own units, what is
-selected, and the routes they have been given. The strategic icons stand down
-for the duration — there are two of them, they sit on top of the battle they
-represent, and they would compete for the same clicks. Both modes emit the same
-item shape into `STRAT_fnc_drawItems`, so a tactical route arrow and a strategic
-order arrow are the same lines drawn by the same law.
-
-The artwork is shared either way.
-`getText (configFile >> "CfgMarkers" >> "b_inf" >> "icon")` returns the same
-texture path the engine draws, so a drawn army icon and a marker read as one
-system.
-
-### What this costs
-
-`ctrlMapMouseOver` no longer resolves an army under the cursor, so army
-hit-testing is written by hand. Phase 1.6 already commits to writing it, so it
-is not a new cost — it is the same cost, now unavoidable rather than optional.
-
-Battle command mode also has to write its own mouse handling, for a second
-reason: `onMapSingleClick` reports SHIFT and ALT and nothing else, and
-selection needs CTRL. It therefore reads the map control's own
-`MouseButtonDown` and `MouseButtonUp`, treating a release that landed close to
-its press as a click and anything further as a pan — the map's own scrolling is
-a click and drag, so acting on the press would issue an order every time the
-player grabbed the map to move it.
-
-Drawing does not replace what the engine already draws. A Draw handler renders
-after the map's own content, so a command icon lands *on top of* the stock icon
-for the same unit rather than in place of it — at a slightly different size,
-rotating to the unit's facing, and drawn once per man rather than once per
-entity, which is precisely the stacking `TACT_fnc_commandEntities` exists to
-collapse. `TACT_fnc_setCommandHud` therefore switches the friendly indicators
-off alongside the squad bar, with `disableMapIndicators [true, false, false,
-false]`. Enemies stay on: the command layer draws nothing hostile, so turning
-them off is a fog-of-war decision rather than a rendering one, and it is not
-this change's to make. It becomes one when an enemy is something the player can
-click — "attack this" is a map order, and a hostile the layer does not draw
-cannot be one.
-
-This has to be a scripting command rather than mission config. `mapContent` and
-its siblings are `CfgDifficultyPresets` options, which live in the server's
-config or the player's own profile; `description.ext`'s `DifficultyOverride`
-does not reach them. That is the better outcome anyway — a command is
-switchable per mode, and the invariant is about command mode, not about the
-mission.
-
-Armies also lose free presence on the GPS and minimap, and free persistence into
-saves. Neither should be load-bearing: `location` is authoritative on the
-strategic map, and the save format serialises records rather than presentation.
-Any map that needs to show armies gets the same Draw handler attached to it.
-
-### Scaling is ours
-
-Two spaces, one law, and the split between them is not a compromise.
-
-**Position is world space.** Anchors, label offsets, ring radii, order-arrow
-endpoints, how far a shaft stands off an icon's edge, the boundary circle.
-These are distances on the ground and they scale with the terrain, because
-that is what they are. `STRAT_fnc_mapUnitMetres` is the single conversion and
-both the renderer and the hit-test read it.
-
-**Size is screen space.** `drawIcon`'s width, height and text size are *not*
-world metres — an earlier revision of this section asserted they were, and the
-drill disproved it. With icon size multiplied by the metres-per-icon-unit
-figure, zooming out made every icon and label *grow*, until a rifleman covered
-two hundred metres of map; zooming in shrank them to nothing. That is the
-signature of handing a screen-space argument a metres-per-screen figure: the
-factor meant to cancel the zoom compounds it. Icon units reach `drawIcon`
-through `STRAT_drawIconArgScale` and `STRAT_drawTextArgScale` instead, and two
-constants are needed rather than one because width/height and text size are
-separate arguments with separate base scales — trying to serve both from one
-factor is why labels came out several times the size of the icons they
-belonged to.
-
-**How icons behave with zoom is one switch**, `STRAT_drawIconScaleMode`, read
-only by `STRAT_fnc_mapUnitMetres`. Three modes exist, their failures are
-opposite, and **2 is settled** — arrived at by playing all three. The other two
-are kept because a switch has to exist anyway and a later change of mind wants
-the reasoning as much as the code:
-
-| | law | fails by |
-|---|---|---|
-| **0** screen-fixed | one icon unit is `STRAT_drawIconScreenSize` of screen width | **collision** — men 10 m apart converge to 13 px at boundary-wide zoom while icons stay 51 px, so a squad stacks into one pile you cannot aim at |
-| **1** world-fixed | one icon unit is `STRAT_drawIconWorldMetres` | **vanishing** — zoom out far and an icon is a pixel |
-| **2** clamped **(default)** | 0 until the map shows more than `STRAT_drawIconClampScreenMetres` across, 1 past it | neither, within the range the crossover is set for |
-
-Mode 1's metre figure must be comparable to the spacing between men or icons
-self-overlap at *every* zoom and the mode solves nothing; a column sits 5–10 m
-apart. Mode 2's threshold is stated in metres across the screen rather than as
-a cap on icon size, because that is the number a player can read off the map
-and reason about.
-
-The branch exists in exactly one function. `STRAT_fnc_drawItems` divides
-whatever it is given by the measured span and draws, and would not behave
-differently if a fourth mode arrived. **One switch serves both layers, and that
-is the one caveat left standing** now the tactical side is closed: the strategic
-map's zoom range is the island and not a battle's 1500 m, so under mode 2 an
-army icon at Tanoa's full extent sits at the cap — 24 m per icon unit with the
-current figures — which is a few pixels rather than the constant size that map
-probably wants.
-
-It is left alone deliberately rather than fixed blind. The strategic map has not
-been looked at under mode 2, and assuming it needs mode 0 is the same move that
-had `drawIcon`'s arguments in world metres for a build and a half. When it is
-looked at, the split goes in `STRAT_fnc_mapUnitMetres` — mode chosen from
-`TACT_commandActive` rather than read from the global — and nothing else moves.
-
-A command icon is a click target and a piece of symbology; neither has a
-footprint. A NATO silhouette says *a man is here*, not *the man is three metres
-wide*. The things that genuinely do have an extent — the boundary, where an
-order arrow points — stay in world metres and go on scaling in every mode.
-
-The invariant survives all of this intact, because both spaces are driven by the
-one icon-unit figure. A hit radius of 0.60 units and an icon of 0.85 units stay
-in that proportion at every zoom under every mode, because neither one knows
-which mode is running. What differs is only the arithmetic that reaches the
-engine — every element of an army is still drawn by one pass off one set of
-figures, so they cannot drift apart. Detail can also be varied by zoom,
-strongholds and front lines when zoomed out against per-army adornment when
-zoomed in, which markers cannot do at all.
-
-### Two icon sources
-
-The map draws two kinds of thing and they take different symbology.
-
-An **individual** — a command entity, the commander — takes the stock per-unit
-artwork, resolved by `STRAT_fnc_mapUnitTexture` through `CfgVehicles >> icon`
-and then `CfgVehicleIcons`. It is a rounded silhouette with a pointed end, and
-it is asymmetric on purpose: rotating it is how the engine's own map shows
-heading.
-
-An **aggregate** — a collapsed group, an army, a location — takes NATO box
-symbology, resolved by `STRAT_fnc_mapIconTexture` through `CfgMarkers`. A box
-means *a body of men of this type*. Putting one over a single rifleman says
-something false about what he is, and the box reads upright so it cannot carry
-heading anyway.
-
-The two families do not fill their textures alike, and `drawIcon` stretches a
-texture to fill whatever box it is given, so the same size is not the same
-apparent size. A NATO box is drawn edge to edge; a unit silhouette is a small
-glyph in a mostly transparent square. Items carry an `artScale` for that, and
-the battle layer sets it **once per artwork family** — `STRAT_drawUnitArtScale`
-on the unit silhouettes, `STRAT_drawGroupArtScale` on the collapsed groups'
-boxes. Separate constants rather than a larger `STRAT_drawIconArgScale` because
-that one is shared and rescuing the silhouettes through it would blow up the
-group boxes too; and they scale the drawn box rather than the item's `size`
-because `size` is what `STRAT_drawRingUnits` and `TACT_commandHitUnits` are
-calibrated against — inflating that would drag the glyph away from both.
-
-Which makes the pair the **apparent-size knobs**, one per symbol, and that is
-what they are for beyond the fill correction. The unit figure has real work to
-do: 4.00, because `iconMan`'s glyph covers about a quarter of its texture. The
-group figure is nominally 1 and starts there, since a box needs no rescue — so
-anything else it becomes is a deliberate statement about how heavy a body of men
-reads against one of its own men, which is a judgement made by looking at the map
-rather than by measuring a texture. The semantic sizes stay put while that
-happens: a group is 1.00 icon units against an individual's 0.85, and the label,
-ring and hit radius go on being calibrated against those.
-
-Both are tuned against a selection ring, drawn by `drawEllipse` in true world
-coordinates, and a group has its own: `TACT_commandGroupRingUnits`, 0.85, the
-same radius an individual and a campaign-map army get. At art scale 1.00 the
-group box's corners fall at 0.71 and sit inside it with air; at about 1.20 they
-reach it. What differs is what the ring *means* to each — the difference between
-a correction and a preference. A silhouette spilling past its ring means
-`STRAT_drawUnitArtScale` is wrong. A group box past its ring means only that a
-body of men was asked to read heavier than one, which may be exactly what was
-wanted; the second test there is the pair on screen together. The one hard
-ceiling on the group figure is its own label — the drawn box reaches half its
-size below the anchor and the label sits at `STRAT_drawLabelOffsetUnits`, so past
-about 2.2 the box grows onto the label and the offset is what moves.
-
-The **campaign layer's army boxes are the same artwork and are left at 1**
-deliberately, alongside the mode caveat above. They could read the group
-constant, but that map has not been looked at since the scaling modes landed and
-coupling it to a figure tuned on the battle map is how it would move without
-anyone deciding it should. Wiring it in is one field on
-`STRAT_fnc_buildDrawList`'s group icon, the day that map is looked at.
-
-Both resolvers share one cache, keyed by class name; a CfgMarkers class and a
-CfgVehicles class cannot collide. A unit whose config carries no icon falls back
-to the NATO box rather than to a blank — a wrong symbol is legible, and an empty
-one is a unit the player cannot identify.
+**The map has two modes and they do not overlap.** Outside a battle it draws the
+campaign. While the player is commanding on the ground it draws the fight: his
+own units, what is selected, and the routes they have been given. The strategic
+icons stand down for the duration — they sit on top of the battle they represent
+and would compete for the same clicks. Both modes emit the same item shape, so a
+tactical route arrow and a strategic order arrow are one thing drawn one way.
 
 ### One draw list
 
-`STRAT_fnc_buildDrawList` derives a list of draw items from campaign state:
-texture, world position, size, colour, text, and the record each item belongs
-to. `STRAT_fnc_drawCampaignLayer` renders it. `fn_onMapClick` hit-tests against
-the same list.
+What is drawn and what is clickable derive from **one** computation. If they are
+computed in two places they will drift, and the drift is invisible until a
+player clicks something that is not there.
 
-The list is also where the composition rule is enforced. An army emits a
-*group* of items sharing one anchor and one scale factor, not several
-independent icons that happen to be placed near each other. An adornment that
-cannot state which group it belongs to is a bug, not a loose icon.
+The list is also where the composition rule is enforced: an army emits a *group*
+of items sharing one anchor and one scale, not several icons that happen to sit
+near each other. An adornment that cannot state its group is a bug, not a loose
+icon. Sizes and offsets are expressed in icon units rather than metres, so an
+adornment pinned to an icon's edge stays there at every zoom.
 
-If what is drawn and what is clickable are computed in two places they will
-drift, and the drift is invisible until a player clicks something that is not
-there — the same class of lie as a drawn boundary that disagrees with the
-enforced one.
+### One palette, both layers
 
-### Handler attachment
+There is one colour table and one silhouette table in the mission, and both maps
+read them. An army watched marching across the strategic map is the same colour
+and shape as the men the player stands among after dropping into its fight.
 
-Display 12 does not exist until the player opens the map. A Draw handler
-attached while the map is closed attaches to a null control and silently renders
-nothing. The campaign layer attaches on map open, not on state change, and
-stores its handler ID on the control so it can be removed by ID rather than by
-clearing every handler — the pattern `fn_drawBoundary` uses, minus
-`fn_drawBoundary`'s call-time control lookup. See section 14.
+| Faction | Colour | Bloc |
+|---|---|---|
+| `player` | Blue | contractors |
+| `csat` | Green | contractors |
+| `drugLords` | Red | cartel |
+| `nato` | Orange | cartel |
+| `civilian` | Purple | neither |
 
-Because armies are now drawn rather than marked, a failure to attach is not a
-cosmetic fault. It is an empty strategic map.
+**Hue family carries the bloc; hue within it carries the faction.** Cool is with
+you, warm is against you, purple is neither — so one glance answers *friend or
+enemy* from the family and *which one* from the hue.
+
+**NATO is deliberately not blue.** Blue is what a player reads as friendly
+before he has finished looking.
+
+**Silhouette repeats the bloc, and that redundancy is the accessibility floor.**
+Red against orange, and blue against green, are the pairs a colour-blind player
+is least able to split; the shape still says who to shoot. The rule for anything
+added later: **a faction's silhouette is its bloc, its colour is itself.**
+
+`civilian` is presentation-only. It is not a story faction and is in neither the
+hostility table nor the side map; the three tables must not be assumed to share
+a key set.
+
+One collision is accepted knowingly: the engine paints INDEPENDENT green in its
+own UI, so it calls the player green where this scheme calls green CSAT. The
+alternative costs the blue-is-you convention and gives CSAT a thematically wrong
+colour. The collision lives on a different surface.
 
 ### The rejected alternative
 
 Keeping markers for armies and moving per-army detail into a side panel that
-fills on selection sidesteps the alignment problem completely and costs almost
-nothing to build. It is rejected because it is a menu. Detail would then be
-visible for the one army the player has clicked, when the whole purpose of the
-visibility invariant is that the cost of a plan is legible while the plan is
-being made, across every force at once.
+fills on selection sidesteps the alignment problem and costs almost nothing. It
+is rejected because it is a menu. Detail would be visible for the one army the
+player has clicked, when the whole point of the visibility invariant is that the
+cost of a plan is legible while the plan is being made, across every force at
+once.
 
 ---
 
 ## 12. Invariants
 
 - **Data outlives entities.** A spawned unit is a temporary projection of a
-  HashMap record. Anything that happens in a battle and matters afterward must
-  be written back to the record before entities are deleted.
-- **`obj` is `objNull` outside of battle.** Never persist a live object
+  record. Anything that happens in a battle and matters afterward must be
+  written back before entities are deleted.
+- **Object references are null outside of battle.** Never persist a live object
   reference in saved state.
-- **Commitment is absolute.** No mid-block order revision, no scrubbing the
-  clock backward, no interrupt on player whim. If the player can usefully
-  advance in small increments and micromanage, the turn model has collapsed
-  back into realtime.
-- **Battle time is block time,** one minute for one minute. A battle is paid for
-  out of the block it occurs in and never spans a block boundary. Remaining time
-  is spent marching.
-- **One lifecycle, three parameter sets.** Conclusion, sync-back, and
-  post-battle march are written once and shared by every battle type. If a
-  battle type needs its own copy of any of them, the engagement record is
-  underspecified.
-- **Every battle type is role-symmetric and auto-resolvable.** The player may be
-  attacker, defender, or absent. No battle type may assume the player attacks.
-- **Never mutate `activeArmies` while iterating it.** Collect pairs first, act
-  after the loop closes.
-- **Identity is compared on `id`, never `isEqualTo`.** `isEqualTo` performs a
-  content comparison on HashMaps and will produce false positives.
+- **Commitment is absolute.** No mid-block revision, no scrubbing the clock, no
+  interrupt on player whim. If the player can usefully advance in small
+  increments and micromanage, the turn model has collapsed back into realtime.
+- **Battle time is block time,** one minute for one minute. A battle never spans
+  a block boundary. Remaining time is spent marching.
+- **One lifecycle, three parameter sets.** Conclusion, sync-back and post-battle
+  march are written once and shared. If a battle type needs its own copy of any
+  of them, the engagement record is underspecified.
+- **Every battle type is role-symmetric and auto-resolvable.** No battle type
+  may assume the player attacks.
+- **Never mutate the active army list while iterating it.** Collect pairs first,
+  act after the loop closes.
+- **Identity is compared on `id`.** HashMap equality is a content comparison and
+  will produce false positives.
 - **`faction` is the source of truth for allegiance,** not icon colour. Colour
   is presentation only, in either renderer, and is never read back.
-- **The strategic layer must never spawn entities.** Record updates and drawing
-  only; entity spawning belongs to the tactical layer.
-- **Contact detection must check hostility** before initiating. Two friendly
-  armies converging is a rendezvous, not a battle.
+- **The strategic layer must never spawn entities.** Records and drawing only.
+- **Contact detection must check hostility.** Two friendly armies converging is
+  a rendezvous, not a battle.
 - **Fatigue lives on the soldier, never on the army.** Army-level values are
   derived, never stored.
-- **A garrison is not an army.** It has no `pendingOrder`, does not move, and
-  never enters `activeArmies`. It shares record formats only.
-- **What is drawn and what is clickable derive from one list.** The Draw layer
-  and the click hit-test read the same output of `STRAT_fnc_buildDrawList`. Two
-  independent computations of the same geometry will drift.
-- **Selection reaches only what the command layer could order.** The player's
-  own units and his own collapsed groups carry a hit area; the commander and
-  every allied group are emitted without one, so an ally cannot be selected and
-  therefore cannot be ordered by anything built on selection. The rule lives in
-  the draw list, not in the click handler — a click target that exists and is
-  then refused is a click target that will one day stop being refused.
-- **Map draw handlers attach on map open, never on state change.** Display 12
-  is absent while the map is closed and the attachment fails silently.
-- **One entity, one renderer.** Marker extent cannot be queried or matched, so
-  any entity that carries adornment is drawn entirely in the Draw layer.
-  Armies and locations are drawn; markers are for atomic engine-owned icons.
+- **A garrison is not an army.**
+- **What is drawn and what is clickable derive from one list.**
+- **Map draw handlers attach on map open, never on state change.** The map
+  display does not exist while the map is closed and attachment fails silently.
+  Because armies are drawn rather than marked, a failure to attach is not
+  cosmetic — it is an empty strategic map.
+- **One entity, one renderer.**
 - **Anything the player is penalised for must be visible at planning time.**
-- **The player is a soldier, not an exception.** One man in an army may carry
-  `isPlayer`. He is spawned by deployment like the rest, counted in the army's
-  strength, part of its centre of mass, written back by sync-back, and able to
-  die. Drop-in is `selectPlayer` on a body that was already there. No victory
-  condition, no casualty count and no position sum has a special case for him,
-  and none may acquire one.
-- **The tactical map draws individuals only for the player's own group.** The
-  player is one icon; each unit of his group is one icon and a click target;
-  every other group on his side is one icon over its leader, whole — a half he
-  detached, a reinforcing army of his own side, a garrison of his faction. A
-  group's internal composition is drawn only where the player arranges it, which
-  is the group he is standing in and nowhere else — forty friendly soldiers
-  drawn man by man bury the eight that are his. His own group is never *also* collapsed: no group icon is
-  emitted for it, because that would draw the same men twice, once as units he
-  commands and once as a body he does not. Composition for a collapsed group is
-  an adornment on its icon, never a second icon.
+- **The player is a soldier, not an exception.** He is spawned by deployment
+  like the rest, counted in strength, part of the centre of mass, written back
+  by sync-back, and able to die. No victory condition, casualty count or
+  position sum has a special case for him, and none may acquire one.
+- **The tactical map draws individuals only for the player's own group.** Every
+  other group on his side is one icon over its leader, whole. A group's internal
+  composition is drawn only where the player arranges it — forty friendly
+  soldiers drawn man by man bury the eight that are his. His own group is never
+  *also* collapsed, or the same men are drawn twice. Composition for a collapsed
+  group is an adornment on its icon, never a second icon.
 - **Two allegiance questions, two different answers, and they must not be
-  swapped.** *Who fights whom* is decided between armies, from `faction`,
-  through `STRAT_fnc_areHostile` — the bloc table is the source of truth and
-  section 8 is where it lives. *Which groups are the player's own side on the
-  field* is decided from `side`, because a group he detaches mid-battle is
-  created by the engine, carries no record and no stamp, and inherits its side
-  for free. A faction test cannot see that group at all, which is the case the
-  tactical map exists to draw. `TACT_fnc_deployMen` still stamps `STRAT_faction`
-  and `STRAT_armyId` on the groups it creates, for colour, icon and attribution
-  back to an army record — never as an allegiance test.
+  swapped.** *Who fights whom* is decided between armies from `faction`. *Which
+  groups are the player's own side on the field* is decided from side, because a
+  group he detaches mid-battle is created by the engine, carries no record and
+  no stamp, and inherits its side for free — a faction test cannot see it at
+  all, and that is the case the tactical map exists to draw.
 - **Two command surfaces, never at once.** Map closed, the stock squad bar
-  commands. Map open, the squad bar is hidden and the map commands. This
-  includes the engine's own friendly icons on the map, which are a second
-  drawing of the same units rather than a second place to click: Draw handlers
-  render over the map's content, never instead of it, so the stock icons must
-  be switched off or the command layer is a second set of icons on top of the
-  first. Every path out of command mode must restore both — an interface
-  element left switched off is not something the player can fix.
+  commands. Map open, the squad bar is hidden and the map commands — including
+  the engine's own friendly icons, which are a second drawing of the same units
+  rather than a second place to click. Every path out of command mode must
+  restore both; an interface element left switched off is not something the
+  player can fix.
 
 ---
 
-## 13. SQF Quirks and Workarounds
+## 13. Status
 
-Engine behaviours that are not what the documentation implies, that cost real
-debugging time to find, and that the code now works around. Each entry says what
-the engine does, how it was proven, and where the workaround lives — so that the
-next person to look at an odd-shaped piece of code finds the reason attached to
-it rather than deleting it as overwrought.
+**Phase 1 is complete.** The turn skeleton, the closed battle loop, block-time
+accounting, side allocation, minimal locations and garrisons, the favor and
+aggression hooks, derived army fatigue, the test harness and the campaign draw
+layer are all in. Detail is in the code.
 
-### 13.1 `createUnit` does not put a unit on its group's side
+**Phase 2 is open**, and partially served ahead of schedule: infantry-only and
+combined-arms deployment work from one deployment point and bearing per army,
+and the player can drop into his own army and command his group from the map.
+Map command currently issues one kind of order — send the selection to a point.
 
-**What we assumed.** That `group createUnit [class, …]` makes the unit a member of
-that group in every sense, and that a unit's config faction is therefore
-cosmetic. The roster tables were built on it: mercenaries are `B_T_` classes on
-INDEPENDENT, the cartel is `O_T_` on WEST, and a comment in `init.sqf` recorded
-the mismatch as *"cosmetic only, since createUnit takes the group's side."*
+**Not built:**
 
-**What actually happens.** The unit joins the group and reports the group's side
-when asked — `side _unit` returns INDEPENDENT — but its **config** side still
-reaches the AI's friend/foe test. With `independent setFriend [west, 0]` in
-`init.sqf`, four `B_T_` men in an INDEPENDENT group are hostile to *each other*.
-
-**How it presented.** A drill deployed one four-man squad with nothing hostile
-anywhere on the map, and they immediately opened fire on each other and on the
-player. Nothing in the log, no script error, and every diagnostic that reported
-`side` reported INDEPENDENT throughout — the proxy looked correct the entire time
-the behaviour was wrong. It was found by swapping the roster to `I_` (AAF)
-classes, which silenced it.
-
-**Why we cannot just match classes to sides.** That fix costs the project every
-unit class it does not own. The cartel is where it bites: `drugLords` sits on
-WEST and wants Syndikat, which the game configures as INDEPENDENT, and there is
-no WEST-configured cartel in the game. Putting Syndikat on WEST would not be a
-fix either — only the same defect pointed the other way, with the cartel reading
-as the player's own side.
-
-**The workaround** — `TACT_fnc_deployMen`, section 5b onward. Six steps, and none
-of them commute:
-
-| | Step | Why it cannot move |
-|---|---|---|
-| 1 | Permanent group on the army's side | the destination |
-| 2 | COLONEL-ranked anchor of that side into it | gives the group somebody to hold it open; `createGroup [_side, true]` means an empty destination can be collected before the men arrive |
-| 3 | Holding group on the men's **config** side | read from `CfgVehicles >> side` on the class, because at this point no units exist |
-| 4 | **Men spawned into the holding group** | a unit is stamped when it is created; a man created in the destination is already wrong before any join could reach him |
-| 5 | `joinSilent` across | this one line is the conversion |
-| 6 | Anchor and holding group deleted | leader restored first — deleting a group's leader lets the engine pick the replacement |
-
-The anchor must be a class **genuinely configured on the destination side**: a
-class that shares the problem cannot be the cure for it. `TACT_sideAnchorClass`
-in `init.sqf` holds one base-game class per side. The rank matters — a squad
-leader who outranked the anchor would defeat it, so the anchor is `COLONEL`,
-above anything a config carries.
-
-Mounting is a separate pass after the join, so men are in their final group
-before they are put in vehicles.
-
-**Proven in both directions.** The squad deploys quiet with `B_T_` classes on
-INDEPENDENT. And a genuine WEST AT soldier placed 100 m from a mercenary sitting
-in a BLUFOR-classed Hunter shot him — so config side does not stop an enemy
-engaging either. That second test mattered more than the first: our own men
-ignoring our own transport is harmless, but the *enemy* ignoring it would mean
-nothing engages, nothing resolves, and the battle layer quietly does nothing.
-That failure looks like peace rather than like a bug.
-
-**Consequence for the project.** Class choice is free. A faction can wear whatever
-kit reads right regardless of which Arma side it is packed onto, and Syndikat for
-the cartel on WEST is available. Loadout flavour (3.11) is the only thing kit
-should be carrying.
-
-**If it regresses**, it will be silent. The symptom is either a squad firing on
-itself or a battle where nothing shoots. `TACT_fnc_deployMen` logs
-`UNCONVERTED` when the anchor could not be created, which is the one loud case;
-everything else needs the drill. `TEST_fnc_vehicleProbe` and
-`TEST_fnc_hostileProbe` re-run both directions on demand: set
-`TEST_probeEnabled = true` and `TEST_bootDrill = "solo"`. They are off by
-default because the second one ends with a live WEST soldier killing the player,
-which is the right answer to the question it asks and the wrong thing to have
-happening underneath interface work.
-
----
-
-## 14. Implementation Status
-
-**Working**
-- **Individual unit rendering — CLOSED for now.** The tactical map draws its
-  units, and the pieces below are settled by playing rather than by argument.
-  Reopening any of them is a constant, not a rewrite.
-  - Two icon sources, split on individual versus aggregate: stock per-unit
-    artwork through `STRAT_fnc_mapUnitTexture`, NATO boxes through
-    `STRAT_fnc_mapIconTexture`.
-  - Facing, drawn for individuals only, from the item's `direction`.
-  - `STRAT_drawUnitArtScale`, compensating for artwork that does not fill its
-    own texture.
-  - `STRAT_drawIconScaleMode` settled at **2** — screen-fixed while zoomed in,
-    capped at `STRAT_drawIconClampScreenMetres` beyond. Modes 0 and 1 are kept
-    in the switch: they cost nothing, and a later change of mind wants the
-    reasoning as much as the code.
-  - `STRAT_drawIconArgScale` and `STRAT_drawTextArgScale`, hand-tuned in game.
-    The text figure lands at 0.054 for a 0.30-unit label, all but `drawIcon`'s
-    own documented default of 0.05 — good evidence the argument really is
-    screen space.
-  - **Group icon size — knobs in place, figure not yet played.** A collapsed
-    group has the same two knobs an individual has: `TACT_commandGroupIconUnits` for what
-    it means (1.00 against a man's 0.85) and `STRAT_drawGroupArtScale` for what
-    it looks like. The second starts at 1, because a NATO box already fills its
-    texture and needs no rescue — so unlike the unit figure it is not a
-    correction waiting to be got right, it is the dial for how heavy a body of
-    men should read against one of its own men. Tune it against the ring, which
-    a collapsed group now gets — `TACT_commandGroupRingUnits`, 0.85, reached by
-    the box's corners at about 1.20 — and then against the units on screen
-    beside it. Above about 2.2 the drawn box reaches its own label and
-    `STRAT_drawLabelOffsetUnits` is what moves.
-  - The selection ring stays the ruler if any of the size figures need touching
-    up: `drawEllipse` in true world coordinates at `STRAT_drawRingUnits`, the
-    same 0.85 as `TACT_commandIconUnits`, so a selected unit's ring and its icon
-    should very nearly coincide in every mode. Check at two zoom levels —
-    getting it right at one zoom is what the broken arithmetic could also do.
-  - One caveat is deliberately left standing rather than fixed blind: **the
-    scaling mode is one switch for both layers.** The strategic map reads the
-    same conversion and its zoom range is the island, so under mode 2 an army
-    icon at Tanoa's full extent is a few pixels rather than the constant size
-    that map probably wants. It has not been looked at under mode 2, and
-    guessing is the same move that made `drawIcon`'s arguments world metres for
-    a build and a half. The split, when wanted, goes in
-    `STRAT_fnc_mapUnitMetres` — mode chosen from `TACT_commandActive` rather
-    than read from the global — and nothing else changes.
-- Army/soldier/vehicle data construction, including hitpoint layout read from
-  config without spawning.
-- Dijkstra road pathfinding with position→nearest-road snapping and jink-turn
-  correction.
-- Vehicle deployment with damage/hitbox restoration; infantry deployment on
-  foot or mounted, from one deployment point and bearing per army.
-  `TACT_fnc_deployMen` places every man in a formation slot first and mounts
-  him afterwards, front of the column first, so infantry-only is a roster with
-  an empty rotation and combined arms is one that runs out of seats partway
-  down — both produce one group carrying whatever mixture resulted.
-  `TACT_fnc_deployVehicles` places only as many vehicles as the roster can put
-  drivers in, and continues the column along its last bearing past the end of
-  the approach road, so an army out of road range deploys off-road rather than
-  not at all. Vehicles deploy stationary and are held to foot pace when any of
-  the group is walking, so a column never outruns its own infantry.
-- Map battle boundary rendering.
-- Turn skeleton: planning → commit → resolve → advance, movement only.
-  `STRAT_fnc_beginPlanning` opens the phase and retires finished orders;
-  `STRAT_fnc_issueOrder` queues to `pendingOrder` with an arrival projection;
-  `STRAT_fnc_commitTurn` closes planning and hands the block to
-  `STRAT_fnc_resolveTurn`, which advances every army concurrently against the
-  same elapsed block time in compressed real time; `STRAT_fnc_applyUpkeep` and
-  `STRAT_fnc_advanceClock` close the block and reopen planning. Unfinished
-  orders stand and carry into the next block.
-- Closed battle loop: contact → engagement → battle → conclusion →
-  classification → sync-back → return to the strategic map.
-  `TACT_fnc_detectContact` runs as a post-movement step inside the block and
-  returns hostile pairs; `TACT_fnc_buildEngagement` builds the engagement
-  record; `TACT_fnc_initiateBattle` deploys from it and flags both armies
-  `inBattle`; `TACT_fnc_runBattle` runs the fight at 1:1 real time against the
-  battle clock while the strategic clock holds; `TACT_fnc_resolveVictory`
-  classifies annihilation, breakthrough and repulse each tick, with mutual
-  disengage forced at the cap; `TACT_fnc_concludeBattle` moves each army's
-  strategic position to
-  its survivors, applies the outcome to the standing order, and calls
-  `TACT_fnc_syncBack`, which writes condition into the records, drops the dead,
-  nulls every `obj`, and deletes the entities. Armies rejoin movement
-  resolution for whatever is left of the block.
-- Hostility gating on contact (`STRAT_fnc_areHostile`): two blocs read from
-  `faction`, so converging friendlies are a rendezvous rather than a battle.
-- Side allocation per section 8. `STRAT_fnc_factionSide` is the single
-  faction→Arma-side map and `init.sqf` sets the matching global relations;
-  the druglords sit on WEST with their NATO backer instead of colliding with
-  CSAT on EAST.
-- Location and garrison records, minimally: `STRAT_fnc_createLocation` with
-  `id`, `type`, `position`, `owner`, `garrison`, `flagPos`, registered in
-  `STRAT_locations` and looked up by id with `STRAT_fnc_getLocation`.
-  `STRAT_fnc_addGarrisonMan` / `addGarrisonVehicle` delegate to the army
-  roster builders, so a garrison holds identical soldier and vehicle records.
-- Favor economy hooks: `STRAT_natoAggression` and `STRAT_csatFavor` balances,
-  `STRAT_fnc_addAggression` (accrual only; decay is an upkeep tick) and
-  `STRAT_fnc_spendFavor` (all-or-nothing debit). Call points only — no
-  triggers, no catalogue, no menu.
-- Derived army fatigue: `STRAT_fnc_armyFatigue` curves per-soldier `exertion`
-  and averages it into a 0–1 army value, recomputed on demand rather than
-  stored. Returns 0 for everything until accumulation lands.
-- Campaign draw layer (section 11). `STRAT_fnc_buildDrawList` derives one list
-  of draw items from `activeArmies` and `STRAT_locations`;
-  `STRAT_fnc_drawCampaignLayer` renders it as the map control's Draw handler;
-  `STRAT_fnc_onMapClick` hit-tests the same list, so what is drawn and what is
-  clickable cannot disagree. `STRAT_fnc_attachMapLayer` owns the attachment
-  lifecycle — one scope that waits for the map to open and its control to
-  exist, attaches, waits for the close, and repeats — and removes by stored
-  handler id so the battle boundary's handler on the same control survives.
-  `STRAT_fnc_mapUnitMetres` is the single conversion from icon units to world
-  metres, called once per draw pass and again by the hit-test, so every element
-  of every group shares one scale factor by construction. Armies emit a group:
-  icon, label with strength, a selection ring while selected, and an order
-  arrow from the icon's edge to the pending destination. Locations emit icon
-  and label. Markers are gone from the army record and from all four call
-  sites.
-- Battle command mode. An army may flag one soldier `isPlayer`. Deployment
-  spawns him with the rest of the roster and `TACT_fnc_dropIn` then hands the
-  player that body with `selectPlayer`, making him the group's leader;
-  `TACT_fnc_dropOut` returns control to the campaign avatar before sync-back
-  deletes the entities. Nothing is moved and nothing is inserted, so the battle
-  layer has no special case for the player anywhere — he is a soldier record
-  that gets counted, wounded and killed like any other. With the map closed,
-  Arma's stock squad bar commands the group untouched. With it open,
-  `TACT_fnc_setCommandHud` hides the bar, the commanding menu and the engine's
-  friendly map icons, and `TACT_fnc_onCommandClick` takes over: click an icon
-  to select, CTRL to add or remove, click terrain to move the selection.
-  The RIGHT button asks what can be done with the selection instead of changing
-  it. `TACT_fnc_openContextMenu` opens a panel of rows at the click;
-  `TACT_fnc_runContextOption` runs one and closes it. Two options are always
-  there — **Stop** (`TACT_fnc_issueStopOrder`, `doStop`: hold here, out of
-  formation) and **Regroup** (`TACT_fnc_issueRegroup`, `doFollow`: resume your
-  place in the commander's formation, which also clears a standing `doMove`) —
-  and a third appears with two or more entities selected: **New Group**
-  (`TACT_fnc_splitGroup`), which splits them into a group of their own. Stop
-  and Regroup are a pair and neither is a toggle: the player says stop and the
-  unit is stopped, he says regroup and it is following, and there is no third
-  state where the same option means different things depending on what happened
-  last.
-  Right-click never changes the selection, on an icon or off one. Selection is
-  the left button's business, so a stray right-click cannot discard four
-  entities the player spent four clicks assembling, and an empty selection
-  opens nothing at all rather than a panel of dead rows.
-  It addresses the **entity container only**. All three options are orders for
-  individuals, so a selection of nothing but groups opens nothing and a mixed
-  selection offers the options for the individuals in it — offering "Stop" over
-  a body of men that cannot be stopped would be a row that does nothing. That
-  stops being the right answer the day a group has orders of its own.
-  "New Group" hands its detachment straight into `TACT_commandGroupSelection`,
-  so the selection follows the men across the split: they leave the entity
-  container as men and enter the group container as the group they became.
-  The menu is **real controls on the map's display**, `ctrlCreate`d onto
-  display 12 from the `TACT_RscMenuFrame` / `TACT_RscMenuButton` classes in
-  `description.ext` — not drawn into the map layer, and not a `createDialog`
-  display. Drawing it would have put it under the same scaling law as the
-  icons, which is the tidier story and buys a rectangle, a font metric and a
-  hover highlight hand-rolled in world coordinates against a renderer built for
-  map symbols, with every row's position written down twice — once to draw it
-  and once to hit-test it. A dialog would have opened a display on top of the
-  map and taken focus from it, so a click that missed the menu would land on a
-  dialog rather than on the map. Controls on the map's own display are neither:
-  the map keeps its input, the engine lays out the rows and highlights the one
-  under the pointer, and z-order settles itself because nothing is created
-  after them. The menu's whole geometry is three fractions of the safe zone in
-  `init.sqf`; everything else about how it looks is config, where a control's
-  appearance is normally declared.
-  Each row **carries its own option id on the control**, so nothing keeps a
-  parallel list of what the rows are or what order they are in, and no row can
-  run the wrong option. A click on a row is consumed by that row; a click that
-  reaches the map with a menu open is therefore one that missed it, and
-  dismisses it without falling through to a move order — answering "not that
-  after all" by sending the men somewhere is the worst reading available.
-  `TACT_fnc_closeContextMenu` is the single teardown every path uses: a chosen
-  row, a click away, the map closing, `fn_dropOut`.
-  The layer draws four things: the player, each unit of his group, every other
-  group on his side as one icon over its leader (`TACT_fnc_playerGroups`), and
-  every allied group as one icon over its leader (`TACT_fnc_alliedGroups`).
-  No group icon is drawn for his own group — its units are already there
-  individually. Colour and silhouette come from `STRAT_drawFactionColour` and
-  `STRAT_drawFactionIcon`, the campaign layer's own tables, read here unchanged — see section 11.1. The
-  commander is the one thing on this map coloured by role instead: yellow,
-  `TACT_commandPlayerColour`, because his force is blue and he is not his
-  force.
-  The two collapsed lists are split on **control, not allegiance**. Both are
-  friendly and neither is drawn man by man; what separates them is that
-  `fn_playerGroups` holds groups the command layer could one day order — a
-  detached half of his own group is the case group-level command exists for —
-  and `fn_alliedGroups` holds groups it never will. CSAT is a patron, not a
-  subordinate: the player's leverage over it is Favor spent between blocks, not
-  a move order on a map. Keeping the lists apart means group-level command
-  widens to one of them and provably cannot reach the other.
-  `fn_playerGroups` tests `side _group == side (group player)`; `fn_alliedGroups`
-  tests a different side that the engine counts friendly, via `getFriend` past
-  the 0.6 the engine itself reads as friendly, which is the reading half of the
-  `setFriend` decision section 8 writes. Both read the engine rather than the
-  `STRAT_faction` stamp, because a detached group is made by the engine and
-  carries no stamp — it inherits side for free, which is exactly the property
-  needed. CIVILIAN is excluded from the allied test explicitly: civilians are
-  default-friendly to every side and would otherwise pass it whole, the campaign
-  avatar first and eventually every civilian the NATO Aggression meter exists to
-  measure against.
-  `TACT_fnc_commandEntities` resolves the group into what can actually be moved
-  — a dismounted man, or a vehicle with at least one of ours in it, ordered
-  through its driver — so a mounted rider resolves to the truck he is riding
-  in. A terrain click sends the selection there — one `doMove`, one
-  destination, never a chain. With nothing selected it does nothing at all: an
-  empty selection addresses nobody and does not fall back to the whole group,
-  because the player leads that group and the only order the map could give it
-  is one competing with him for control of his own men. Whatever the group does
-  as a body, it does by following him. An army with no flagged soldier drops
-  nobody in and never leaves the campaign layer.
-- **Groups are selectable; his own, never an ally's.** The widening the two
-  collapsed lists were kept apart for, taken on the half it was promised to.
-  A player group carries `TACT_commandGroupHitUnits` and gets
-  `TACT_commandGroupRingUnits` when selected; an allied group is emitted with
-  no hit area at all, so "an ally is never his" is enforced by the draw list
-  rather than restated in the click handler. Selecting a group does not order
-  it — a body of men has no map order until waypoints arrive — so what it buys
-  today is a ring, a count, and the ruler the group icon is tuned against.
-  The selection is **two containers and one concept**: `TACT_commandSelection`
-  holds objects, `TACT_commandGroupSelection` holds groups, because the two are
-  different engine types, take different orders, and are pruned against
-  different live lists — a group tested against a list of objects is not stale,
-  it is absent. To the player it is one selection: a bare click replaces both,
-  CTRL toggles within one and leaves the other, so a mixed selection is built
-  deliberately and never inherited. Individuals are hit-tested before groups so
-  a man standing under his own group's icon wins the tie. A terrain click with
-  groups selected moves the individuals and says what it did not do with the
-  rest — the one departure from the silence rule, because a click that reached
-  a deliberate selection is not an accidental click.
-- Test harness (`TEST_fnc_*`). Named rosters, named starting states, named
-  engagements and named drills, all declared as data in `init.sqf`.
-  `TEST_fnc_setupScenario` builds what a session boots into;
-  `TEST_fnc_spawnBattle` drops a fixed engagement straight into a battle with
-  no turn around it, bound to SHIFT+B. The two hand-built armies that used to
-  sit in `init.sqf` are now the `skirmish` scenario, and `sandbox` — one player
-  army, nothing hostile — is the default.
-- Drills (`TEST_fnc_spawnDrill` / `TEST_fnc_endDrill`). One army on the ground
-  with nobody to fight it, for testing the command interface rather than the
-  battle. A drill has no opposition and therefore no victory condition, so it
-  does not conclude on its own: SHIFT+B ends it, SHIFT+N opens it again, and
-  that repeatable handover between the campaign map and the battle map is as
-  much the point as the drill is. `TEST_bootDrill` in `init.sqf` names the
-  drill a session opens into, or `""` to boot onto the strategic map as normal.
-  Deployment, the body, the boundary and the map are the shipping functions
-  unchanged; only the conclusion is the harness's own, because a one-sided
-  engagement handed to `fn_resolveVictory` reads as an annihilation on its
-  first tick.
-- **`TEST_fnc_splitGroup` (SHIFT+G)** detaches half the player's men into a
-  group of their own and walks them `TEST_splitStandoffMetres` clear. Harness
-  only, and it exists because nothing else puts a collapsed group on a drill's
-  map: a drill deploys one army as one group, and the second group in a battle
-  is hostile, which this layer does not draw. It deliberately leaves the new
-  group unstamped, which is the case `fn_playerGroups` resolves by side and
-  colours from the group it came out of — stamping it would walk the map's
-  hardest case past the code written for it. It is a drill tool and refuses
-  outside one: `fn_resolveVictory` counts an army's survivors as the `units` of
-  the group deployment made for it, so a split in a real battle would read as
-  men annihilated while they are still standing — which is group-level
-  command's problem to answer, not a debug key's.
-
-**Needs conversion to turn-based**
-
-*Converted:* `fn_moveArmyAlongPath` is now a bounded, non-sleeping resolution
-pass over a slice of block time; `fn_onMapClick` queues to `pendingOrder`
-instead of marching; `isMoving` is gone from the army record, which now carries
-`id`, `pendingOrder`, `inBattle`, and `prisoners`. `fn_battleDetectionLoop` is
-gone, replaced by `fn_detectContact` as a step inside the block — which also
-retires its mutation-during-iteration bug, since detection now collects pairs
-and never touches `activeArmies`.
-
-**Needs restructuring for the battle type model**
-- Deployment still converges both groups on the anchor. It should place each
-  army at its own boundary edge facing its destination bearing. Engagement
-  construction is split out of `fn_initiateBattle` already, but the placement
-  routine is not yet selected by the record's `deployment` key, which currently
-  only names what runs (`"midpointConverge"`).
-- `TACT_fnc_buildEngagement` is open-field only: no `capturePoint`, no
-  `sprung`, and the attacker/defender assignment is arbitrary because the roles
-  are symmetric in a meeting engagement. Set-piece and ambush need it extended,
-  not replaced.
-
-*Restructured:* `fn_initiateBattle` now takes an engagement record instead of
-two armies and reads the anchor, radius, and roles from it; `fn_drawBoundary`
-takes the anchor and radius rather than a raw midpoint, so the drawn circle and
-the enforced one cannot drift apart.
-
-**Partial / needs work**
-- A partly mounted group is one group containing trucks and men on foot, and
-  the single `move` order `fn_initiateBattle` issues drives both. The trucks are
-  held to the foot element with `limitSpeed` at `TACT_deployFootPaceKmh` rather
-  than left to formation logic, and the cap stands for the battle: releasing it
-  on contact reads as buying back a breakthrough and does not, because
-  breakthrough is classified off the group's centroid and a mixed group's
-  centroid is pinned by the men on foot whatever the trucks do. The pace itself
-  is untuned. The alternative shape — a mounted group and a foot group per army
-  — is rejected: `fn_resolveVictory`, `fn_syncBack` and `fn_dropIn` all read one
-  group per side, and splitting it is the same change as the detach that
-  group-level command needs, so it waits for that and for counting strength off
-  the `men` array.
-- Whether `limitSpeed` binds a *player*-driven vehicle is not settled by the
-  wiki. `fn_dropIn` lifts the cap where the player turns out to be the driver,
-  which is the common case — he leads, the leader is placed first, and
-  `moveInAny` fills the driver's seat first — so the question only bites if he
-  changes seats mid-battle into a capped truck. Untested either way.
-- Deployment geometry is still `midpointConverge`: each army is placed where it
-  already stands, facing the anchor. `fn_initiateBattle` computes one point and
-  one bearing per army and hands them to both deployment routines, so edge
-  deployment facing the destination bearing (2.1) is a change to those four
-  values and to nothing inside `fn_deployMen` or `fn_deployVehicles`.
-- Nothing deploys a garrison yet. `fn_deployMen` can place a dismounted roster
-  now, but a garrison record carries `men` and `vehicles` and no `faction` or
-  `id` of its own — those live on the location as `owner` and `id` — so it is
-  the set-piece deployment plan (2.3) that has to supply them. Stamping a
-  `faction` into the garrison record instead was rejected: it would duplicate
-  `owner` and go stale the first time a location changes hands (3.8).
-- `fn_initiateBattle` still abandons an engagement when a side puts nobody on
-  the ground, but the only roster that now does that is one with no men in it.
-  A side that cannot field anybody must not be classified as annihilated, so
-  the engagement costs a battle and never a roster.
-- Only annihilation, breakthrough, repulse, and block-clock expiry are live
-  victory conditions. Rout needs a morale model and surrender needs the
-  set-piece capture point; neither is claimed in the engagement record.
-- A repulsed army stops where it was driven to and its order retires. Marching
-  back toward origin is post-battle march work.
-- One attended battle at a time (`TACT_maxAttendedBattles`). Further contacts in
-  the same block wait, because the alternative — spawning battles the player
-  cannot attend — needs auto-resolution first.
-- A second battle can open in the same block once the first concludes, so a
-  heavily contested block can run past 40 real minutes. Different pairs only —
-  the same two armies never re-fight inside one block.
-- Drop-in happens automatically wherever a deployed army carries a flagged
-  soldier, and there is no way to decline it. Overhead spectate does not exist,
-  so a battle the player is not in is still watched from the map. Both are the
-  rest of 3.12.
-- `selectPlayer` is a singleplayer mechanism. Drop-in as built commits toward
-  the singleplayer side of open decision 1; a multiplayer fork would need a
-  different way to seat a player in a deployed roster.
-- A player-led group does not execute the group `move` order `fn_initiateBattle`
-  issues: AI follow their leader, and the leader is now the player. The
-  player's army therefore holds at deployment until ordered, while the AI side
-  advances on its standing order. That is the intended shape of commanding —
-  the route the player draws is the route he walks — but it means the two sides
-  of a battle are driven differently and the boundary-crossing conditions have
-  only been reasoned about, not played.
-- If the player's soldier is killed, control returns to the campaign avatar and
-  his record is dropped by sync-back like any other casualty. The army then has
-  nobody flagged and its next battle runs watched from the map. Nothing
-  promotes a replacement, because nothing should invent one.
-- Map command mode issues three orders to individuals — go to a point, hold
-  here, return to formation — and none at all to a body of men. Held ground for
-  one man is now real and is `doStop`, an engine state with `doFollow` as its
-  documented release, rather than the script that used to fake it: a loop that
-  watched for arrivals and re-issued `doMove`, removed because the workaround
-  needed guards against dragging men out of cover and against overriding the
-  stock squad bar, and every guard was another condition under which commanding
-  behaved differently. What is still missing is chained waypoints and any order
-  for a group as a body; both return with group-level command, below, where the
-  engine carries them natively.
-- Both collapsed-group passes draw nothing today, and that is a property of the
-  battle model rather than of the passes. `fn_buildEngagement` takes exactly two
-  armies, `fn_deployMen` spawns each as exactly one group, and contact detection
-  requires hostility — so the only groups on a battlefield are the player's and
-  one enemy's. `fn_alliedGroups` therefore still emits nothing.
-  `fn_playerGroups` no longer does: **"New Group" is the detach it was waiting
-  for**, and a detachment stops being command entities and becomes one collapsed
-  icon over its leader the same frame it is split — carrying the parent group's
-  `STRAT_faction` stamp, which `TACT_fnc_splitGroup` sets explicitly rather than
-  leaving to that pass's fallback. Two more cases will follow: a second army of
-  his side arriving to reinforce, and a garrison of his faction spawning into
-  the fight it is standing over. `fn_alliedGroups` goes live the day a battle can
-  hold more than two armies and one of them is CSAT — which is also the day
-  CSAT Favor buys something that shows up on the ground. The rule is encoded now
-  because the detach lands into it for free, and because the alternative — every
-  friendly unit drawn individually — is the state this replaces.
-- Collapsed group icons carry no composition adornment yet, so a group of eight
-  in trucks and a group of eight on foot are the same icon and the same label.
-  `men` on the group record is what an adornment would read; the badge itself is
-  the same piece of work as the vehicle badge section 11 opens with, and should
-  land as one.
-- Facing is drawn for individuals and for nobody else, which settles this
-  entry's original form. Items carry a `direction`, and command entities and the
-  commander set it from `getDir`; every aggregate passes `0`. The reasoning that
-  held it open still holds and is now what keeps the aggregates at zero:
-  rotating a NATO silhouette is the wrong way to show heading, because those
-  symbols read as upright, and a body of men under one icon has no single facing
-  to show — its equivalent is the order arrow, direction of intent rather than
-  direction of facing. What changed is that individuals no longer *use* a NATO
-  silhouette. The stock unit artwork is asymmetric and built to turn, so
-  rotating it is exactly how the engine's own map shows heading, and it cost one
-  argument.
-- `"polyline"` is a live shape in `STRAT_fnc_drawItems` that nothing emits. It
-  is kept rather than deleted because an unreachable `case` cannot be entered
-  and so cannot drift, and routes return with group waypoint chains. A
-  conditional inside a shape that *is* reached is a different matter and was
-  removed with the held post.
-- `fn_calculateRoadPath` snaps the start point to the *nearest* road but the end
-  point to an arbitrary one; the jink-correction block assumes `_startInput` is
-  an array and will error if an object was passed.
-- Boundary radius is hardcoded and now load-bearing — it is the withdrawal
-  mechanic, so it must be enforced and its crossing direction classified.
-- `fn_drawBoundary` resolves `(findDisplay 12) displayCtrl 51` at call time. It
-  is called from `fn_initiateBattle`, which can fire while the map is closed, in
-  which case the handler attaches to a null control and the boundary is never
-  drawn. Attachment belongs on map open (section 11).
-- `fn_drawBoundary` guards on `ctrlMapWorldToScreen` returning a non-empty
-  array, which is false whenever the *centre* scrolls offscreen — so panning
-  away from the anchor drops the whole circle rather than clipping it. The
-  guard should be removed; `drawEllipse` takes world coordinates and clips
-  itself.
-- `fn_drawBoundary` is now the only thing left drawing outside the campaign
-  layer, and it still carries both faults above. Folding it into the draw list
-  as a battle-owned item would fix them together and leave one Draw handler on
-  the map; it was left out of 1.6 to keep the marker removal reviewable.
-- The campaign layer rebuilds its draw list every frame the map is open. That
-  is what guarantees the drawn and the clickable agree, and at a handful of
-  armies it costs a few HashMaps a frame. It is the first thing to look at if
-  the map ever gets heavy, and the fix is a dirty flag on the list, not two
-  lists.
-
-**Not started**
-- Post-battle march for a repulsed army. Survivors of every other outcome
-  rejoin movement resolution for what is left of the block, but a repulsed army
-  stops where it was driven to rather than reversing along its route.
 - Auto-resolution for unattended battles.
 - Set-piece battles and the capture point. The location and garrison records
-  they depend on now exist; what is missing is the battle type, not the data.
+  exist; what is missing is the battle type, not the data.
+- Morale, rout, and surrender. Two victory conditions are named in section 10
+  but not claimed anywhere, because neither model exists.
+- Post-battle march for a repulsed army.
 - Prisoner records and holding.
 - Ambush order type and deployment.
-- Fatigue accumulation and its effects. The soldier keys, the derived army
-  value, and the `fn_applyUpkeep` hook points all exist; what is missing is
-  anything that writes `exertion`, the skill and morale modifiers at
-  deployment, and the projection at planning time. Curve constants are
-  untuned.
+- Fatigue accumulation and its effects. The soldier keys, the derived army value
+  and the upkeep hook points exist; nothing writes exertion, and the curve
+  constants are untuned placeholders.
 - The rest of the planning-time adornments the visibility invariant asks for:
-  projected arrival, route exposure, opinion shading, fatigue and tonnage. The
-  draw layer they hang off exists and the group shape is proven by the
-  selection ring and the order arrow; each of these is now one more item
-  emitted into an existing group, not new machinery.
-- Stronghold definition and frontier gating.
-- Route exposure and interception.
-- CSAT Favor and NATO Aggression beyond the hooks. The balances and the
-  `STRAT_fnc_addAggression` / `STRAT_fnc_spendFavor` call points are in;
-  accrual triggers, decay, display, the spend menu, the asset catalogue, and
-  favor accrual itself are phase 3.7. The starting favor balance is a
-  placeholder stake so phase two has something to spend.
-- Money, manpower, recruitment, wages.
-- Location capture, ownership transfer, per-location benefits, and local
-  opinion. The record deliberately carries no `opinion` key until then.
-- Naval and air movement (mandatory on an archipelago — road pathfinding cannot
-  leave the island it starts on).
+  projected arrival, route exposure, opinion shading, fatigue, tonnage. Each is
+  one more item emitted into an existing group, not new machinery.
+- Group-level battle command: detaching a squad, chained waypoints, held ground.
+  Its prerequisite is that a side's strength be counted from the army record's
+  roster rather than from group membership, or a detachment silently stops being
+  counted and an army can be declared annihilated with a live element still
+  fighting. Deliberately not done in advance — with no detaching, the roster and
+  the group are the same set, so the change would be a no-op edit to the most
+  consequence-heavy code in the project.
+- Strongholds, frontier gating, route exposure and interception.
+- Favor and aggression beyond the hooks; the economy generally.
+- Location capture, ownership transfer, per-location benefits, local opinion.
+- Naval and air movement — mandatory on an archipelago, since road pathfinding
+  cannot leave the island it starts on.
 - Save/load serialization.
-- Overhead spectate, and the choice of whether to drop in at all. Drop-in
-  itself is in, for the player's own army.
-- **Group-level battle command.** Chained waypoints and held ground are engine
-  features one level up: a group with no player in it executes an `addWaypoint`
-  chain natively — sequencing, completion radii, and a real `HOLD` waypoint
-  type — with no script watching it. A player who wants one man to flank wide
-  or watch a ridge detaches him into a group of one, gives that group a
-  waypoint chain, and merges him back afterwards. Detaching is an explicit act
-  on the map, not implicit on ordering, so the split has a visible result and a
-  stray click cannot fragment a squad.
-
-  **The detach itself is now built** — "New Group" on the context menu,
-  `TACT_fnc_splitGroup` — and what is left is the commanding of what it
-  produces. A detachment draws as one collapsed icon through `fn_playerGroups`,
-  so it is **selectable** — hit area, ring and count, all of which arrived with
-  the two-container selection — and it is not **orderable**: selecting a group
-  does not order it, because a body of men has no map order until waypoints
-  exist. It is also out of reach of the stock F-key interface, which addresses
-  one group. So a detachment forms up where it is split and holds there.
-  **That is the one place the tactical layer is knowingly incomplete**, and
-  `fn_splitGroup` says so in `systemChat` at the moment of the split rather
-  than letting men quietly stop answering. What is left to close it: `_group
-  move` for a destination, waypoint chains for a route, and Regroup extended to
-  mean `join` back into the commander's group. The hit area and the selection
-  container are already in.
-
-  Its prerequisite is **done**. `fn_resolveVictory` and `fn_concludeBattle` both
-  read `units _attackerGroup` / `units _defenderGroup`, so a detached squad
-  silently stopped being counted and an army could be declared annihilated while
-  a live detachment was still fighting. Both now count living soldiers from the
-  army record's `men` array — an `obj` that is neither null nor dead — which is
-  what the "data records own the truth" invariant already said, is immune to
-  regrouping, and is the rule `fn_syncBack` had all along. A record with a null
-  `obj` was never deployed and is not counted: absent is not dead, the same
-  distinction sync-back makes. It was deliberately not done in advance, and it
-  landed with the detach that made it stop being a no-op.
-
-  Detachments are created `deleteWhenEmpty`, like a deployed army's group, so
-  the engine takes them the moment their last man dies or rejoins.
-  `TACT_commandDetachments` exists as the teardown backstop `fn_concludeBattle`
-  sweeps after sync-back, and it is cleared in `fn_dropIn` rather than
-  `fn_dropOut`: a commander who is killed leaves his detachments on the field,
-  still his army's men, still counted, still fighting.
-- Soldier names, progression, and loadout persistence.
+- Overhead spectate, and the choice of whether to drop in at all.
+- Soldier names, progression, loadout persistence.
 
 ---
 
-## 15. Open Decisions
+## 14. Open Decisions
 
-**Closed since last revision**
-
-- ~~Execution phase presentation.~~ The player watches every block resolve in
-  compressed time. Required by the ambush model. See section 5.
-- ~~Boundary enforcement.~~ The boundary *is* the withdrawal mechanic, and
-  crossing direction determines whether it reads as breakthrough or repulse.
-  See section 10.1.
-
-**Open**
-
-1. **Singleplayer or multiplayer?** This fork affects locality, HashMap
-   serialization, and every spawn call. Recommendation: SP first; do not pay MP
-   costs until the loop is proven. Battle drop-in has since taken the SP side
-   in practice — it seats the player with `selectPlayer`, which has no
-   multiplayer equivalent — so an MP fork now has a concrete thing to replace
-   rather than only a general cost.
-2. **Concurrent battles.** How many spawned battles per block? A cap of one
-   attended battle with all others auto-resolved is the safe default.
-3. **Auto-resolve fidelity.** Pure math, or a fast headless simulation? Math is
-   cheaper and more predictable; players tolerate it if the projection is
-   legible. Must handle all three battle types, including the capture point.
-   Deferred to phase 3 deliberately: whichever approach is chosen has to be
-   calibrated against the outcome distribution real battles actually produce,
-   which is not known until phase 2 has been played.
-4. **Clock rates.** Two tunables in `init.sqf`, both wanting playtesting, and
-   nothing else may hardcode either:
-   - `STRAT_realSecondsPerBlockHour` (30) — compression of the watched march.
-     A block is two minutes of watching.
-   - `TACT_battleRealSecondsMax` (2400) — the battle clock. Battles run at 1:1
-     real time and break off at 40 minutes.
-
-   `TACT_blockSecondsPerBattleSecond` (1) is the third: battle time is block
-   time one for one, so a full-length battle costs 40 of a block's 240 minutes.
-   Raising it above 1 would make fighting cost strategic time faster than it
-   costs real time. What still needs playtesting is whether 40 minutes is the
-   right cap, whether a two-minute block reads as too fast to follow, and
-   whether 40 minutes of block time is enough of a price for a battle.
-5. **Fatigue curve and thresholds.** Needs playtesting once movement resolution
-   exists. The threshold must be tuned against the 4-hour block, not chosen
-   independently of it. Tuned in phase 2, where its effects are visible; only
-   the derived army-level value is needed in phase 1.
-6. **Save format.** HashMaps need flattening to `profileNamespace` or a
-   serialized string. Block boundaries make this tractable. Previously flagged
-   as urgent on the grounds that the schema should be locked before the data
-   model grows; on inspection the phase 2 growth is mostly *transient* —
-   engagement records are never saved, since no battle spans a block boundary —
-   and the persistent additions (soldier fields, prisoners) are additive rather
-   than structural. Deferred to phase 3 on that basis. Revisit if phase 2
-   introduces persistent state that is not a field on an existing record.
-7. **Pathfinding cost ceiling.** Unbounded Dijkstra over Tanoa's full road graph
-   can stall. Consider A* with a distance cap and a fallback to direct movement.
+1. **Singleplayer or multiplayer?** Affects locality, serialization and every
+   spawn call. Recommendation: SP first; do not pay MP costs until the loop is
+   proven. Drop-in as built has already taken the SP side in practice, so an MP
+   fork now has a concrete thing to replace rather than a general cost.
+2. **Concurrent battles.** How many spawned battles per block? One attended with
+   the rest auto-resolved is the safe default.
+3. **Auto-resolve fidelity.** Pure math or a fast headless simulation? Math is
+   cheaper and more predictable, and players tolerate it if the projection is
+   legible. Must handle all three battle types. Deferred deliberately: whichever
+   is chosen has to be calibrated against the outcome distribution real battles
+   produce, which is not known until phase 2 has been played.
+4. **Clock rates.** Compression of the watched march, and the battle clock cap.
+   Both want playtesting; nothing may hardcode either. Open questions: whether
+   the cap is right, whether a two-minute block reads as too fast to follow, and
+   whether that much block time is enough of a price for a battle.
+5. **Fatigue curve and thresholds.** Tuned in phase 2, where the effects are
+   visible. The threshold must be tuned against the 4-hour block, not chosen
+   independently of it.
+6. **Save format.** Deferred to phase 3: phase 2's growth is mostly transient,
+   and the persistent additions are additive rather than structural. Revisit if
+   phase 2 introduces persistent state that is not a field on an existing
+   record.
+7. **Pathfinding cost ceiling.** Unbounded search over the full road graph can
+   stall. Consider a distance cap with a fallback to direct movement.
 8. **Prisoner disposition.** Ransom, recruitment, release, execution, or some
-   combination gated by opinion and aggression. Deliberately deferred; prisoners
-   are logged in the meantime so the decision can be made without a retrofit.
-9. **Capture contest formula.** The exact function of attacker and defender
-   counts, and the flag traversal time. Both need playtesting against the
-   perimeter-defence viability constraint.
+   combination gated by opinion and aggression. Prisoners are logged in the
+   meantime so the decision can be made without a retrofit.
+9. **Capture contest formula,** and flag traversal time. Both need playtesting
+   against the perimeter-defence viability constraint.
 10. **What counts as a defender in the capture radius.** Whether incapacitated
-    or unconscious units hold the point, and whether occupants of a moving
-    vehicle passing through count. "One crawling wounded man holds the town
-    indefinitely" is a real failure state.
-11. **Destination bearing edge case.** If an army's destination lies behind its
-    own deployment edge, forward and backward coincide and the exit
-    classification is ambiguous. Needs a fallback rule.
+    units hold the point, and whether a vehicle passing through counts. "One
+    crawling wounded man holds the town indefinitely" is a real failure state.
+11. **Destination bearing edge case.** If a destination lies behind an army's
+    own deployment edge, forward and backward coincide and exit classification
+    is ambiguous. Needs a fallback rule.
 12. **Ambush preparation fidelity.** Hand-placed mines and roadblocks versus an
     abstract budget placed by script. Budget preferred on scope grounds.
 
 ---
 
-## 16. Build Plan
+## 15. Build Plan
 
-Three phases. Phase one brings the strategic layer to the minimum that gives the
-battle layer real context. Phase two is the battle deep dive. Phase three
+Three phases. Phase one brought the strategic layer to the minimum that gives
+the battle layer real context. Phase two is the battle deep dive. Phase three
 returns to the strategic layer and story progression.
 
-The ordering principle: anything that would be **expensive to retrofit into
-battle code** goes in phase one, even if its full implementation does not.
-Anything that only needs battles to *exist* goes in phase three. Everything else
-follows the dependency chain.
+The ordering principle: anything **expensive to retrofit into battle code** goes
+in phase one, even if its full implementation does not. Anything that only needs
+battles to *exist* goes in phase three. Everything else follows the dependency
+chain.
 
-### Phase 1 — Strategic minimum
-
-**Complete.** Turn skeleton (planning → commit → resolve → advance), closed
-battle loop (contact → engagement → battle → conclusion → sync-back → return),
-block time accounting, and all six numbered items below. Phase two is open.
-
-**The items, in the order they were built:**
-
-~~1.1 **Fix side allocation.**~~ **Done.** The faction→side map is
-`STRAT_fnc_factionSide`, called by `fn_deployMen`; the matching global
-relations are set in `init.sqf`. Druglords moved off EAST, where they collided
-with CSAT, onto WEST with their NATO backer.
-
-~~1.2 **Locations and garrisons, minimally.**~~ **Done.** `id`, `type`,
-`position`, `owner`, `garrison`, `flagPos`, built by `STRAT_fnc_createLocation`
-into the `STRAT_locations` registry. Garrison rosters reuse the army record
-builders. `opinion` and per-location benefits stay deferred to 3.8.
-
-~~1.3 **Favor and aggression accrual hooks.**~~ **Done.**
-`STRAT_natoAggression` and `STRAT_csatFavor` balances, plus
-`STRAT_fnc_addAggression` and `STRAT_fnc_spendFavor` as the two call points the
-battle layer needs. Aggression only rises through the hook — decay is an upkeep
-tick, and `fn_applyUpkeep` names the slot. No `addFavor`: its triggers are
-strategic, so nothing gets retrofitted by leaving that direction to 3.7. The
-economy, the spend menu, the asset catalogue and the accrual triggers all stay
-deferred.
-
-~~1.4 **Derived army fatigue value.**~~ **Done.** `STRAT_fnc_armyFatigue`
-curves each soldier's `exertion` and averages, returning 0–1. Derived on
-demand, never stored, so merges and splits need no invalidation; it reads a
-garrison roster unchanged. Nothing accumulates yet, so every army currently
-reports 0. The three curve constants are in `init.sqf` and are untuned
-placeholders — fatigue is tuned in phase two against played battles.
-
-~~1.5 **Battle test harness.**~~ **Done.** `TEST_fnc_spawnBattle` opens a named
-engagement from `TEST_engagements` with no turn around it — no planning phase,
-no order, no march, no contact detection — and runs it through
-`buildEngagement` → `initiateBattle` → `runBattle` → `concludeBattle`
-unchanged, so what the harness tests is what ships. Bound to SHIFT+B, anchored
-on the player so the fight opens where they are standing. It closes input for
-its duration through `STRAT_turnPhase` and reopens planning when the fight
-ends.
-
-Around it, the boot state is data rather than code. `TEST_rosters`,
-`TEST_scenarios` and `TEST_engagements` are declared in `init.sqf` and built by
-`TEST_fnc_setupScenario`; the two armies that used to be spawned by hand there
-are now the `skirmish` scenario. Three states ship: `sandbox` (one player army,
-nothing hostile anywhere), `skirmish` (out of contact), `contact` (inside
-`TACT_contactRadius`, so the first committed block opens a battle). `sandbox`
-is the default — the strategic layer with the battle layer taken out from under
-it, for working on orders and routes without a fight interrupting. It needs no
-hidden enemy to stand up: `fn_detectContact` pairs armies off against each
-other and finds nothing to pair, and `fn_resolveTurn` marches a single army
-perfectly well.
-
-**Drills (added for the phase-two interface pass).** `TEST_fnc_spawnDrill` puts
-ONE army on the ground with nobody to fight it, hands the player a body in it,
-and opens command mode. It exists because the three things being worked on —
-the handover between the stock interface and the map's command mode, what the
-command layer draws, and selection — are properties of that layer alone, and a
-real engagement is a poor place to look at them: the units under inspection are
-being shot at, and the battle clock takes the map away at
-`TACT_battleRealSecondsMax` whether or not the tester was finished.
-
-It is not `fn_spawnBattle` with one army. The battle lifecycle is written
-around two sides classifying each other's exit, and a one-sided engagement
-handed to `fn_resolveVictory` reads as an annihilation on its first tick — so a
-drill runs `deployVehicles` → `deployMen` → `dropIn` → `drawBoundary`
-unchanged and owns only its own conclusion, `TEST_fnc_endDrill`, which is
-`fn_concludeBattle`'s teardown with the parts that need two sides taken out.
-The record it holds is engagement-shaped (`attacker`, `attackerGroup`,
-`defender`, `defenderGroup`) so `fn_dropIn` takes it unchanged; the defender is
-an empty record rather than a missing key.
-
-A drill has no victory condition and never ends on its own. SHIFT+B ends it,
-SHIFT+N opens it again. `TEST_bootDrill` names the drill a session opens into —
-`squadFour` ships, four men over the `mercFireteam` roster — AAF classes, so
-contractors in contractor kit rather than mercenaries wearing NATO's — deployed
-around wherever the mission put the player — or `""` to boot onto the strategic map as
-normal. The roster carries no vehicle on purpose: a mounted man resolves to his
-vehicle in `fn_commandEntities`, so a truck in the roster would draw fewer
-icons than there are men and make the mounting rule the first thing a selection
-test was testing.
-
-**Settled by the drill: `createUnit` does not carry a unit onto its group's
-side.** The first drill run deployed four `B_T_` (BLUFOR-configured) men into an
-INDEPENDENT group with nothing hostile anywhere on the map, and they opened fire
-on each other. Swapping the roster to `I_` (AAF) classes silenced it. So the
-roster table's "cosmetic only, since `createUnit` takes the group's side" was
-wrong: a `B_`-classed man in an INDEPENDENT group behaves as WEST, and
-`independent setFriend [west, 0]` makes that a squad hostile to itself. The same
-reasoning makes the `O_T_` cartel rosters on WEST hostile to themselves.
-
-Matching every roster's classes to its side is the obvious fix and the expensive
-one — it costs the project every unit class it does not own. The cartel is where
-that bites: `drugLords` sits on WEST and wants Syndikat, which the game
-configures as INDEPENDENT, and there is no WEST-configured cartel to fall back
-on. Putting Syndikat on WEST would not be a fix, only the same defect pointed the
-other way — the cartel would read as INDEPENDENT, which is the player's own side.
-
-So `mercFireteam` is deliberately back on `B_T_` classes and the drill is now the
-rig for the fix that costs nothing: the rank-anchor join, now shipping inside
-`TACT_fnc_deployMen` and documented in full under **SQF Quirks and Workarounds**
-(13.1). The drill briefly owned its own placement while the technique was on
-trial; that copy is gone and a drill runs the shipping path, so what it exercises
-is what a battle runs.
-
-**Still open: vehicles.** `fn_deployVehicles` creates its vehicles with a bare
-`createVehicle` — no group, no side — and the anchor trick does not transfer,
-because a vehicle reports `grpNull` and there is no group to be carried into. Every
-drill so far has been dismounted by design, so nothing has tested it.
-`TEST_fnc_vehicleProbe` puts one empty BLUFOR-classed vehicle in front of the
-drill's squad and reads it three times: **EMPTY** at spawn (the state deployment
-produces between placing a vehicle and seating its men), **CREWED** five seconds
-after the first man climbs in, and **HIT** the moment anything shoots it, naming
-the shooter.
-
-The Hit reading is the verdict; the other two are instrumentation. The infantry
-bug was never visible in a `side` call — the men reported INDEPENDENT the entire
-time they were shooting each other — so the probe reports `getFriend` and who is
-aiming at it rather than trusting `side` to answer. If vehicles do carry config
-side, the likely fix is the direct analogue of the anchor: `createVehicleCrew` on
-a correct-side group, then delete the crew.
-
-**And the reciprocal, which matters more: `TEST_fnc_hostileProbe`.** Our own men
-ignoring our own transport is the harmless direction. The dangerous one is whether
-the *enemy* will engage it — if config side reaches their friend/foe test, a
-cartel rifleman looks at a Hunter full of mercenaries and sees a friendly truck,
-nothing shoots, and the battle layer quietly does nothing. That failure looks like
-peace rather than like a bug, which is what makes it worse than the loud one that
-started this.
-
-Five seconds after the player mounts the probe vehicle, one genuine WEST soldier
-(a `B_` class in a WEST group, so nothing about him needs converting) is placed at
-`TEST_probeHostileDistance` and `reveal`ed to the target. He is revealed, never
-ordered — `doTarget` would force the shot and prove nothing. A `Fired` handler
-reports PASS; a silent window reports `knowsAbout` and `getFriend` for both the
-vehicle and the player, so "never spotted it" can be told apart from "saw it and
-did not care". The `solo` drill exists for this: one man in the army means there is
-exactly one friendly body and one friendly vehicle the hostile could be reacting
-to.
-
-Two things came out of it that were not harness work. `fn_beginPlanning`
-guarded on `STRAT_turnPhase == "resolving"` — the flag it is itself the only
-writer of back to `"planning"` — so it refused to reopen planning after the
-first commit and the campaign accepted exactly one order. It now guards on
-`STRAT_resolutionRunning`, which `fn_resolveTurn` clears before handing over.
-And the `mission.sqm` avatar started on WEST, which section 8 gives to the
-cartel, so the player's own mercenaries deployed hostile to their commander.
-That was first patched in the harness under `TEST_alignPlayerSide`, which
-rejoined the avatar to the commanding faction's side at scenario build. It is
-now fixed at the source: the avatar is a CIVILIAN placeholder per section 8, the
-harness flag and its block are gone, and `fn_dropOut` no longer unhides it.
-
-~~1.6 **Campaign draw layer, and armies off markers.**~~ **Done.**
-`STRAT_fnc_buildDrawList` derives one list of draw items from campaign state,
-`STRAT_fnc_drawCampaignLayer` renders it, and `fn_onMapClick` hit-tests the
-same list — so what is drawn and what is clickable are one computation, not
-two that agree today. `STRAT_fnc_attachMapLayer` owns attachment: a single
-scope that waits for the map to be open *and* control 51 to exist, attaches,
-waits for the close, and goes round again. It observes the map directly rather
-than trusting an event, because the condition that actually has to hold is that
-the control exists, and that is a frame or more behind the opening. Removal is
-by stored handler id, never `ctrlRemoveAllEventHandlers`, so `fn_drawBoundary`
-keeps its own handler on the same control.
-
-Armies are drawn as groups. Every item carries its group id and the record's
-own `location` array *by reference*, so a group cannot come apart, and items
-are built through one constructor that demands the group id — an adornment
-that cannot state its group is unconstructable rather than merely a bug.
-Positions and sizes are in **icon units**, converted to metres once per pass by
-`STRAT_fnc_mapUnitMetres`, which measures the map by sampling
-`ctrlMapScreenToWorld` across a fifth of the screen. That sidesteps the
-unqueryable marker extent entirely instead of fitting a constant by eye, and it
-means an adornment pinned at `0.5` units sits on the icon's edge at every zoom.
-The two adornments that prove the shape both ship: a selection ring, and an
-order arrow with a two-barb head running from the icon's edge to the pending
-destination.
-
-`marker` is out of the army record, and with it `fn_generateArmy`'s minting
-(the function lost two parameters), `fn_moveArmyAlongPath`'s `setMarkerPos`,
-`fn_concludeBattle`'s `setMarkerPos` and `deleteMarker`, the `ctrlMapMouseOver`
-selection branch, and the `setMarkerAlpha` flag with the restore calls it
-forced into `fn_beginPlanning` and `fn_commitTurn`. Presentation is now derived
-from `faction` at draw time and stored nowhere, which turns "colour is never
-read back" from a rule into a property of the code.
-
-Locations are drawn too, and are hit-testable — a click reports the record.
-There is no location mechanic to reach yet (3.8), but a group that draws and
-cannot be clicked at all is the same drift in the other direction.
-
-This was not battle-code work and it broke the phase-one ordering principle on
-purpose. The overlays it exists to carry are phase three, but the conversion was
-cheap now and got steadily more expensive: every strategic feature added before
-it is another `setMarkerPos` call site to find. The alternative — a side panel —
-is rejected in section 11.
-
-**Explicitly deferred out of phase 1:**
-
-| Deferred | Why it can wait |
-|---|---|
-| Auto-resolve | Better calibrated against real played outcomes. See phase 3.1 |
-| Save/load | Battle-layer state is mostly transient. See open decision 6 |
-| Naval and air movement | The home island is enough ground to test every battle type |
-| Strongholds, route exposure | Neither is read by battle code |
-| Economy, recruitment, wages | Only the accrual hooks are needed, not the economy |
+### Phase 1 — Strategic minimum · complete
 
 ### Phase 2 — Battle deep dive
 
-2.1 **Engagement record and deployment split.** Restructure `fn_initiateBattle`
-before adding a second battle type, not after. Includes edge-deployment
-geometry and destination bearing.
-
-~~2.2 **Infantry-only deployment.**~~ **Done.** `fn_deployMen` places every man
-in a formation slot on the ground and mounts him afterwards, rather than
-creating him at `[0,0,0]` and relying on `moveInAny` to put him somewhere real.
-Placement became the unconditional step and mounting became subtraction from a
-state that was already valid, which makes infantry-only a roster with an empty
-vehicle rotation and combined arms a rotation that empties partway down the
-roster — neither is a branch. `objectParent` is what decides whether a man got
-a seat, so a vehicle that refuses one is full for everyone and leaves the
-rotation; the old `emptyPositions "Any"` pruning was the only thing keeping an
-unseated man off map origin.
-
-It took two changes outside `fn_deployMen`. `fn_deployVehicles` now places only
-as many vehicles as the roster can crew — a truck short of a driver keeps `obj`
-null, which `fn_syncBack` already reads as never deployed, so it sits the
-battle out instead of standing on the field unable to move or shoot — and it
-continues its column along the last bearing past the end of the approach road,
-where before a path shorter than the roster silently dropped the tail of it and
-an empty path (both ends more than 150 m from a road) dropped all of it. That
-last case produced exactly the symptom this item is about, from a different
-cause. `fn_initiateBattle` computes one deployment point and one bearing per
-army and hands them to both routines, which is the seam 2.1 moves.
-
-Deployment velocity went with it. Vehicles were injected with 30 km/h along the
-column to read as a force caught mid-march, and that stopped being safe once
-part of a roster could be on foot and once a column could be laid out off-road:
-the trucks pulled away from their own infantry before the AI had an order to
-obey, and an off-road column placed with `CAN_COLLIDE` drove into the scrub at
-speed before it had settled on terrain. They deploy stationary, and the group
-`move` order `fn_initiateBattle` issues a frame later has them rolling under AI
-control — the mid-march read was carried by the column geometry and the facing,
-not by the velocity. A group that ends up mixed then has its vehicles held to
-`TACT_deployFootPaceKmh` with `limitSpeed`, per object because `setSpeedMode` is
-group-level and would slow the infantry that is being matched to.
-
-Harness: `infantryOnly` and `combinedArms` join `openField` in
-`TEST_engagements`, over three new rosters.
+2.1 **Engagement record and deployment split.** Restructure battle initiation
+before adding a second battle type, not after. Includes edge-deployment geometry
+and destination bearing.
 
 2.3 **Set-piece battles.** Capture point, tug-of-war contest, surrender,
 prisoner logging. Both role directions.
 
-2.4 **Morale and rout.** The missing victory condition. Army-level `morale`,
-derived where possible, and the rout classification in `fn_resolveVictory`.
+2.4 **Morale and rout.** The missing victory condition. Army-level morale,
+derived where possible.
 
-2.5 **Post-battle march for a repulsed army.** Reversing along the route. The
-only remaining hole in lifecycle stage 11.
+2.5 **Post-battle march for a repulsed army.** The only remaining hole in
+lifecycle stage 11.
 
 2.6 **Fatigue.** Per-block accumulation, effects at deployment, projection at
-planning time. Promoted into phase two because its whole visible effect is on
-the battlefield, and the visibility invariant means tuning it requires seeing
-what it does to a fight.
+planning time. In phase two because its whole visible effect is on the
+battlefield, and the visibility invariant means tuning it requires seeing what
+it does to a fight.
 
-2.7 **Ambushes.** One order type and one deployment plan. Cheap once 2.1 lands.
-Optional at the end of phase two — the order type is strategic-side work, so it
+2.7 **Ambushes.** One order type and one deployment plan. Cheap once 2.1 lands,
+and optional at the end of the phase — the order type is strategic-side work and
 may fall more naturally into phase three. Decide once set-piece is done.
 
-Boundary radius, the battle clock cap, and the capture contest formula are all
+Boundary radius, the battle clock cap and the capture contest formula are all
 tuned here, against played battles rather than in the abstract.
 
 ### Phase 3 — Strategic layer and story
 
 3.1 **Auto-resolve.** Not a finishing touch and not battle work — it is the gate
 on everything else in this phase. Nothing that makes the cartel a live opponent
-(independent operations, multiple simultaneous fronts, the underdog-expanding-
-outward shape) functions until unattended battles resolve. Placing it here
-rather than in phase one is deliberate: after a phase of played battles the real
-outcome distribution is known and the math can be calibrated against it instead
-of guessed.
+functions until unattended battles resolve.
 
 3.2 **Save/load.** Lock the serialization schema.
 
 3.3 **Strongholds and frontier gating.** The primary movement constraint.
 
-3.4 **Water and air movement.** Unlocks the rest of Tanoa and the island
-progression.
+3.4 **Water and air movement.** Unlocks the rest of Tanoa.
 
-3.5 **Route exposure and interception.** Surfaced at planning time, as a route
-polyline coloured by exposure on the campaign draw layer from 1.6.
+3.5 **Route exposure and interception,** surfaced at planning time as a route
+coloured by exposure.
 
 3.6 **Economy.** Money, manpower, recruitment, wages.
 
 3.7 **Favor and aggression, in full.** Accrual triggers, decay, display, spend
-menu, one spendable asset end to end. The hooks already exist from 1.3.
+menu, one spendable asset end to end.
 
 3.8 **Locations, in full.** Per-location benefits, ownership transfer, local
-opinion and its diffusion. Opinion is shaded per location on the draw layer;
-a number in a menu does not satisfy the visibility invariant.
+opinion and its diffusion. Opinion is shaded per location on the draw layer; a
+number in a menu does not satisfy the visibility invariant.
 
-3.9 **Prisoner disposition.** Whatever the answer to open decision 8 turns out
-to be.
+3.9 **Prisoner disposition.**
 
 3.10 **Sleep cycles.** Full 24-hour model replacing interim fatigue.
 
 3.11 **Progression.** Soldier names, ranks, loadouts.
 
-3.12 **Drop-in and spectate.** Partly done ahead of schedule, because the map
-command interface needs it: the stock F-key UI drives a real Arma group whose
-leader is the player, so unless the player is in the deployed group there is
-nothing for F1 to address. `TACT_fnc_dropIn` and `TACT_fnc_dropOut` ship, built
-on an `isPlayer` soldier record and `selectPlayer` rather than on moving an
-outside commander in. What remains is the choice — dropping in should be
-optional, not automatic — and overhead spectate for the battles the player does
-not join.
+3.12 **Spectate, and the choice of whether to drop in.** Drop-in itself shipped
+early because the map command interface needs a player in the deployed group.
+What remains is making it optional and building overhead spectate.
 
-3.13 **Story progression.** Contract structure and the fixed geographic
-campaign arc.
+3.13 **Story progression.** Contract structure and the fixed campaign arc.
 
-**Battle-layer work during phase 3** is limited to tuning and finishing touches
-— numbers, not structure. If phase three turns up a need to restructure the
-battle lifecycle, that is a signal phase two ended early, not a normal phase
-three activity. Auto-resolve is the one exception, and it is listed first
-precisely because it is not a tweak.
+**Battle-layer work during phase 3** is tuning and finishing — numbers, not
+structure. If phase three turns up a need to restructure the battle lifecycle,
+that is a signal phase two ended early. Auto-resolve is the one exception, and
+it is listed first precisely because it is not a tweak.
+
+---
+
+## Appendix A — Engine Quirks
+
+Properties of Arma, not of this codebase. Several sections above are shaped by
+these rather than by preference, and the design rule they produce is noted where
+one exists.
+
+### Markers and the Draw layer
+
+- **Marker extent cannot be queried.** `getMarkerSize` returns the multiplier
+  that was set, not a rendered extent, and the base dimensions sit in
+  `CfgMarkers` behind an engine constant. Nothing drawn beside a marker can be
+  aligned to it or scaled with it except by fitting a constant by eye and
+  trusting that no patch and no per-user map text scale moves it. → *One entity,
+  one renderer* (section 11).
+- **Marker icons scale with map zoom; drawn elements scale by whatever law the
+  Draw handler applies.** The two do not compose at any zoom, for any pair of
+  elements.
+- **Marker artwork is reusable.** Reading the icon path out of `CfgMarkers`
+  returns the same texture the engine draws, so a drawn icon and a marker read
+  as one visual system.
+- **`drawIcon`'s text size is in world metres,** like its width and height, so
+  labels scale with icons rather than staying a fixed size on screen.
+- **`drawEllipse` takes world coordinates and clips itself.** Guarding a drawn
+  shape on `ctrlMapWorldToScreen` returning non-empty is wrong: that call fails
+  whenever the *centre* leaves the screen, so panning away drops the entire
+  shape instead of clipping it.
+- **Draw handlers render over the map's content, never instead of it.** Anything
+  the engine already draws must be switched off explicitly or it shows through
+  underneath. → *Two command surfaces, never at once* (section 12).
+- **`disableMapIndicators` only takes effect while commanding.** Outside command
+  mode the engine draws its own unit icons regardless.
+
+### Map display and input
+
+- **Display 12 does not exist until the player opens the map.** A Draw handler
+  attached while it is closed attaches to a null control and silently renders
+  nothing — and the control is a frame or more behind the open, so waiting on
+  the display alone is not enough. → *Attach on map open* (section 12).
+- **Remove handlers by stored id, never by clearing all handlers on the
+  control.** More than one system attaches to the map control and clearing takes
+  the others out with it.
+- **`ctrlMapMouseOver` resolves markers and engine icons only.** It cannot see
+  drawn items, so hit-testing anything in the Draw layer is written by hand.
+- **`onMapSingleClick` reports SHIFT and ALT and nothing else.** Selection needs
+  CTRL, so command mode reads the map control's own `MouseButtonDown` and
+  `MouseButtonUp` instead.
+- **The map's own scrolling is a click and drag,** so a press cannot be treated
+  as a click. A release close to its press is a click; anything further is a
+  pan.
+
+### Sides and relations
+
+- **`setFriend` takes 0..1 and the engine reads anything above 0.6 as
+  friendly.** Write blocs as the extremes.
+- **Side relations are global and take effect in the same frame for every unit
+  on the map,** including any already in a fight. → A CSAT turn is a
+  between-block event, never a mid-battle one (section 8).
+- **EAST and WEST are permanently hostile** and `setFriend` cannot change it.
+- **CIVILIAN is default-friendly to every side,** so a naive "is this group
+  allied" test passes every civilian on Tanoa whole. Exclude it explicitly.
+- **The engine paints INDEPENDENT green in its own UI** — squad bar and map unit
+  icons — regardless of the mission's palette (section 11).
+
+### Data
+
+- **`isEqualTo` on a HashMap is a content comparison.** Two structurally
+  identical records are indistinguishable, which is why armies and engagements
+  carry explicit ids and identity is never compared any other way.
+- **Hitpoint layout can be read from `CfgVehicles` without spawning the
+  vehicle,** so damage state can be modelled for a vehicle that is not on the
+  map.
+
+### Units, groups, and AI
+
+- **AI follow their leader,** so a group whose leader is the player does not
+  execute a group `move` order. A player-led army holds at deployment until
+  ordered while an AI side advances on its standing order — the two sides of a
+  battle are driven differently.
+- **A group with no player in it executes a waypoint chain natively** —
+  sequencing, completion radii, and a real hold type — with no script watching
+  it. Chained and held orders for the player's own group therefore belong to
+  detach-and-command, not to a loop that watches for arrivals and re-issues
+  `doMove`. That workaround was built once and removed: every guard it needed
+  was another condition under which commanding behaved differently.
+- **`setSpeedMode` is group-level.** Holding vehicles to foot pace in a mixed
+  group has to be done per object, or the infantry being matched to is slowed
+  as well.
+- **`objectParent` is what decides whether a man actually got a seat.** Seat
+  availability queried in advance does not survive the attempt.
+- **Hiding does not reliably take on a unit that is currently the player.** Hide
+  it after control has moved elsewhere, when it is an ordinary object again.
+- **`selectPlayer` is a singleplayer mechanism** with no multiplayer
+  equivalent. → Open decision 1.
+
+### Terrain and pathfinding
+
+- **Road pathfinding returns nothing at all** for a position more than roughly
+  150 m from a road — not a short path, an empty one. Anything downstream needs
+  a fallback rather than a guard.
+- **Unbounded Dijkstra over Tanoa's full road graph can stall.** → Open
+  decision 7.
