@@ -16,7 +16,7 @@
 		because what has to be true before attaching is that control 51 exists,
 		and that is a frame or more behind the event.
 
-		Four handlers, here together because they share one precondition and one
+		Six handlers, here together because they share one precondition and one
 		owner:
 
 		  Draw            the campaign layer, which picks its own list by mode
@@ -25,6 +25,19 @@
 		  MouseButtonUp   turns a press that did not travel into a click
 		  MouseButtonDblClick
 		                  eats the double click so the map does not drop a marker
+		  MouseMoving     records where the cursor is, for the keys that act on
+		                  what is under it
+		  KeyDown         on the map's DISPLAY rather than the control, because
+		                  keys are delivered to displays; routes the key to
+		                  TACT_fnc_onCommandKey while commanding and to nobody
+		                  otherwise
+
+		Keys are handled here rather than in init.sqf's handler on the main
+		display for the same reason the mouse is: they belong to the map, they
+		are wanted only while it is open, and the cursor position they need is
+		what the map control reports. Both keys - Backspace and Delete - are
+		consumed only when they acted on a route, so their stock uses survive
+		everywhere else.
 
 		Mouse handling is split across down and up because the map's own panning
 		is a click and drag: acting on the press would issue an order every time
@@ -40,8 +53,8 @@
 		line and CTRL builds a selection; a double click drops a marker and is
 		also two selections of the same unit. Each is consumed by the handler
 		that sees it first, on the narrowest condition covering the clash, and
-		nowhere else does this layer consume anything. Both still work on the
-		campaign map.
+		nowhere else does this layer consume anything but the two route keys
+		above. All of it still works on the campaign map.
 
 		The stock squad bar is checked every frame rather than switched once, so
 		command mode beginning or ending underneath an open map is handled by
@@ -49,7 +62,10 @@
 
 		HANDLER IDS ARE STORED ON THE CONTROL, so a re-attach removes its own
 		predecessors by id rather than clearing every handler on the map - which
-		would take the battle boundary's Draw handler with it.
+		would take the battle boundary's Draw handler with it. The key handler's
+		id is stored there too, though the handler is on the display: a display
+		has no variable space of its own, and the control is what this scope
+		already keeps its ids on.
 
 		Must be called from a scope that can spawn.
 
@@ -93,8 +109,14 @@ STRAT_mapLayerRunning = true;
 			["Draw", "STRAT_campaignLayerEH"],
 			["MouseButtonDown", "STRAT_mapPressEH"],
 			["MouseButtonUp", "STRAT_mapReleaseEH"],
-			["MouseButtonDblClick", "STRAT_mapDoubleEH"]
+			["MouseButtonDblClick", "STRAT_mapDoubleEH"],
+			["MouseMoving", "STRAT_mapMoveEH"]
 		];
+
+		private _existingKey = _map getVariable ["STRAT_mapKeyEH", -1];
+		if (_existingKey != -1) then {
+			(findDisplay 12) displayRemoveEventHandler ["KeyDown", _existingKey];
+		};
 
 		private _drawId = _map ctrlAddEventHandler ["Draw", {
 			_this call STRAT_fnc_drawCampaignLayer;
@@ -181,7 +203,34 @@ STRAT_mapLayerRunning = true;
 		}];
 		_map setVariable ["STRAT_mapDoubleEH", _doubleId];
 
-		diag_log format ["STRAT Draw: map layer attached (draw %1, press %2, release %3, double %4).", _drawId, _pressId, _releaseId, _doubleId];
+		// Only remembered, never acted on, and never consumed: the cursor is
+		// where the Delete key looks, and this is the same coordinate space the
+		// press and release report in, so the dot a click would have resolved
+		// is the dot the key resolves.
+		private _moveId = _map ctrlAddEventHandler ["MouseMoving", {
+			params ["_control", "_x", "_y"];
+			_control setVariable ["STRAT_mapCursorAt", [_x, _y]];
+			false
+		}];
+		_map setVariable ["STRAT_mapMoveEH", _moveId];
+
+		// On the display, because that is where keys arrive. Routed only while
+		// commanding, so the campaign map's keys are untouched, and consumed
+		// only when TACT_fnc_onCommandKey says it acted.
+		private _keyId = (findDisplay 12) displayAddEventHandler ["KeyDown", {
+			params ["_display", "_key"];
+
+			private _commanding = !isNil "TACT_commandActive" && {TACT_commandActive};
+
+			if (_commanding) then {
+				[_key, _display displayCtrl 51] call TACT_fnc_onCommandKey
+			} else {
+				false
+			}
+		}];
+		_map setVariable ["STRAT_mapKeyEH", _keyId];
+
+		diag_log format ["STRAT Draw: map layer attached (draw %1, press %2, release %3, double %4, move %5, key %6).", _drawId, _pressId, _releaseId, _doubleId, _moveId, _keyId];
 
 		// Hold here until the map closes, then go round and wait for the next
 		// opening. Nothing is detached on close - the control's handlers and

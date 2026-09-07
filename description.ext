@@ -166,6 +166,10 @@ class CfgFunctions {
             class closeContextMenu {};
             class runContextOption {};
             class buildCommandList {};
+            class groupRoute {};
+            class issueGroupRoute {};
+            class removeWaypoint {};
+            class onCommandKey {};
         };
     };
 };

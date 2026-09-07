@@ -163,19 +163,21 @@ TACT_sideAnchorClass = createHashMapFromArray [
 //
 // A terrain click addresses whoever is selected and an empty selection
 // addresses nobody; it never falls back to the whole group, which the player
-// leads himself. A selected unit gets one destination and no more - chained
-// waypoints and held ground are engine features at the GROUP level and arrive
-// with group-level command.
+// leads himself. A selected unit gets one destination and no more. A selected
+// GROUP gets a waypoint: a bare click replaces its route, SHIFT extends it,
+// Backspace shortens it and Delete removes the one under the cursor - engine
+// waypoints, which a group with no player in it walks natively.
 
 TACT_commandActive    = false;  // True only while the player holds a body on the field
 TACT_commandArmyId    = "";     // Which army record the player is currently leading
 
-// TWO CONTAINERS, ONE CONCEPT. An OBJECT and a GROUP are different engine
-// types taking different orders, and TACT_fnc_onCommandClick prunes each
-// against its own live list - a group checked against a list of objects is not
-// stale, it is absent. To the player it is one selection: a bare click replaces
-// both, CTRL toggles within one and leaves the other. Empty on both counts
-// means a terrain click orders nobody.
+// TWO CONTAINERS, ONE CONCEPT, NEVER BOTH FULL. An OBJECT and a GROUP are
+// different engine types taking different orders - one destination against a
+// route - and TACT_fnc_onCommandClick prunes each against its own live list: a
+// group checked against a list of objects is not stale, it is absent. To the
+// player it is one selection of men OR of groups: a click on either kind
+// empties the other container, CTRL or not, and CTRL toggles within the kind
+// clicked. Empty on both counts means a terrain click orders nobody.
 TACT_commandSelection      = [];  // Selected entity objects - men and vehicles
 TACT_commandGroupSelection = [];  // Selected GROUPS, each drawn collapsed to one icon
 
@@ -219,6 +221,31 @@ TACT_commandGroupIconUnits = 1.00;
 // sit inside it; the box reaches it at about 1.20.
 TACT_commandGroupHitUnits  = 0.70;  // Click radius around a collapsed group
 TACT_commandGroupRingUnits = 0.85;  // Selection ring radius for a collapsed group
+
+// A GROUP'S ROUTE: its remaining engine waypoints, drawn as dots joined by
+// legs that stop short at both ends. All icon units, so the dots hold their
+// size on screen and the gaps hold with them at every zoom.
+//
+// The first leg starts off the group icon's centre by the origin figure -
+// past the box's corner at 0.71 and inside the ring at 0.85, so the leg clears
+// the icon without reaching the ring. Every leg ends short of a dot's centre
+// by the clear figure, which is the dot's own radius plus air, and the next
+// leg starts the same distance past it. A dot's hit radius is the Delete key's
+// grab area, wider than the dot so a cursor near it counts.
+//
+// The dot is the engine's own filled dot marker. Its art scale is the same
+// kind of knob as STRAT_drawGroupArtScale - the box the texture is stretched
+// into, not the semantic size the clear and hit figures are chosen against.
+TACT_commandRouteOriginUnits   = 0.75;  // First leg starts this far off the group icon's centre
+TACT_commandWaypointDotUnits   = 0.22;  // Dot size
+TACT_commandWaypointClearUnits = 0.20;  // A leg stops this far short of a dot's centre
+TACT_commandWaypointHitUnits   = 0.35;  // Delete's grab radius around a dot
+TACT_commandWaypointArtScale   = 1.00;  // Apparent-size knob for the dot artwork
+TACT_commandWaypointIcon       = "mil_dot";
+
+// Black, so a route reads as an order on the map rather than as another
+// faction, and against every faction colour alike.
+TACT_commandRouteColour = [0, 0, 0, 1];
 
 // Yellow: the commander is not another unit to be ordered and should not read
 // as one. The one role colour on either map (manifest section 11.1).
@@ -406,7 +433,6 @@ STRAT_drawLocationUnits    = 1.10;  // Location icon, slightly over an army's
 STRAT_drawArrowOriginUnits = 0.55;  // Order arrow starts just off the icon edge
 STRAT_drawArrowHeadUnits   = 0.45;  // Length of each barb of the arrowhead
 STRAT_drawArrowHeadDegrees = 25;    // Sweep of each barb off the shaft
-STRAT_drawWaypointPipUnits = 0.18;  // Ring on each stacked waypoint but the last
 
 // How far a mouse press may travel before its release stops being a click and
 // starts being a map pan. Screen units, so it is a fraction of screen width.

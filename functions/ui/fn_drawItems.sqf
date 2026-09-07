@@ -58,9 +58,9 @@ if (_metresPerScreen <= 0) exitWith {};
 // STRAT_fnc_mapUnitMetres's business.
 private _screenPerUnit = _metresPerUnit / _metresPerScreen;
 
-// Draws a shaft between two world positions and a two-barb head at the far
-// end. Shared by the single-leg "arrow" shape and the last leg of a
-// "polyline", so a route's head and an order arrow's head are the same head.
+// Draws a two-barb head at the far end of a shaft between two world
+// positions, for the "arrow" shape. A "polyline" carries no head: a route
+// reads its direction from the icon it starts at, dot by dot.
 private _fnc_head = {
 	params ["_map", "_from", "_to", "_colour", "_metresPerUnit"];
 
@@ -184,54 +184,57 @@ private _fnc_head = {
 		};
 
 		// ---------------------------------------------------------------- //
-		// A stacked route: the anchor's icon edge, then every waypoint in
-		// order, with the head on the last leg. One item, because a route is
-		// one adornment of one entity however many legs it happens to have.
+		// A route: the legs from the anchor to the first point and from each
+		// point to the next. LEGS ONLY - the points themselves are drawn by
+		// whoever emitted this, as icon items in the same group, so that each
+		// one can carry its own hit area. One item for the legs, because a
+		// route is one adornment of one entity however many legs it has.
 		//
-		// Currently emitted by nothing. Kept rather than deleted because an
-		// unreachable case cannot be entered and so cannot drift, and routes
-		// return with group waypoint chains.
+		// EVERY LEG STOPS SHORT AT BOTH ENDS. The first starts `fromEdge` off
+		// the anchor, so it does not run under the icon it belongs to; every
+		// leg ends `toEdge` short of the point it runs to, and every leg after
+		// the first starts `toEdge` past the point it runs from, so the line
+		// reaches a dot without touching it. Both figures are icon units and
+		// so hold on screen at every zoom, like the dot they clear.
+		//
+		// A leg with nothing left after both ends are trimmed is not drawn at
+		// all: two waypoints on top of one another are two dots, not a
+		// smear between them, and the legs either side still draw.
 		case "polyline": {
 			private _points = _item get "points";
+			private _clear  = (_item get "toEdge") * _metresPerUnit;
 
-			if (count _points > 0) then {
-				private _first = _points select 0;
-				private _dx = (_first select 0) - (_pos select 0);
-				private _dy = (_first select 1) - (_pos select 1);
+			private _cursor = [_pos select 0, _pos select 1, 0];
+			private _startClear = (_item get "fromEdge") * _metresPerUnit;
+
+			{
+				private _next = [_x select 0, _x select 1, 0];
+
+				private _dx = (_next select 0) - (_cursor select 0);
+				private _dy = (_next select 1) - (_cursor select 1);
 				private _length = sqrt ((_dx * _dx) + (_dy * _dy));
-				private _bearing = _dx atan2 _dy;
-				private _edge = (_item get "fromEdge") * _metresPerUnit;
 
-				// Start at the icon's edge when the first leg is long enough
-				// to clear it, and at the anchor itself when it is not - a
-				// route whose first waypoint is under the icon still has later
-				// legs worth drawing.
-				private _cursor = if (_length > _edge) then {
-					[
-						(_pos select 0) + (_edge * sin _bearing),
-						(_pos select 1) + (_edge * cos _bearing),
-						0
-					]
-				} else {
-					[_pos select 0, _pos select 1, 0]
+				if (_length > _startClear + _clear) then {
+					private _bearing = _dx atan2 _dy;
+
+					_map drawLine [
+						[
+							(_cursor select 0) + (_startClear * sin _bearing),
+							(_cursor select 1) + (_startClear * cos _bearing),
+							0
+						],
+						[
+							(_next select 0) - (_clear * sin _bearing),
+							(_next select 1) - (_clear * cos _bearing),
+							0
+						],
+						_colour
+					];
 				};
 
-				{
-					private _next = [_x select 0, _x select 1, 0];
-					_map drawLine [_cursor, _next, _colour];
-
-					// Waypoint pips on every leg but the last, so a route
-					// reads as a sequence of stops rather than one bent line.
-					if (_forEachIndex < (count _points) - 1) then {
-						private _pip = STRAT_drawWaypointPipUnits * _metresPerUnit;
-						_map drawEllipse [_next, _pip, _pip, 0, _colour, ""];
-					} else {
-						[_map, _cursor, _next, _colour, _metresPerUnit] call _fnc_head;
-					};
-
-					_cursor = _next;
-				} forEach _points;
-			};
+				_cursor = _next;
+				_startClear = _clear;
+			} forEach _points;
 		};
 	};
 } forEach _list;

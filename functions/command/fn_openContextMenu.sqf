@@ -18,9 +18,11 @@
 		bottom edge of the screen rather than opening off it.
 
 		THE ENTITY CONTAINER ONLY. All three options are orders for individuals,
-		so a selection of nothing but groups opens nothing and a mixed selection
-		offers the options for the individuals in it. That stops being right the
-		day a group has orders of its own.
+		so a selection of groups opens nothing: a group's orders are the map's
+		clicks and keys - a waypoint, a route, Backspace and Delete - and none
+		of them is a menu row. The two containers are never full at once, so
+		there is no mixed selection to decide about. That changes the day a
+		group has an order that is not a place on the map.
 
 		The menu addresses the SELECTION and never changes it: the right button
 		asks what can be done, the left button picks. A right-click on an

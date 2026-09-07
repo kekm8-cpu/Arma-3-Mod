@@ -121,7 +121,12 @@ functions/
   command/                   fn_dropIn, fn_dropOut, fn_setCommandHud,
                              fn_commandEntities, fn_playerGroups,
                              fn_alliedGroups, fn_onCommandClick,
-                             fn_issueMoveOrder, fn_buildCommandList
+                             fn_onCommandKey, fn_issueMoveOrder,
+                             fn_issueStopOrder, fn_issueRegroup,
+                             fn_issueGroupRoute, fn_groupRoute,
+                             fn_removeWaypoint, fn_splitGroup,
+                             fn_openContextMenu, fn_closeContextMenu,
+                             fn_runContextOption, fn_buildCommandList
   ui/                        fn_onMapClick, fn_mapUnitMetres,
                              fn_mapIconTexture, fn_buildDrawList,
                              fn_drawItems, fn_drawCampaignLayer,
@@ -131,10 +136,6 @@ functions/
                              fn_drawBoundary, fn_resolveVictory,
                              fn_concludeBattle, fn_syncBack
                              (planned) fn_captureLoop, fn_autoResolve
-  command/                   fn_dropIn, fn_dropOut, fn_setCommandHud,
-                             fn_commandEntities, fn_playerGroups,
-                             fn_alliedGroups, fn_onCommandClick,
-                             fn_issueMoveOrder, fn_buildCommandList
   test/                      fn_buildArmy, fn_clearArmies, fn_setupScenario,
                              fn_spawnBattle, fn_spawnDrill, fn_endDrill,
                              fn_vehicleProbe, fn_hostileProbe, fn_probeReport
@@ -742,11 +743,21 @@ to anything drawn.
 **The map has two modes and they do not overlap.** Outside a battle it draws
 the campaign: armies and locations across the island. While the player is
 commanding a battle on the ground it draws the fight: his own units, what is
-selected, and the routes they have been given. The strategic icons stand down
-for the duration — there are two of them, they sit on top of the battle they
-represent, and they would compete for the same clicks. Both modes emit the same
-item shape into `STRAT_fnc_drawItems`, so a tactical route arrow and a strategic
+selected, and the routes his groups have been given. The strategic icons stand
+down for the duration — there are two of them, they sit on top of the battle
+they represent, and they would compete for the same clicks. Both modes emit the
+same item shape into `STRAT_fnc_drawItems`, so a tactical route and a strategic
 order arrow are the same lines drawn by the same law.
+
+A group's route is the one thing on either map made of more than one anchor:
+a `polyline` item for the legs and one dot item per waypoint, all under the
+group's id. The legs stop short at both ends — `fromEdge` off the icon,
+`toEdge` off every dot — in icon units, so the gaps hold on screen at every
+zoom like the dots do. The route carries no arrowhead: it reads its direction
+from the icon it starts at, and the dots are the stops. The dots are the
+engine's own filled dot marker, `TACT_commandWaypointIcon`, in
+`TACT_commandRouteColour`, which is black so a route is an order on the map
+and not another faction.
 
 The artwork is shared either way.
 `getText (configFile >> "CfgMarkers" >> "b_inf" >> "icon")` returns the same
@@ -1007,7 +1018,17 @@ being made, across every force at once.
   every allied group are emitted without one, so an ally cannot be selected and
   therefore cannot be ordered by anything built on selection. The rule lives in
   the draw list, not in the click handler — a click target that exists and is
-  then refused is a click target that will one day stop being refused.
+  then refused is a click target that will one day stop being refused. A
+  waypoint dot carries a hit area on the same terms, for the Delete key: it is
+  not a kind the click handler tests, so a click on a dot is a click on the
+  ground under it, and a dot that is not drawn — a completed waypoint — cannot
+  be deleted.
+- **A selection is men or groups, never both.** The two containers hold
+  different engine types that take different orders — one destination against
+  a route — and a terrain click, SHIFT and Backspace must mean one thing for
+  everything selected. A click on either kind empties the other container,
+  CTRL or not; CTRL builds a selection of several men or of several groups
+  within the kind clicked.
 - **Map draw handlers attach on map open, never on state change.** Display 12
   is absent while the map is closed and the attachment fails silently.
 - **One entity, one renderer.** Marker extent cannot be queried or matched, so
@@ -1276,10 +1297,10 @@ happening underneath interface work.
   entities the player spent four clicks assembling, and an empty selection
   opens nothing at all rather than a panel of dead rows.
   It addresses the **entity container only**. All three options are orders for
-  individuals, so a selection of nothing but groups opens nothing and a mixed
-  selection offers the options for the individuals in it — offering "Stop" over
-  a body of men that cannot be stopped would be a row that does nothing. That
-  stops being the right answer the day a group has orders of its own.
+  individuals, so a selection of groups opens nothing: a group's orders are the
+  map's clicks and keys, and none of them is a menu row. The two containers are
+  never full at once, so there is no mixed selection to decide about. That
+  changes the day a group has an order that is not a place on the map.
   "New Group" hands its detachment straight into `TACT_commandGroupSelection`,
   so the selection follows the men across the split: they leave the entity
   container as men and enter the group container as the group they became.
@@ -1343,25 +1364,47 @@ happening underneath interface work.
   is one competing with him for control of his own men. Whatever the group does
   as a body, it does by following him. An army with no flagged soldier drops
   nobody in and never leaves the campaign layer.
-- **Groups are selectable; his own, never an ally's.** The widening the two
-  collapsed lists were kept apart for, taken on the half it was promised to.
-  A player group carries `TACT_commandGroupHitUnits` and gets
+- **Groups are selectable and orderable; his own, never an ally's.** The
+  widening the two collapsed lists were kept apart for, taken on the half it
+  was promised to. A player group carries `TACT_commandGroupHitUnits` and gets
   `TACT_commandGroupRingUnits` when selected; an allied group is emitted with
   no hit area at all, so "an ally is never his" is enforced by the draw list
-  rather than restated in the click handler. Selecting a group does not order
-  it — a body of men has no map order until waypoints arrive — so what it buys
-  today is a ring, a count, and the ruler the group icon is tuned against.
-  The selection is **two containers and one concept**: `TACT_commandSelection`
-  holds objects, `TACT_commandGroupSelection` holds groups, because the two are
-  different engine types, take different orders, and are pruned against
-  different live lists — a group tested against a list of objects is not stale,
-  it is absent. To the player it is one selection: a bare click replaces both,
-  CTRL toggles within one and leaves the other, so a mixed selection is built
-  deliberately and never inherited. Individuals are hit-tested before groups so
-  a man standing under his own group's icon wins the tie. A terrain click with
-  groups selected moves the individuals and says what it did not do with the
-  rest — the one departure from the silence rule, because a click that reached
-  a deliberate selection is not an accidental click.
+  rather than restated in the click handler.
+  The selection is **two containers and one concept, never both full**:
+  `TACT_commandSelection` holds objects, `TACT_commandGroupSelection` holds
+  groups, because the two are different engine types, take different orders,
+  and are pruned against different live lists — a group tested against a list
+  of objects is not stale, it is absent. To the player it is one selection of
+  men or of groups: a click on either kind empties the other container, CTRL
+  or not, and CTRL toggles within the kind clicked. Individuals are hit-tested
+  before groups so a man standing under his own group's icon wins the tie.
+- **A selected group is ordered by waypoints**, the engine's own, which a group
+  with no player in it walks natively — sequencing, completion and formation
+  on the move, with no script watching. A terrain click with groups selected
+  is a waypoint for exactly those groups: bare, `TACT_fnc_issueGroupRoute`
+  deletes the group's whole chain and adds the one clicked; with SHIFT it
+  appends. Backspace removes the last remaining waypoint from every selected
+  group and Delete removes the one under the cursor, whichever group's it is,
+  both through `TACT_fnc_removeWaypoint` from `TACT_fnc_onCommandKey`. The
+  keys arrive on the map's display, attached by `STRAT_fnc_attachMapLayer` on
+  the same lifecycle as the mouse, and are consumed only when they act, so the
+  stock map keeps Delete over a marker and both keys everywhere else.
+  A group's route is **read back from the engine**, never kept in script:
+  `TACT_fnc_groupRoute` returns the waypoints from `currentWaypoint` onward,
+  and that one reader serves the draw list, both keys and the append. Completed
+  waypoints are not in it, so a moving group does not trail its history, and
+  since only what is drawn can be deleted, a completed waypoint is out of reach
+  by construction. Every route is drawn, selected or not: it is the group's
+  standing order, and the cost of a plan is legible while it is made.
+  Two engine behaviours are handled explicitly and want confirming in play. A
+  group that has finished its chain does not reliably take up an appended
+  waypoint on its own — `currentWaypoint` sits past the end of the list — so
+  the route function `setCurrentWaypoint`s whenever the group had nothing left
+  to walk to. And `deleteWaypoint` renumbers the waypoints after the deleted
+  one, so `fn_removeWaypoint` re-points the group at whatever is now first in
+  its remaining route, which is a no-op for a later waypoint and a re-plan for
+  the current one. If either proves unnecessary, or insufficient, section 13
+  is where the finding goes.
 - Test harness (`TEST_fnc_*`). Named rosters, named starting states, named
   engagements and named drills, all declared as data in `init.sqf`.
   `TEST_fnc_setupScenario` builds what a session boots into;
@@ -1482,15 +1525,18 @@ the enforced one cannot drift apart.
   nobody flagged and its next battle runs watched from the map. Nothing
   promotes a replacement, because nothing should invent one.
 - Map command mode issues three orders to individuals — go to a point, hold
-  here, return to formation — and none at all to a body of men. Held ground for
-  one man is now real and is `doStop`, an engine state with `doFollow` as its
-  documented release, rather than the script that used to fake it: a loop that
-  watched for arrivals and re-issued `doMove`, removed because the workaround
-  needed guards against dragging men out of cover and against overriding the
-  stock squad bar, and every guard was another condition under which commanding
-  behaved differently. What is still missing is chained waypoints and any order
-  for a group as a body; both return with group-level command, below, where the
-  engine carries them natively.
+  here, return to formation — and one to a body of men: a route. Held ground
+  for one man is now real and is `doStop`, an engine state with `doFollow` as
+  its documented release, rather than the script that used to fake it: a loop
+  that watched for arrivals and re-issued `doMove`, removed because the
+  workaround needed guards against dragging men out of cover and against
+  overriding the stock squad bar, and every guard was another condition under
+  which commanding behaved differently. A group's route is the same shape of
+  decision: engine waypoints, with no script watching them, and the one place
+  script touches the chain is to point the group at a waypoint the engine
+  would not have taken up on its own. What is still missing for a group is
+  held ground — a `HOLD` waypoint type — and any order that is not a place on
+  the map.
 - Both collapsed-group passes draw nothing today, and that is a property of the
   battle model rather than of the passes. `fn_buildEngagement` takes exactly two
   armies, `fn_deployMen` spawns each as exactly one group, and contact detection
@@ -1523,11 +1569,11 @@ the enforced one cannot drift apart.
   silhouette. The stock unit artwork is asymmetric and built to turn, so
   rotating it is exactly how the engine's own map shows heading, and it cost one
   argument.
-- `"polyline"` is a live shape in `STRAT_fnc_drawItems` that nothing emits. It
-  is kept rather than deleted because an unreachable `case` cannot be entered
-  and so cannot drift, and routes return with group waypoint chains. A
-  conditional inside a shape that *is* reached is a different matter and was
-  removed with the held post.
+- `"polyline"` in `STRAT_fnc_drawItems` is a group's route and is emitted by
+  `TACT_fnc_buildCommandList` alone. It draws legs only, trimmed at both ends,
+  with no head and no pips: the points are the emitter's own dot items, so each
+  can carry a hit area, and the shape it replaced — legs with hollow pips and
+  an arrowhead — went with the first thing to reach it.
 - `fn_calculateRoadPath` snaps the start point to the *nearest* road but the end
   point to an arbitrary one; the jink-correction block assumes `_startInput` is
   an array and will error if an object was passed.
@@ -1595,20 +1641,17 @@ the enforced one cannot drift apart.
   on the map, not implicit on ordering, so the split has a visible result and a
   stray click cannot fragment a squad.
 
-  **The detach itself is now built** — "New Group" on the context menu,
-  `TACT_fnc_splitGroup` — and what is left is the commanding of what it
-  produces. A detachment draws as one collapsed icon through `fn_playerGroups`,
-  so it is **selectable** — hit area, ring and count, all of which arrived with
-  the two-container selection — and it is not **orderable**: selecting a group
-  does not order it, because a body of men has no map order until waypoints
-  exist. It is also out of reach of the stock F-key interface, which addresses
-  one group. So a detachment forms up where it is split and holds there.
-  **That is the one place the tactical layer is knowingly incomplete**, and
-  `fn_splitGroup` says so in `systemChat` at the moment of the split rather
-  than letting men quietly stop answering. What is left to close it: `_group
-  move` for a destination, waypoint chains for a route, and Regroup extended to
-  mean `join` back into the commander's group. The hit area and the selection
-  container are already in.
+  **The detach and the route are built** — "New Group" on the context menu,
+  `TACT_fnc_splitGroup`, and waypoints from the map, `TACT_fnc_issueGroupRoute`
+  with the keys in `TACT_fnc_onCommandKey`. A detachment draws as one collapsed
+  icon through `fn_playerGroups`, is selected the frame it exists, and the next
+  terrain click is its first waypoint; SHIFT stacks more, Backspace and Delete
+  take them off. It is still out of reach of the stock F-key interface, which
+  addresses one group, so the map is the only thing that commands it.
+  What is left to close it: a `HOLD` waypoint for held ground, and Regroup
+  extended to mean `join` back into the commander's group. The route is drawn
+  from the engine's own waypoint list, so neither will need a second copy of
+  it.
 
   Its prerequisite is **done**. `fn_resolveVictory` and `fn_concludeBattle` both
   read `units _attackerGroup` / `units _defenderGroup`, so a detached squad

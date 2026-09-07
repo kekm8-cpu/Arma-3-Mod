@@ -12,17 +12,22 @@
 		                  ally's group is not a click target and never reaches
 		                  here: it is emitted without a hit area.
 		  on terrain    - with units selected, a move order to exactly those
-		                  units. With nothing selected, nothing at all.
+		                  units. With groups selected, a waypoint for exactly
+		                  those groups. With nothing selected, nothing at all.
 
-		TWO CONTAINERS, ONE SELECTION. A bare click replaces both, so clicking a
-		man clears the groups and clicking a group clears the men; only CTRL can
-		hold the two kinds at once.
+		TWO CONTAINERS, ONE SELECTION, AND NEVER BOTH AT ONCE. Clicking a man
+		clears the groups and clicking a group clears the men, CTRL or no CTRL.
+		CTRL builds a selection of several men or of several groups, and
+		cannot build one of both, because the two kinds take different orders:
+		a man takes one destination and a group takes a route, and a terrain
+		click, SHIFT, and Backspace have to mean one thing for everything that
+		is selected. A selection that held both would have half of it drawn on
+		a route it is not walking.
 
-		SELECTING A GROUP DOES NOT ORDER IT - a body of men has no map order
-		until group waypoints arrive - so a terrain click with groups selected
-		moves the individuals and SAYS what it did not do with the rest. That is
-		the one departure from the silence rule below, because a click that
-		reached a deliberate selection is not an accidental click.
+		A TERRAIN CLICK WITH GROUPS SELECTED IS A WAYPOINT. Bare, it replaces
+		the group's route with one waypoint where the player clicked; with
+		SHIFT, it adds one to the end of the route. Backspace and Delete edit
+		the route from the keyboard - see TACT_fnc_onCommandKey.
 
 		A FOURTH CASE SITS IN FRONT OF ALL THREE: a click arriving here with the
 		context menu open is one that MISSED it, since a click on a row is
@@ -38,7 +43,9 @@
 		that declared a hit radius and converted through the same
 		STRAT_fnc_mapUnitMetres call, so the click target is the drawn icon
 		rather than an approximation of it and what is not drawn cannot be
-		clicked.
+		clicked. A waypoint dot carries a hit radius too, but for the Delete
+		key and not for this: it is not a kind tested here, so a click on a
+		dot is a click on the ground under it.
 
 		The selection holds objects and groups rather than the records they came
 		in, because the records are rebuilt every frame. Stale entries are
@@ -134,8 +141,7 @@ private _fnc_report = {
 	switch (true) do {
 		case (_men == 0 && {_groups == 0}): { "Nothing selected." };
 		case (_groups == 0):                { format ["%1 selected.", _men] };
-		case (_men == 0):                   { format ["%1 group(s) selected.", _groups] };
-		default                             { format ["%1 selected, and %2 group(s).", _men, _groups] };
+		default                             { format ["%1 group(s) selected.", _groups] };
 	};
 };
 
@@ -164,10 +170,10 @@ private _hitDistance = -1;
 // ------------------------------------------------------------------------ //
 // AN ICON: SELECTION                                                        //
 // ------------------------------------------------------------------------ //
-// A bare click replaces the WHOLE selection, both containers, which is what
-// keeps two arrays reading as one. CTRL toggles inside the clicked thing's own
-// container and leaves the other alone, so a mixed selection is built
-// deliberately and never inherited.
+// The OTHER container is always emptied, so the two kinds can never be held
+// together. Within the clicked thing's own container, CTRL toggles and a bare
+// click replaces - which is what lets several men, or several groups, be
+// selected at once, and never a mix.
 if (count _hitItem > 0) exitWith {
 	private _record = _hitItem get "record";
 
@@ -176,22 +182,24 @@ if (count _hitItem > 0) exitWith {
 		case "commandEntity": {
 			private _obj = _record get "obj";
 
+			TACT_commandGroupSelection = [];
+
 			if (_ctrl) then {
 				[TACT_commandSelection, _obj] call _fnc_toggle;
 			} else {
-				TACT_commandSelection      = [_obj];
-				TACT_commandGroupSelection = [];
+				TACT_commandSelection = [_obj];
 			};
 		};
 
 		case "playerGroup": {
 			private _group = _record get "group";
 
+			TACT_commandSelection = [];
+
 			if (_ctrl) then {
 				[TACT_commandGroupSelection, _group] call _fnc_toggle;
 			} else {
 				TACT_commandGroupSelection = [_group];
-				TACT_commandSelection      = [];
 			};
 		};
 	};
@@ -202,11 +210,30 @@ if (count _hitItem > 0) exitWith {
 };
 
 // ------------------------------------------------------------------------ //
-// TERRAIN: A MOVE ORDER FOR THE SELECTION, OR NOTHING                       //
+// TERRAIN: A WAYPOINT FOR THE SELECTED GROUPS                               //
+// ------------------------------------------------------------------------ //
+// Tested first only because the two containers cannot both be full; the order
+// asserts nothing about precedence. Bare replaces the route, SHIFT extends it.
+if (count TACT_commandGroupSelection > 0) exitWith {
+	private _routed = [TACT_commandGroupSelection, _position, _shift] call TACT_fnc_issueGroupRoute;
+
+	if (_routed > 0) then {
+		if (_shift) then {
+			systemChat format ["Waypoint added to %1 group(s).", _routed];
+		} else {
+			systemChat format ["%1 group(s) routed.", _routed];
+		};
+	};
+
+	_routed > 0
+};
+
+// ------------------------------------------------------------------------ //
+// TERRAIN: A MOVE ORDER FOR THE SELECTED MEN, OR NOTHING                    //
 // ------------------------------------------------------------------------ //
 // Silently, when nothing at all is selected: an empty selection addresses
 // nobody, and open ground is the easiest thing on the map to misclick.
-if (count TACT_commandSelection == 0 && {count TACT_commandGroupSelection == 0}) exitWith { false };
+if (count TACT_commandSelection == 0) exitWith { false };
 
 private _targets = _entities select {(_x get "obj") in TACT_commandSelection};
 
@@ -218,23 +245,11 @@ private _ordered = [
 if (_ordered > 0) then {
 	systemChat format ["%1 selected ordered to move.", _ordered];
 
-	// Said rather than swallowed: SHIFT does something elsewhere and the player
-	// has every reason to expect it to stack here.
+	// Said rather than swallowed: SHIFT stacks a waypoint for a group and the
+	// player has every reason to expect it to stack here.
 	if (_shift) then {
 		systemChat "An individual unit takes one destination. Routes are a group order.";
 	};
 };
 
-// A group in the selection took nothing, and is told so - the one place the
-// silence rule does not apply. This is also where group orders plug in when
-// waypoint chains arrive.
-private _groups = count TACT_commandGroupSelection;
-
-if (_groups > 0) then {
-	systemChat format [
-		"%1 group(s) selected. A body of men has no map order yet - that arrives with waypoints.",
-		_groups
-	];
-};
-
-_ordered > 0 || {_groups > 0}
+_ordered > 0

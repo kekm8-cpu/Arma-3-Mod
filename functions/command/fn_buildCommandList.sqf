@@ -8,13 +8,31 @@
 		renderer, on the same terms - every item carries its group id and the
 		entity's own anchor, and adornments are placed in icon units off it.
 
-		Four things are drawn. The right-hand column is the CONTROL rule, which
+		Five things are drawn. The right-hand column is the CONTROL rule, which
 		is a different question from the visibility one:
 
 		  the player          one icon, his own            never selectable
 		  his group's units   one icon each                selectable, singly
 		  his other groups    one icon over each leader    selectable, whole
+		  their routes        a dot per waypoint, joined   a dot is a Delete
+		                                                   target, not a click
 		  allied groups       one icon over each leader    never selectable
+
+		A ROUTE IS DRAWN FOR EVERY ONE OF HIS GROUPS THAT HAS ONE, selected or
+		not: it is the group's standing order, and the map's rule is that the
+		cost of a plan is legible while it is being made. The route is read
+		back from the engine's waypoint list through TACT_fnc_groupRoute -
+		completed waypoints excluded - so what is drawn is what the group will
+		walk, not a copy of what it was told. One polyline item for the legs,
+		then one dot item per waypoint, all under the group's own id so the
+		composition rule holds however many legs there are.
+
+		A dot's hit radius is for the DELETE KEY. It is a hit area on the same
+		terms as an icon's - the same units, the same nearest-wins test through
+		the same scale - but TACT_fnc_onCommandClick does not test the kind, so
+		a click on a dot is a click on the ground under it. Emitted before the
+		group icons, so a route's first leg cannot draw over the icon it starts
+		from.
 
 		His own group is never ALSO collapsed: no group icon is emitted for it,
 		because that would draw the same men twice. Selectability lives here in
@@ -83,6 +101,7 @@ private _fnc_item = {
 		["toWorld", []],
 		["points", []],
 		["fromEdge", 0],
+		["toEdge", 0],
 		["direction", 0],
 		["artScale", 1],
 		["texture", STRAT_drawBlankTexture],
@@ -172,9 +191,58 @@ private _fnc_groupIcons = {
 	[_x, "alliedGroup"] call _fnc_groupIcons;
 } forEach (call TACT_fnc_alliedGroups);
 
+// Read once for both passes below, so the route and the icon it starts from
+// are placed off the same anchor.
+private _playerGroups = call TACT_fnc_playerGroups;
+
+// ------------------------------------------------------------------------ //
+// GROUP ROUTES                                                              //
+// ------------------------------------------------------------------------ //
+// Before the icons, so the legs draw under them. The first leg starts off the
+// group icon's edge and every leg stops short of the dot at each end, in icon
+// units, so the gaps hold on screen at every zoom like everything else does.
+//
+// The dot is the engine's own filled dot marker, in the route's colour. A dot
+// carries the group and the engine's index for the waypoint, which is all the
+// Delete key needs to remove exactly that one.
+{
+	private _record = _x;
+	private _group  = _record get "group";
+	private _route  = [_group] call TACT_fnc_groupRoute;
+
+	if (count _route > 0) then {
+		private _id     = format ["GRP_%1", groupId _group];
+		private _anchor = _record get "anchor";
+
+		[_id, "groupRoute", _record, _anchor, "route", createHashMapFromArray [
+			["shape", "polyline"],
+			["points", _route apply {_x select 1}],
+			["fromEdge", TACT_commandRouteOriginUnits],
+			["toEdge", TACT_commandWaypointClearUnits],
+			["colour", TACT_commandRouteColour]
+		]] call _fnc_item;
+
+		{
+			_x params ["_index", "_position"];
+
+			[_id, "groupWaypoint", createHashMapFromArray [
+				["group", _group],
+				["index", _index]
+			], _position, "waypoint", createHashMapFromArray [
+				["shape", "icon"],
+				["texture", [TACT_commandWaypointIcon] call STRAT_fnc_mapIconTexture],
+				["colour", TACT_commandRouteColour],
+				["size", [TACT_commandWaypointDotUnits, TACT_commandWaypointDotUnits]],
+				["artScale", TACT_commandWaypointArtScale],
+				["hitUnits", TACT_commandWaypointHitUnits]
+			]] call _fnc_item;
+		} forEach _route;
+	};
+} forEach _playerGroups;
+
 {
 	[_x, "playerGroup"] call _fnc_groupIcons;
-} forEach (call TACT_fnc_playerGroups);
+} forEach _playerGroups;
 
 // ------------------------------------------------------------------------ //
 // COMMAND ENTITIES                                                          //

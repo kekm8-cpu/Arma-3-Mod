@@ -35,13 +35,17 @@
 		record    HASHMAP - the record the group is drawn from
 		anchor    ARRAY   - the group's shared world position, by reference
 		shape     STRING  - "icon", "ellipse", "arrow", or "polyline" (which
-		                    nothing emits yet - see STRAT_fnc_drawItems)
+		                    only the battle command layer emits, for a
+		                    group's route - see TACT_fnc_buildCommandList)
 		offset    ARRAY   - [x, y] from the anchor, in icon units
 		size      ARRAY   - [w, h] in icon units ("icon" shape)
 		radius    NUMBER  - in icon units ("ellipse" shape)
 		toWorld   ARRAY   - far end, world position ("arrow" shape)
 		points    ARRAY   - ordered world positions ("polyline" shape)
-		fromEdge  NUMBER  - icon units to push the arrow's origin off the anchor
+		fromEdge  NUMBER  - icon units to push an arrow's or a polyline's
+		                    origin off the anchor
+		toEdge    NUMBER  - icon units a polyline's legs stop short of the
+		                    points they join ("polyline" shape)
 		texture   STRING  - texture path ("icon" shape)
 		artScale  NUMBER  - multiplies the drawn box to compensate for artwork
 		                    that does not fill its own texture; 1 for artwork
@@ -91,6 +95,7 @@ private _fnc_item = {
 		["toWorld", []],
 		["points", []],
 		["fromEdge", 0],
+		["toEdge", 0],
 		["direction", 0],
 		["artScale", 1],
 		["texture", STRAT_drawBlankTexture],

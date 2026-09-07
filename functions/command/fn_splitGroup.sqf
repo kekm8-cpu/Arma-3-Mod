@@ -30,14 +30,13 @@
 		The men are then told to follow their new leader, which closes them up
 		and clears any `doStop` or `doMove` the map left on them as individuals.
 
-		WHAT THIS DOES NOT DO YET. The detachment draws as one collapsed icon
-		through TACT_fnc_playerGroups and is handed straight into
-		TACT_commandGroupSelection, so it is SELECTABLE the frame it exists. It
-		is not ORDERABLE - a body of men has no map order until waypoints exist,
-		and it is out of reach of the stock F-key interface - so it forms up
-		where it is split and holds there. The player is told as much when he
-		splits, because a unit that stops answering without saying so reads as a
-		bug.
+		The detachment draws as one collapsed icon through TACT_fnc_playerGroups
+		and is handed straight into TACT_commandGroupSelection, so it is
+		selected the frame it exists and the next terrain click is its first
+		waypoint. It is out of reach of the stock F-key interface, which
+		addresses one group, so the map is the only thing that commands it; it
+		holds where it forms up until the map does. The player is told as much
+		when he splits.
 
 	Parameters:
 		0: ARRAY - command entities (see TACT_fnc_commandEntities)
@@ -128,10 +127,11 @@ TACT_commandSelection = TACT_commandSelection select {!(_x in _objs)};
 if (isNil "TACT_commandGroupSelection") then { TACT_commandGroupSelection = [] };
 TACT_commandGroupSelection pushBack _new;
 
-// Said, not swallowed. See the header: a detachment cannot be ordered again
-// yet, and a unit that stops answering without saying why reads as a bug.
+// Said, not swallowed: the detachment answers to the map now and to nothing
+// else, and a unit that stops answering the squad bar without saying why reads
+// as a bug.
 systemChat format [
-	"%1 detached - %2 men. Selectable, but not orderable yet: they hold where they form up.",
+	"%1 detached - %2 men. Selected: click the map to route them.",
 	groupId _new,
 	count _men
 ];
