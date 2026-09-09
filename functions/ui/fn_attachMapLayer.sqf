@@ -62,14 +62,27 @@
 		freehand line and CTRL builds a selection; a double click drops a
 		marker and is also two selections of the same unit; SHIFT+click places
 		the player's personal waypoint and SHIFT+click appends a group
-		waypoint. The first two are consumed by the control handlers below,
-		each by the handler that sees it first, on the narrowest condition
-		covering the clash. The third is out of reach of the control handlers
-		- it survived a consumed press, a consumed release, and the SHIFT key
-		itself being eaten - and is stopped by STRAT_fnc_onMapClick returning
-		true from the onMapSingleClick command, which is why that command is
-		re-issued here. Nowhere else does this layer consume anything but the
-		two route keys.
+		waypoint. Each goes a different way, because the engine gives each a
+		different handle:
+
+		  the double click   consumed on the control, which is enough
+		  the personal       STRAT_fnc_onMapClick returning true from the
+		  waypoint           onMapSingleClick command, re-issued here - the
+		                     only switch the engine offers, and one that
+		                     survived a consumed press, a consumed release and
+		                     the SHIFT key itself being eaten
+		  the drawn line     SWEPT AFTER THE FACT. Consuming the CTRL press
+		                     did not stop a CTRL click leaving a line on the
+		                     map, and there is no switch for drawing outside a
+		                     server config that singleplayer does not have.
+		                     But a drawn line is a POLYLINE marker like any
+		                     other, so the press with CTRL down remembers what
+		                     markers exist, and the release deletes any
+		                     polyline that appeared since. One frame later,
+		                     because the engine finishes the line after the
+		                     release it finishes it on.
+
+		Nowhere else does this layer consume anything but the two route keys.
 
 		The stock squad bar is checked every frame rather than switched once, so
 		command mode beginning or ending underneath an open map is handled by
@@ -147,11 +160,13 @@ STRAT_mapLayerRunning = true;
 		// The press is only remembered, never acted on: the map pans by click
 		// and drag.
 		//
-		// It is also where the map's own CTRL+drag FREEHAND DRAWING is taken
-		// away - the engine reads the selection modifier as "start drawing a
+		// It is also where the map's own CTRL+drag FREEHAND DRAWING is dealt
+		// with - the engine reads the selection modifier as "start drawing a
 		// line", so every unit added to a selection left a scribble behind it.
-		// The line starts on the press, so returning true here means the engine
-		// never begins one.
+		// Consuming the press stops the DRAG from drawing; a CTRL CLICK still
+		// leaves a line, by a path the press does not reach. So the press also
+		// remembers which markers exist, and the release sweeps the difference
+		// - see the header.
 		//
 		// ONLY with CTRL down and ONLY while commanding, which is the whole of
 		// the overlap: a plain drag still pans, and drawing still works on the
@@ -162,6 +177,10 @@ STRAT_mapLayerRunning = true;
 			_control setVariable ["STRAT_mapPressAt", [_button, _x, _y]];
 
 			private _commanding = !isNil "TACT_commandActive" && {TACT_commandActive};
+
+			if (_commanding && {_ctrl}) then {
+				_control setVariable ["STRAT_mapMarkersBefore", +allMapMarkers];
+			};
 
 			// Never unconditionally: consuming every press stops the map panning.
 			_commanding && {_ctrl}
@@ -175,6 +194,26 @@ STRAT_mapLayerRunning = true;
 			_control setVariable ["STRAT_mapPressAt", nil];
 
 			private _commanding = !isNil "TACT_commandActive" && {TACT_commandActive};
+
+			// The sweep for a line the CTRL press could not stop. Spawned so it
+			// runs a frame later: the engine finishes the line after this
+			// release returns, and a sweep inside it would find nothing.
+			// Polylines only, and only ones that did not exist at the press, so
+			// nothing the mission or the player placed on purpose is touched.
+			private _before = _control getVariable ["STRAT_mapMarkersBefore", []];
+			_control setVariable ["STRAT_mapMarkersBefore", nil];
+
+			if (_commanding && {_ctrl}) then {
+				_before spawn {
+					private _before = _this;
+
+					{
+						if (!(_x in _before) && {markerShape _x == "POLYLINE"}) then {
+							deleteMarkerLocal _x;
+						};
+					} forEach allMapMarkers;
+				};
+			};
 
 			// Command mode only, the button it started on, and only a release
 			// that landed on its own press - anything further is a pan, and a

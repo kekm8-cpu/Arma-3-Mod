@@ -84,7 +84,7 @@ switch (_key) do {
 		{
 			private _hadRoute = count ([_x] call TACT_fnc_groupRoute) > 0;
 
-			[_x] call TACT_fnc_clearRoute;
+			[_x, true] call TACT_fnc_clearRoute;
 
 			if (_hadRoute) then {
 				_halted = _halted + 1;

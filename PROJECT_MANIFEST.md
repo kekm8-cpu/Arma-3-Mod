@@ -785,6 +785,17 @@ its press as a click and anything further as a pan — the map's own scrolling i
 a click and drag, so acting on the press would issue an order every time the
 player grabbed the map to move it.
 
+The modifiers it needs are the map's own gestures, and each is taken away by a
+different handle because the engine offers no common one. A double click is
+consumed on the control. The personal waypoint on SHIFT+click answers only to
+the `onMapSingleClick` command's return value, re-issued on every map open
+(section 13.2). The freehand line on CTRL is the odd one: consuming the press
+stops a drag from drawing but a CTRL *click* still leaves a line, and the one
+switch for drawing is a server config that singleplayer does not have and that
+removes mission markers besides. A drawn line is a `POLYLINE` marker like any
+other, though, so the CTRL press remembers what markers exist and the release
+sweeps, a frame later, any polyline that appeared since.
+
 Drawing does not replace what the engine already draws. A Draw handler renders
 after the map's own content, so a command icon lands *on top of* the stock icon
 for the same unit rather than in place of it — at a slightly different size,
@@ -1452,10 +1463,10 @@ instead, which would also fire the campaign click handler twice.
   last dot already did. Both keys run from `TACT_fnc_onCommandKey`, arrive on
   the map's display, attached by `STRAT_fnc_attachMapLayer` on the same
   lifecycle as the mouse, and are consumed only when they act, so the stock
-  map keeps Delete over a marker and both keys everywhere else. Whether an
-  emptied chain halts the leader at once or at the end of the leg he is on is
-  being watched in play; if the latter, a move order to his own position goes
-  into `fn_clearRoute`, where both callers share it.
+  map keeps Delete over a marker and both keys everywhere else. An emptied
+  chain does not halt the leader — played, he carries on to where the deleted
+  waypoint was — so the halt is a move order to his own position, in
+  `fn_clearRoute`, which Backspace asks for and the replace path does not.
   A group's route is **read back from the engine**, never kept in script:
   `TACT_fnc_groupRoute` returns the waypoints from `currentWaypoint` onward,
   and that one reader serves the draw list, both keys and the append. Completed

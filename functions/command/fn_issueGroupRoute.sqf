@@ -58,7 +58,8 @@ private _ordered = 0;
 		private _remaining = count ([_group] call TACT_fnc_groupRoute);
 
 		if (!_append) then {
-			[_group] call TACT_fnc_clearRoute;
+			// No halt: the new destination is two lines away.
+			[_group, false] call TACT_fnc_clearRoute;
 			_remaining = 0;
 		};
 
