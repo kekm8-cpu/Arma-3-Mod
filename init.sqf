@@ -231,17 +231,24 @@ TACT_commandGroupRingUnits = 0.85;  // Selection ring radius for a collapsed gro
 // the icon without reaching the ring. Every leg ends short of a dot's centre
 // by the clear figure, which is the dot's own radius plus air, and the next
 // leg starts the same distance past it. A dot's hit radius is the Delete key's
-// grab area, wider than the dot so a cursor near it counts.
+// grab area, just outside the dot so a cursor at its edge counts. The three
+// figures move together: a dot is 1.10 across, so its radius is 0.55, the
+// clear sits 0.10 past that and the hit radius 0.15.
 //
 // The dot is the engine's own filled dot marker. Its art scale is the same
 // kind of knob as STRAT_drawGroupArtScale - the box the texture is stretched
 // into, not the semantic size the clear and hit figures are chosen against.
+//
+// A leg's width is in PIXELS, not icon units: drawLine draws one pixel wide
+// and nothing else, so a wider leg is that many one-pixel lines side by side,
+// and the count is what the figure is.
 TACT_commandRouteOriginUnits   = 0.75;  // First leg starts this far off the group icon's centre
-TACT_commandWaypointDotUnits   = 0.22;  // Dot size
-TACT_commandWaypointClearUnits = 0.20;  // A leg stops this far short of a dot's centre
-TACT_commandWaypointHitUnits   = 0.35;  // Delete's grab radius around a dot
+TACT_commandWaypointDotUnits   = 1.10;  // Dot size
+TACT_commandWaypointClearUnits = 0.65;  // A leg stops this far short of a dot's centre
+TACT_commandWaypointHitUnits   = 0.70;  // Delete's grab radius around a dot
 TACT_commandWaypointArtScale   = 1.00;  // Apparent-size knob for the dot artwork
 TACT_commandWaypointIcon       = "mil_dot";
+TACT_commandRouteLinePixels    = 5;     // Width of a leg, in one-pixel lines
 
 // Black, so a route reads as an order on the map rather than as another
 // faction, and against every faction colour alike.

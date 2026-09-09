@@ -58,6 +58,46 @@ if (_metresPerScreen <= 0) exitWith {};
 // STRAT_fnc_mapUnitMetres's business.
 private _screenPerUnit = _metresPerUnit / _metresPerScreen;
 
+// One world metre per screen pixel, right now. drawLine draws one pixel wide
+// and takes no width, so a wider line is several of them a pixel apart, and a
+// pixel has to be known in metres to place them. The screen is measured
+// across its width, in pixels, because that is the span _metresPerScreen was
+// measured over.
+private _metresPerPixel = _metresPerScreen / ((getResolution select 0) max 1);
+
+// Draws a line of a given width in pixels between two world positions: the
+// one-pixel drawLine, repeated side by side across the width and centred on
+// the line asked for. Width 1 is exactly one drawLine, so a shape that does
+// not ask for a width draws as it always did.
+private _fnc_line = {
+	params ["_map", "_from", "_to", "_colour", "_width", "_metresPerPixel"];
+
+	if (_width <= 1) exitWith {
+		_map drawLine [_from, _to, _colour];
+	};
+
+	private _dx = (_to select 0) - (_from select 0);
+	private _dy = (_to select 1) - (_from select 1);
+	private _length = sqrt ((_dx * _dx) + (_dy * _dy));
+
+	if (_length <= 0) exitWith {};
+
+	// The unit perpendicular, so the copies step across the line and not
+	// along it.
+	private _px = -_dy / _length;
+	private _py =  _dx / _length;
+
+	for "_i" from 0 to (_width - 1) do {
+		private _step = (_i - ((_width - 1) / 2)) * _metresPerPixel;
+
+		_map drawLine [
+			[(_from select 0) + (_px * _step), (_from select 1) + (_py * _step), 0],
+			[(_to select 0)   + (_px * _step), (_to select 1)   + (_py * _step), 0],
+			_colour
+		];
+	};
+};
+
 // Draws a two-barb head at the far end of a shaft between two world
 // positions, for the "arrow" shape. A "polyline" carries no head: a route
 // reads its direction from the icon it starts at, dot by dot.
@@ -200,9 +240,13 @@ private _fnc_head = {
 		// A leg with nothing left after both ends are trimmed is not drawn at
 		// all: two waypoints on top of one another are two dots, not a
 		// smear between them, and the legs either side still draw.
+		//
+		// Width is in pixels and goes through _fnc_line, which is the one
+		// place that knows drawLine cannot be told a width.
 		case "polyline": {
 			private _points = _item get "points";
 			private _clear  = (_item get "toEdge") * _metresPerUnit;
+			private _width  = _item get "lineWidth";
 
 			private _cursor = [_pos select 0, _pos select 1, 0];
 			private _startClear = (_item get "fromEdge") * _metresPerUnit;
@@ -217,7 +261,8 @@ private _fnc_head = {
 				if (_length > _startClear + _clear) then {
 					private _bearing = _dx atan2 _dy;
 
-					_map drawLine [
+					[
+						_map,
 						[
 							(_cursor select 0) + (_startClear * sin _bearing),
 							(_cursor select 1) + (_startClear * cos _bearing),
@@ -228,8 +273,10 @@ private _fnc_head = {
 							(_next select 1) - (_clear * cos _bearing),
 							0
 						],
-						_colour
-					];
+						_colour,
+						_width,
+						_metresPerPixel
+					] call _fnc_line;
 				};
 
 				_cursor = _next;
