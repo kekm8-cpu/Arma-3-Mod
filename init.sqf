@@ -239,6 +239,9 @@ TACT_commandGroupRingUnits = 2.00;  // Selection ring radius for a collapsed gro
 // The dot is the engine's own filled dot marker. Its art scale is the same
 // kind of knob as STRAT_drawGroupArtScale - the box the texture is stretched
 // into, not the semantic size the clear and hit figures are chosen against.
+// It is 5 because the dot glyph sits in a mostly transparent square, like the
+// unit silhouettes do: played at 1.00, the dot came out a fifth of the size
+// its box asked for while the legs beside it came out right.
 //
 // A leg's width is in PIXELS, not icon units: drawLine draws one pixel wide
 // and nothing else, so a wider leg is that many one-pixel lines side by side,
@@ -247,7 +250,7 @@ TACT_commandRouteOriginUnits   = TACT_commandGroupIconUnits * 0.75;  // First le
 TACT_commandWaypointDotUnits   = 1.10;  // Dot size
 TACT_commandWaypointClearUnits = 0.65;  // A leg stops this far short of a dot's centre
 TACT_commandWaypointHitUnits   = 0.70;  // Delete's grab radius around a dot
-TACT_commandWaypointArtScale   = 1.00;  // Apparent-size knob for the dot artwork
+TACT_commandWaypointArtScale   = 5.00;  // Apparent-size knob for the dot artwork
 TACT_commandWaypointIcon       = "mil_dot";
 TACT_commandRouteLinePixels    = 5;     // Width of a leg, in one-pixel lines
 
