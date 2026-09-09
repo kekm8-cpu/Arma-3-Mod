@@ -239,9 +239,9 @@ TACT_commandGroupRingUnits = 0.85;  // Selection ring radius for a collapsed gro
 // The dot is the engine's own filled dot marker. Its art scale is the same
 // kind of knob as STRAT_drawGroupArtScale - the box the texture is stretched
 // into, not the semantic size the clear and hit figures are chosen against.
-// It is 5 because the dot glyph sits in a mostly transparent square, like the
-// unit silhouettes do: played at 1.00, the dot came out a fifth of the size
-// its box asked for while the legs beside it came out right.
+// It was 5 for a while, read as the glyph not filling its texture; the dot was
+// a quarter size for the same reason every non-silhouette icon was, and the
+// calibration fix took the 5 with it.
 //
 // A leg's width is in PIXELS, not icon units: drawLine draws one pixel wide
 // and nothing else, so a wider leg is that many one-pixel lines side by side,
@@ -250,7 +250,7 @@ TACT_commandRouteOriginUnits   = TACT_commandGroupIconUnits * 0.75;  // First le
 TACT_commandWaypointDotUnits   = 0.30;  // Dot size
 TACT_commandWaypointClearUnits = 0.25;  // A leg stops this far short of a dot's centre
 TACT_commandWaypointHitUnits   = 0.40;  // Delete's grab radius around a dot
-TACT_commandWaypointArtScale   = 5.00;  // Apparent-size knob for the dot artwork
+TACT_commandWaypointArtScale   = 1.00;  // Apparent-size knob for the dot artwork
 TACT_commandWaypointIcon       = "mil_dot";
 TACT_commandRouteLinePixels    = 5;     // Width of a leg, in one-pixel lines
 
@@ -339,13 +339,13 @@ TACT_lastBattleReport        = "";  // Shown by the block readout and the planni
 // number of metres because an icon is a click target and a piece of symbology,
 // and neither has a footprint on the ground.
 //
-// THE ONE KNOB FOR "EVERYTHING IS TOO BIG" OR "TOO SMALL". Icons, rings, hit
-// areas, labels and their offsets all read this through the icon unit, so it
-// moves them together and keeps them in proportion. 0.030 is 115 pixels a unit
-// on a 4K monitor and 58 on a 1080p one - the same fraction of the screen on
-// both - and has not been played at since icons started being sized in
-// pixels, so it is the figure to retune first.
-STRAT_drawIconScreenSize = 0.030;
+// THE ONE KNOB FOR "EVERYTHING IS TOO BIG" OR "TOO SMALL" when zoomed in.
+// Icons, rings, hit areas, labels and their offsets all read this through the
+// icon unit, so it moves them together and keeps them in proportion. 0.020 is
+// 77 pixels a unit on a 4K monitor and 38 on a 1080p one - the same fraction
+// of the screen on both. Zoomed OUT past the clamp below, the clamp is the
+// knob instead.
+STRAT_drawIconScreenSize = 0.020;
 
 // ------------------------------------------------------------------------- //
 // THE SCALING MODE (manifest section 11)                                     //
@@ -373,9 +373,19 @@ STRAT_drawIconWorldMetres = 4;
 
 // Mode 2's crossover, and the number to tune in game. In metres across the
 // SCREEN rather than as a cap on icon size, because that is the figure a player
-// can read off the map; STRAT_fnc_mapUnitMetres converts it. 800 sits between
-// the zoom a squad is commanded at and the 1500 m that shows a whole boundary.
-STRAT_drawIconClampScreenMetres = 800;
+// can read off the map; STRAT_fnc_mapUnitMetres converts it.
+//
+// THE KNOB FOR "EVERYTHING IS TOO SMALL" WHEN ZOOMED OUT. Past this, an icon
+// unit is a fixed number of metres - this figure times STRAT_drawIconScreenSize,
+// 70 m at the values here - and shrinks on screen with every further zoom
+// step. 800 was chosen against the 1500 m that shows a whole boundary, and
+// played out as icons 26 pixels a unit at the 3.5 km a battle is actually
+// commanded at, which was read as everything on the map being small. 3500
+// keeps icons screen-fixed across that whole range; the price is that men a
+// few metres apart stack under one icon at the wide end, which is the
+// collision the clamp exists to stop and is the reason to bring it back down
+// once the size at close zoom is settled.
+STRAT_drawIconClampScreenMetres = 3500;
 
 // ------------------------------------------------------------------------- //
 // DRAWICON CALIBRATION                                                       //
@@ -384,36 +394,41 @@ STRAT_drawIconClampScreenMetres = 800;
 // space, not world metres. Handing them a metres-per-screen figure compounds
 // the zoom instead of cancelling it: icons grow as the map zooms out.
 //
-// And screen space to the engine is PIXELS. So STRAT_fnc_drawItems turns a
-// size in icon units into a fraction of the screen, multiplies that out by the
-// screen's width in pixels from getResolution, and these two sit on top as
-// pure engine calibration: 1 means drawIcon's argument is exactly the pixel
-// count. They carry no policy - the scaling mode changes the fraction, never
-// these, which is why the mode appears nowhere in the renderer.
+// So STRAT_fnc_drawItems turns a size in icon units into a fraction of the
+// screen's width and these two convert that fraction into the number each
+// argument wants. Pure engine calibration, carrying no policy - the scaling
+// mode changes the fraction handed to them, never these, which is why the mode
+// appears nowhere in the renderer.
 //
-// The pixel step is what makes a monitor not matter. Before it, the fraction
-// went to drawIcon with a hand-fitted 300 on it, which drew the same handful
-// of pixels on every screen - a fifth of the intended size on a 4K monitor,
-// where the rings and legs, drawn in world space, came out right. Every
-// icon-sized thing then needed multiplying up by hand, and every ring-sized
-// thing did not; that mismatch is the tell if it ever comes back.
+// MEASURED, on a 4K screen, from what the engine drew at known arguments:
 //
-// Two constants and not one because width/height and text size are separate
-// arguments; whether they share a base is the engine's to say.
+//   width/height  1 = 3 real pixels at 3840 across, so 1280 of them span the
+//                 screen. Pixels at a 1280-wide reference, in other words,
+//                 which is what makes the fraction the right thing to hand it.
+//   text size     1 = a sixth of the screen's width, near enough: 6.4 of them
+//                 span it. A unit two hundred times larger than the other, and
+//                 the reason one factor cannot serve both.
+//
+// Whether either follows the interface-size setting is not known; if the ring
+// test below fails by a constant factor on another machine, that setting is
+// the first suspect.
+//
+// The constant here was 300 for a long time - a quarter of the truth - and the
+// map looked right anyway, because the unit silhouettes carried an art scale
+// of 4 that undid it for them alone: the men were the right size and every
+// other icon was a quarter size. That is why the group boxes and the waypoint
+// dots each needed multiplying up by hand the day they arrived, and why the
+// silhouettes' art scale is now 1.
 //
 // IF THESE NEED TOUCHING UP, the selection ring is the ruler: drawEllipse in
 // true world coordinates at STRAT_drawRingUnits (0.85, the same as
-// TACT_commandIconUnits), so a selected unit's ring and its icon should very
-// nearly coincide in every mode. Check at two zoom levels. The first suspect
-// if 1 is wrong by a constant factor is the interface-size setting - the
-// engine may scale icon sizes by it, and `getResolution select 5` is where it
-// would go.
-STRAT_drawIconArgScale = 1;
+// TACT_commandIconUnits), so a selected unit's silhouette should sit inside
+// its ring with its corners just short of it. Check at two zoom levels.
+STRAT_drawIconArgScale = 1280;
 
-// The same, for text. Set against the icon by eye - STRAT_drawLabelUnits is
-// 0.30 against the icon's 0.85, so a label should read at roughly a third of
-// the icon's height.
-STRAT_drawTextArgScale = 1;
+// The same, for text. STRAT_drawLabelUnits is 0.30 against the icon's 0.85,
+// so a label should read at roughly a third of the icon's height.
+STRAT_drawTextArgScale = 6.4;
 
 // ------------------------------------------------------------------------- //
 // ARTWORK FILL (manifest section 11)                                         //
@@ -429,12 +444,14 @@ STRAT_drawTextArgScale = 1;
 // TACT_commandHitUnits are chosen against `size`, so inflating it would drag
 // the glyph away from both.
 
-// Unit silhouettes. 4.00 from eyeballing how much of iconMan's texture the
-// glyph covers; tune against the selection ring - the silhouette should sit
-// comfortably inside it. If a vehicle class turns out padded differently enough
-// to matter, this becomes a table keyed the way STRAT_drawFactionIcon is, and
-// the item field it feeds already supports that.
-STRAT_drawUnitArtScale = 4.00;
+// Unit silhouettes. This was 4.00 for a long time, read as iconMan's glyph
+// covering a quarter of its texture; it was in fact undoing a drawIcon
+// calibration that was a quarter of the truth, for the silhouettes alone, and
+// went to 1 when the calibration was measured. Tune against the selection ring
+// - the silhouette should sit comfortably inside it. If a vehicle class turns
+// out padded differently enough to matter, this becomes a table keyed the way
+// STRAT_drawFactionIcon is, and the item field it feeds already supports that.
+STRAT_drawUnitArtScale = 1.00;
 
 // The collapsed groups' NATO boxes. Nominally 1 - a box needs no correction -
 // so anything else this becomes is a deliberate statement about how heavy a

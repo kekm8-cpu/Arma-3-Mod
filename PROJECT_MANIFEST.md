@@ -818,29 +818,29 @@ These are distances on the ground and they scale with the terrain, because
 that is what they are. `STRAT_fnc_mapUnitMetres` is the single conversion and
 both the renderer and the hit-test read it.
 
-**Size is screen space, and screen space is pixels.** `drawIcon`'s width,
-height and text size are *not* world metres — an earlier revision of this
-section asserted they were, and the drill disproved it. With icon size
-multiplied by the metres-per-icon-unit figure, zooming out made every icon and
-label *grow*, until a rifleman covered two hundred metres of map; zooming in
-shrank them to nothing. That is the signature of handing a screen-space
-argument a metres-per-screen figure: the factor meant to cancel the zoom
-compounds it.
+**Size is screen space.** `drawIcon`'s width, height and text size are *not*
+world metres — an earlier revision of this section asserted they were, and the
+drill disproved it. With icon size multiplied by the metres-per-icon-unit
+figure, zooming out made every icon and label *grow*, until a rifleman covered
+two hundred metres of map; zooming in shrank them to nothing. That is the
+signature of handing a screen-space argument a metres-per-screen figure: the
+factor meant to cancel the zoom compounds it. So the renderer hands `drawIcon`
+a fraction of the screen's width, through `STRAT_drawIconArgScale` and
+`STRAT_drawTextArgScale`, which are **measured**, not fitted: width and height
+are pixels at a 1280-wide reference, so 1280 of them span the screen; text
+size is a unit two hundred times larger, about a sixth of the screen's width.
+One factor cannot serve both — the revision that tried it put a label across
+the whole map. Neither is a pixel count, so a route leg's width is the one
+figure on the map stated in pixels: `drawLine` is one pixel wide and a leg is
+a count of them.
 
-Nor are they a fraction of the screen — the revision after that one assumed
-they were, and a 4K monitor disproved it. A fraction handed to `drawIcon` with
-a hand-fitted constant on it draws the same handful of pixels on every screen,
-which is a different apparent size on each: icons came out a fifth of their
-intended size at 4K while the rings, legs and hit areas, drawn in world space,
-came out right, and every icon-sized figure was being multiplied up by hand
-to compensate. So `STRAT_fnc_drawItems` multiplies the fraction out by the
-screen's width in pixels from `getResolution` before it reaches the engine,
-and `STRAT_drawIconArgScale` and `STRAT_drawTextArgScale` sit on top at 1 as
-pure calibration. The tell, if it ever comes back, is the mismatch: things
-sized by `drawIcon` wrong by one factor, things sized by `drawEllipse` and
-`drawLine` right. The one figure that is deliberately in pixels is a route
-leg's width, because `drawLine` is one pixel wide and a leg is a count of
-them.
+The icon constant was a quarter of the truth for a long time and the map
+looked right anyway, because the unit silhouettes carried an art scale of 4
+that undid it for them alone. The men were the right size and every other
+icon was a quarter size, which is why the group boxes and the waypoint dots
+each needed multiplying up by hand the day they arrived. The tell, if it ever
+comes back, is one family of icons wrong by a constant factor while the rings
+and legs, drawn in world space, are right.
 
 **How icons behave with zoom is one switch**, `STRAT_drawIconScaleMode`, read
 only by `STRAT_fnc_mapUnitMetres`. Three modes exist, their failures are
@@ -852,7 +852,7 @@ the reasoning as much as the code:
 |---|---|---|
 | **0** screen-fixed | one icon unit is `STRAT_drawIconScreenSize` of screen width | **collision** — men 10 m apart converge to 0.7% of the screen at boundary-wide zoom while icons stay at 2.5%, so a squad stacks into one pile you cannot aim at |
 | **1** world-fixed | one icon unit is `STRAT_drawIconWorldMetres` | **vanishing** — zoom out far and an icon is a pixel |
-| **2** clamped **(default)** | 0 until the map shows more than `STRAT_drawIconClampScreenMetres` across, 1 past it | neither, within the range the crossover is set for |
+| **2** clamped **(default)** | 0 until the map shows more than `STRAT_drawIconClampScreenMetres` across, then a fixed metre figure past it | neither, within the range the crossover is set for — and the crossover is the size knob when zoomed out: at 800 m a battle commanded at 3.5 km across drew 26 pixels a unit, which read as everything being small, so it sits at 3500 while the close-zoom size settles |
 
 Mode 1's metre figure must be comparable to the spacing between men or icons
 self-overlap at *every* zoom and the mode solves nothing; a column sits 5–10 m
@@ -918,9 +918,11 @@ because `size` is what `STRAT_drawRingUnits` and `TACT_commandHitUnits` are
 calibrated against — inflating that would drag the glyph away from both.
 
 Which makes the pair the **apparent-size knobs**, one per symbol, and that is
-what they are for beyond the fill correction. The unit figure has real work to
-do: 4.00, because `iconMan`'s glyph covers about a quarter of its texture. The
-group figure is nominally 1 and starts there, since a box needs no rescue — so
+what they are for beyond the fill correction. Both start at 1. The unit figure
+was 4.00 for a long time, read as `iconMan`'s glyph covering a quarter of its
+texture; it was undoing a drawIcon calibration that was a quarter of the truth,
+and went to 1 when the calibration was measured. The group figure is nominally
+1 and starts there, since a box needs no rescue — so
 anything else it becomes is a deliberate statement about how heavy a body of men
 reads against one of its own men, which is a judgement made by looking at the map
 rather than by measuring a texture. The semantic sizes stay put while that
