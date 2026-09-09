@@ -17,11 +17,24 @@
 		move anything - it is queued to the army's "pendingOrder" and takes
 		effect when the block is committed.
 
+		THE RETURN VALUE IS AN ENGINE SWITCH. onMapSingleClick treats true as
+		"override the default", and the default is the player's PERSONAL
+		WAYPOINT on SHIFT+click - the one map gesture that cannot be stopped
+		from the control's own mouse handlers, which sit below this callback,
+		and that no script command can undo once it has fired. So this is the
+		one place it is taken away, and only while commanding, where
+		SHIFT+click appends a group waypoint and the engine's marker landed
+		under every one of them. The campaign map keeps it.
+
 	Parameters:
 		0: ARRAY  - units selected on the map
 		1: ARRAY  - world position that was clicked
 		2: BOOL   - shift held
 		3: BOOL   - alt held
+
+	Returns:
+		BOOL - true to stop the engine's own handling of the click. True while
+		       commanding; otherwise nothing, which the engine reads as false.
 */
 
 params ["_selectedUnits", "_pos", "_shift", "_alt"];
@@ -31,7 +44,10 @@ params ["_selectedUnits", "_pos", "_shift", "_alt"];
 // map control's own mouse handlers because it needs CTRL and this callback
 // only reports SHIFT and ALT. Standing down silently is the point - a hint
 // here would fire on every tactical click.
-if (!isNil "TACT_commandActive" && {TACT_commandActive}) exitWith {};
+//
+// TRUE, not nothing: this is what stops the engine dropping its personal
+// waypoint under every SHIFT+click while the map is the command surface.
+if (!isNil "TACT_commandActive" && {TACT_commandActive}) exitWith { true };
 
 // Commitment is absolute: no order revision once the block is resolving.
 if (STRAT_turnPhase != "planning") exitWith {

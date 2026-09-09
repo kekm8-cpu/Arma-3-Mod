@@ -48,11 +48,14 @@
 		place on the ground; right passes the screen position straight through,
 		because a menu opens at the cursor.
 
-		THREE STOCK MAP GESTURES ARE TAKEN AWAY WHILE COMMANDING, because they
-		are built out of the clicks this layer needs: CTRL+drag draws a freehand
-		line and CTRL builds a selection; SHIFT+click places the player's
-		personal waypoint and SHIFT+click appends a group waypoint; a double
-		click drops a marker and is also two selections of the same unit. Each is consumed by the handler
+		TWO STOCK MAP GESTURES ARE TAKEN AWAY HERE WHILE COMMANDING, because
+		they are built out of the clicks this layer needs: CTRL+drag draws a
+		freehand line and CTRL builds a selection; a double click drops a
+		marker and is also two selections of the same unit. A third, the
+		personal waypoint on SHIFT+click, is out of reach of these handlers -
+		it survived a consumed press and a consumed release both - and is
+		taken away in STRAT_fnc_onMapClick instead, whose return value is the
+		engine's switch for it. Each is consumed by the handler
 		that sees it first, on the narrowest condition covering the clash, and
 		nowhere else does this layer consume anything but the two route keys
 		above. All of it still works on the campaign map.
@@ -127,19 +130,16 @@ STRAT_mapLayerRunning = true;
 		// The press is only remembered, never acted on: the map pans by click
 		// and drag.
 		//
-		// It is also where two of the map's own modifier gestures are taken
-		// away. CTRL+drag is FREEHAND DRAWING - the engine reads the selection
-		// modifier as "start drawing a line", so every unit added to a
-		// selection left a scribble behind it. SHIFT+click is the PERSONAL
-		// WAYPOINT - the engine reads the append modifier as "put my own
-		// marker here", so every waypoint added to a route left a second,
-		// white one under it, and there is no script command to take that
-		// marker away again. Both start on the press, so returning true here
-		// means the engine never begins either.
+		// It is also where the map's own CTRL+drag FREEHAND DRAWING is taken
+		// away - the engine reads the selection modifier as "start drawing a
+		// line", so every unit added to a selection left a scribble behind it.
+		// The line starts on the press, so returning true here means the engine
+		// never begins one.
 		//
-		// ONLY with a modifier down and ONLY while commanding, which is the
-		// whole of the overlap: a plain drag still pans, and both gestures
-		// still work on the campaign map.
+		// ONLY with CTRL down and ONLY while commanding, which is the whole of
+		// the overlap: a plain drag still pans, and drawing still works on the
+		// campaign map. SHIFT is deliberately not here: consuming the press
+		// did not stop the personal waypoint, and STRAT_fnc_onMapClick does.
 		private _pressId = _map ctrlAddEventHandler ["MouseButtonDown", {
 			params ["_control", "_button", "_x", "_y", "_shift", "_ctrl"];
 			_control setVariable ["STRAT_mapPressAt", [_button, _x, _y]];
@@ -147,7 +147,7 @@ STRAT_mapLayerRunning = true;
 			private _commanding = !isNil "TACT_commandActive" && {TACT_commandActive};
 
 			// Never unconditionally: consuming every press stops the map panning.
-			_commanding && {_ctrl || _shift}
+			_commanding && {_ctrl}
 		}];
 		_map setVariable ["STRAT_mapPressEH", _pressId];
 
@@ -185,12 +185,7 @@ STRAT_mapLayerRunning = true;
 				};
 			};
 
-			// The release is consumed on the same terms as the press, so a
-			// gesture the engine finishes on the release rather than starting
-			// on the press - the personal waypoint is not documented either
-			// way - is stopped at both ends. A plain release is left alone, so
-			// the map's own click handling is untouched.
-			_commanding && {_ctrl || _shift}
+			false
 		}];
 		_map setVariable ["STRAT_mapReleaseEH", _releaseId];
 
