@@ -124,7 +124,7 @@ functions/
                              fn_onCommandKey, fn_issueMoveOrder,
                              fn_issueStopOrder, fn_issueRegroup,
                              fn_issueGroupRoute, fn_groupRoute,
-                             fn_removeWaypoint, fn_splitGroup,
+                             fn_removeWaypoint, fn_clearRoute, fn_splitGroup,
                              fn_openContextMenu, fn_closeContextMenu,
                              fn_runContextOption, fn_buildCommandList
   ui/                        fn_onMapClick, fn_mapUnitMetres,
@@ -1443,12 +1443,19 @@ instead, which would also fire the campaign click handler twice.
   on the move, with no script watching. A terrain click with groups selected
   is a waypoint for exactly those groups: bare, `TACT_fnc_issueGroupRoute`
   deletes the group's whole chain and adds the one clicked; with SHIFT it
-  appends. Backspace removes the last remaining waypoint from every selected
-  group and Delete removes the one under the cursor, whichever group's it is,
-  both through `TACT_fnc_removeWaypoint` from `TACT_fnc_onCommandKey`. The
-  keys arrive on the map's display, attached by `STRAT_fnc_attachMapLayer` on
-  the same lifecycle as the mouse, and are consumed only when they act, so the
-  stock map keeps Delete over a marker and both keys everywhere else.
+  appends. Delete removes the one waypoint under the cursor, whichever
+  group's it is, through `TACT_fnc_removeWaypoint`; Backspace clears the whole
+  route of every selected group and halts it where it stands, through
+  `TACT_fnc_clearRoute` — **the group's Stop**, the counterpart of the
+  individuals' Stop on the context menu, and the order a group had no way to
+  take while Backspace only shortened the route by one, which Delete over the
+  last dot already did. Both keys run from `TACT_fnc_onCommandKey`, arrive on
+  the map's display, attached by `STRAT_fnc_attachMapLayer` on the same
+  lifecycle as the mouse, and are consumed only when they act, so the stock
+  map keeps Delete over a marker and both keys everywhere else. Whether an
+  emptied chain halts the leader at once or at the end of the leg he is on is
+  being watched in play; if the latter, a move order to his own position goes
+  into `fn_clearRoute`, where both callers share it.
   A group's route is **read back from the engine**, never kept in script:
   `TACT_fnc_groupRoute` returns the waypoints from `currentWaypoint` onward,
   and that one reader serves the draw list, both keys and the append. Completed
@@ -1705,11 +1712,13 @@ the enforced one cannot drift apart.
   `TACT_fnc_splitGroup`, and waypoints from the map, `TACT_fnc_issueGroupRoute`
   with the keys in `TACT_fnc_onCommandKey`. A detachment draws as one collapsed
   icon through `fn_playerGroups`, is selected the frame it exists, and the next
-  terrain click is its first waypoint; SHIFT stacks more, Backspace and Delete
-  take them off. It is still out of reach of the stock F-key interface, which
-  addresses one group, so the map is the only thing that commands it.
-  What is left to close it: a `HOLD` waypoint for held ground, and Regroup
-  extended to mean `join` back into the commander's group. The route is drawn
+  terrain click is its first waypoint; SHIFT stacks more, Delete takes one
+  off, Backspace cancels the route and halts the group. It is still out of
+  reach of the stock F-key interface, which addresses one group, so the map
+  is the only thing that commands it.
+  What is left to close it: a `HOLD` waypoint for held ground that survives
+  the next route rather than being the absence of one, and Regroup extended
+  to mean `join` back into the commander's group. The route is drawn
   from the engine's own waypoint list, so neither will need a second copy of
   it.
 

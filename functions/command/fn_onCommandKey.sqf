@@ -3,13 +3,18 @@
 
 	Description:
 		Keyboard handling for the map while the player is commanding on the
-		ground. Two keys, both edits to a group's route:
+		ground. Two keys, one that edits a group's route and one that cancels
+		it:
 
-		  Backspace  removes the LAST remaining waypoint from every selected
-		             group - the route shortens from the end, one press at a
-		             time.
 		  Delete     removes the ONE waypoint under the cursor, whichever
 		             group's it is, and leaves the rest of that route intact.
+		  Backspace  clears the WHOLE route of every selected group and halts
+		             it where it stands - the group's Stop, the counterpart of
+		             the individuals' Stop on the context menu.
+
+		Backspace was once "remove the last waypoint", and Delete over the last
+		dot already did that; a key spent on a special case of the other key
+		became the one order a group could not yet take.
 
 		Backspace addresses the SELECTION, because it names no waypoint of its
 		own and the selection is what the player has said he is talking about.
@@ -31,15 +36,15 @@
 
 		CONSUMED ONLY WHEN THE KEY ACTED, or was aimed at something: Backspace
 		with groups selected is consumed whether or not any of them had a
-		waypoint to lose, because a key that reached a deliberate selection
-		is not a stray key; with none selected it is left to the engine.
+		route to cancel, because a key that reached a deliberate selection is
+		not a stray key; with none selected it is left to the engine.
 		Delete is consumed only over a dot, so its stock use on the map -
 		deleting a marker under the cursor - survives everywhere else. Both
 		keys are the engine's elsewhere and nothing here reaches the campaign
 		map: the caller passes keys through only while commanding.
 
 		Reported rather than silent, in both directions: a key is a deliberate
-		act, and a route that did not shorten needs to say why.
+		act, and a route that did not change needs to say why.
 
 	Parameters:
 		0: NUMBER  - DIK key code
@@ -61,8 +66,12 @@ if (isNil "TACT_commandGroupSelection") then { TACT_commandGroupSelection = [] }
 switch (_key) do {
 
 	// ------------------------------------------------------------------ //
-	// BACKSPACE: THE LAST WAYPOINT OFF EVERY SELECTED GROUP                //
+	// BACKSPACE: EVERY SELECTED GROUP'S ROUTE CANCELLED, AND IT HALTS       //
 	// ------------------------------------------------------------------ //
+	// Counted by groups that HAD a route: a group already holding is not
+	// halted again, and the report says what changed rather than what was
+	// pressed.
+	//
 	// DIK 14 = Backspace
 	case 14: {
 		private _liveGroups = (call TACT_fnc_playerGroups) apply {_x get "group"};
@@ -70,24 +79,22 @@ switch (_key) do {
 
 		if (count TACT_commandGroupSelection == 0) exitWith { false };
 
-		private _shortened = 0;
+		private _halted = 0;
 
 		{
-			private _route = [_x] call TACT_fnc_groupRoute;
+			private _hadRoute = count ([_x] call TACT_fnc_groupRoute) > 0;
 
-			if (count _route > 0) then {
-				private _last = (_route select (count _route - 1)) select 0;
+			[_x] call TACT_fnc_clearRoute;
 
-				if ([_x, _last] call TACT_fnc_removeWaypoint) then {
-					_shortened = _shortened + 1;
-				};
+			if (_hadRoute) then {
+				_halted = _halted + 1;
 			};
 		} forEach TACT_commandGroupSelection;
 
-		if (_shortened > 0) then {
-			systemChat format ["Last waypoint removed from %1 group(s).", _shortened];
+		if (_halted > 0) then {
+			systemChat format ["%1 group(s) halted, route cancelled.", _halted];
 		} else {
-			systemChat "The selected group(s) have no waypoints to remove.";
+			systemChat "The selected group(s) have no route to cancel.";
 		};
 
 		true

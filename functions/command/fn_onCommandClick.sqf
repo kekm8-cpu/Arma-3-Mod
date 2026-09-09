@@ -26,8 +26,8 @@
 
 		A TERRAIN CLICK WITH GROUPS SELECTED IS A WAYPOINT. Bare, it replaces
 		the group's route with one waypoint where the player clicked; with
-		SHIFT, it adds one to the end of the route. Backspace and Delete edit
-		the route from the keyboard - see TACT_fnc_onCommandKey.
+		SHIFT, it adds one to the end of the route. Delete edits the route
+		from the keyboard and Backspace cancels it - see TACT_fnc_onCommandKey.
 
 		A FOURTH CASE SITS IN FRONT OF ALL THREE: a click arriving here with the
 		context menu open is one that MISSED it, since a click on a row is

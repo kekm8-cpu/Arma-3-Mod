@@ -44,9 +44,9 @@
 		Keys are handled here rather than in init.sqf's handler on the main
 		display for the same reason the mouse is: they belong to the map, they
 		are wanted only while it is open, and the cursor position they need is
-		what the map control reports. Both keys - Backspace and Delete - are
-		consumed only when they acted on a route, so their stock uses survive
-		everywhere else.
+		what the map control reports. Both keys - Delete to edit a route,
+		Backspace to cancel one - are consumed only when they acted, so their
+		stock uses survive everywhere else.
 
 		Mouse handling is split across down and up because the map's own panning
 		is a click and drag: acting on the press would issue an order every time

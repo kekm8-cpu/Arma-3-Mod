@@ -5,9 +5,9 @@
 		Deletes one waypoint from a group's route, by the index the engine
 		knows it by, and keeps the group walking the route that is left.
 
-		Both keys come through here: Backspace with the last remaining index,
-		Delete with the index of the dot under the cursor. One deletion, one
-		place that knows what deleting does to the rest of the chain.
+		The Delete key comes through here with the index of the dot under the
+		cursor. One deletion, one place that knows what deleting does to the
+		rest of the chain; clearing a whole chain is TACT_fnc_clearRoute's.
 
 		Deleting a waypoint renumbers the ones after it, so the index of the
 		one the group is walking to now names the one that used to be next.

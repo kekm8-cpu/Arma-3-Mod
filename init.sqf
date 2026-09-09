@@ -165,8 +165,9 @@ TACT_sideAnchorClass = createHashMapFromArray [
 // addresses nobody; it never falls back to the whole group, which the player
 // leads himself. A selected unit gets one destination and no more. A selected
 // GROUP gets a waypoint: a bare click replaces its route, SHIFT extends it,
-// Backspace shortens it and Delete removes the one under the cursor - engine
-// waypoints, which a group with no player in it walks natively.
+// Delete removes the one under the cursor and Backspace cancels the route and
+// halts the group - engine waypoints, which a group with no player in it walks
+// natively.
 
 TACT_commandActive    = false;  // True only while the player holds a body on the field
 TACT_commandArmyId    = "";     // Which army record the player is currently leading

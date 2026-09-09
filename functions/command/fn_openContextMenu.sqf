@@ -19,8 +19,8 @@
 
 		THE ENTITY CONTAINER ONLY. All three options are orders for individuals,
 		so a selection of groups opens nothing: a group's orders are the map's
-		clicks and keys - a waypoint, a route, Backspace and Delete - and none
-		of them is a menu row. The two containers are never full at once, so
+		clicks and keys - a waypoint, a route, Delete to edit it and Backspace
+		to cancel it and halt - and none of them is a menu row. The two containers are never full at once, so
 		there is no mixed selection to decide about. That changes the day a
 		group has an order that is not a place on the map.
 

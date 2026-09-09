@@ -13,9 +13,9 @@
 		script watching it, which is why group command is waypoints and why
 		the manifest kept the individuals to a single destination.
 
-		REPLACE deletes every waypoint the group has, completed ones included,
-		from the highest index down so nothing renumbers under the loop, and
-		adds the one clicked. APPEND leaves the chain alone and adds to it.
+		REPLACE clears the group's whole chain through TACT_fnc_clearRoute -
+		the same clear Backspace is - and adds the one clicked. APPEND leaves
+		the chain alone and adds to it.
 
 		THE GROUP IS POINTED AT THE NEW WAYPOINT when it had nothing left to
 		walk to: a replaced chain always, and an appended one when the old
@@ -58,14 +58,7 @@ private _ordered = 0;
 		private _remaining = count ([_group] call TACT_fnc_groupRoute);
 
 		if (!_append) then {
-			// Highest index first: deleting a waypoint renumbers the ones
-			// after it, and a loop walking upwards would skip every other one.
-			private _existing = waypoints _group;
-
-			for "_i" from (count _existing - 1) to 0 step -1 do {
-				deleteWaypoint (_existing select _i);
-			};
-
+			[_group] call TACT_fnc_clearRoute;
 			_remaining = 0;
 		};
 

@@ -7,10 +7,11 @@
 		each by.
 
 		The one definition of what a group's route is. The draw list reads it
-		to draw the dots, the Backspace key reads it to find the last one, and
-		TACT_fnc_issueGroupRoute reads it to know whether a chain had run out
-		before appending to it. Three readers of the engine's waypoint list
-		agreeing by construction rather than by care.
+		to draw the dots, the Backspace key reads it to know whether there was
+		a route to cancel, and TACT_fnc_issueGroupRoute reads it to know
+		whether a chain had run out before appending to it. Three readers of
+		the engine's waypoint list agreeing by construction rather than by
+		care.
 
 		COMPLETED WAYPOINTS ARE NOT IN IT. The engine keeps a waypoint after
 		the group has reached it and only advances `currentWaypoint` past it,

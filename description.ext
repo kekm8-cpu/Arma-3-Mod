@@ -169,6 +169,7 @@ class CfgFunctions {
             class groupRoute {};
             class issueGroupRoute {};
             class removeWaypoint {};
+            class clearRoute {};
             class onCommandKey {};
         };
     };
