@@ -209,7 +209,7 @@ TACT_commandIconUnits = 0.85;   // Command icons sit slightly under an army icon
 // STRAT_drawGroupArtScale, which grows the drawn box and leaves the geometry
 // where the rest of the layer expects it. Move this only when what a group
 // MEANS relative to a man has changed.
-TACT_commandGroupIconUnits = 1.00;
+TACT_commandGroupIconUnits = 5.00;
 
 // The group's own click radius and selection ring, chosen against its own icon
 // size the way the individuals' are: a 1.00 box reaches 0.50 units to its edge
@@ -220,7 +220,7 @@ TACT_commandGroupIconUnits = 1.00;
 // STRAT_drawGroupArtScale: at art scale 1.00 the box's corners fall at 0.71 and
 // sit inside it; the box reaches it at about 1.20.
 TACT_commandGroupHitUnits  = 0.70;  // Click radius around a collapsed group
-TACT_commandGroupRingUnits = 0.85;  // Selection ring radius for a collapsed group
+TACT_commandGroupRingUnits = 2.00;  // Selection ring radius for a collapsed group
 
 // A GROUP'S ROUTE: its remaining engine waypoints, drawn as dots joined by
 // legs that stop short at both ends. All icon units, so the dots hold their
