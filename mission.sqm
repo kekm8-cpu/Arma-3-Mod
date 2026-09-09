@@ -8,7 +8,11 @@ class EditorData
 	toggles=1;
 	class ItemIDProvider
 	{
-		nextID=2;
+		nextID=3;
+	};
+	class MarkerIDProvider
+	{
+		nextID=1;
 	};
 	class Camera
 	{
@@ -19,11 +23,11 @@ class EditorData
 	};
 };
 binarizationWanted=0;
-sourceName="testmission";
+sourceName="MyMod";
 addons[]=
 {
 	"A3_Characters_F",
-	"A3_Characters_F_Civil"
+	"A3_Characters_F_Exp_Civil"
 };
 class AddonsMetaData
 {
@@ -39,8 +43,8 @@ class AddonsMetaData
 		};
 		class Item1
 		{
-			className="A3_Characters_F_Civil";
-			name="Arma 3 Alpha - Civilian Characters and Clothing";
+			className="A3_Characters_F_Exp";
+			name="Arma 3 Apex - Characters and Clothing";
 			author="Bohemia Interactive";
 			url="https://www.arma3.com";
 		};
