@@ -821,7 +821,13 @@ STRAT_selectedArmy = nil;
 // Wiring the functions to engine hooks to capture mouse input and drive the
 // simulated overworld loops.
 
-onMapSingleClick { _this call STRAT_fnc_onMapClick };
+// The MISSION EVENT HANDLER, not the onMapSingleClick command. Both fire on the
+// same click with the same arguments, but only the event handler's return
+// value reaches the engine: true there stops the default action behind the
+// click, which is the player's personal waypoint on SHIFT+click, and that is
+// what STRAT_fnc_onMapClick returns while the map is the command surface. The
+// command's return value was tried first and the waypoint went down anyway.
+addMissionEventHandler ["MapSingleClick", { _this call STRAT_fnc_onMapClick }];
 
 // ------------------------------------------------------------------------- //
 // CAMPAIGN DRAW LAYER ATTACHMENT                                             //

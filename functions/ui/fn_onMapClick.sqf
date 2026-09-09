@@ -17,27 +17,30 @@
 		move anything - it is queued to the army's "pendingOrder" and takes
 		effect when the block is committed.
 
-		THE RETURN VALUE IS AN ENGINE SWITCH. onMapSingleClick treats true as
-		"override the default", and the default is the player's PERSONAL
-		WAYPOINT on SHIFT+click - the one map gesture that cannot be stopped
-		from the control's own mouse handlers, which sit below this callback,
-		and that no script command can undo once it has fired. So this is the
-		one place it is taken away, and only while commanding, where
-		SHIFT+click appends a group waypoint and the engine's marker landed
-		under every one of them. The campaign map keeps it.
+		THE RETURN VALUE IS AN ENGINE SWITCH. This runs from the MapSingleClick
+		mission event handler, which treats true as "override the default", and
+		the default is the player's PERSONAL WAYPOINT on SHIFT+click - the one
+		map gesture that cannot be stopped from the control's own mouse
+		handlers, which sit below this callback, and that no script command can
+		undo once it has fired. So this is the one place it is taken away, and
+		only while commanding, where SHIFT+click appends a group waypoint and
+		the engine's marker landed under every one of them. The campaign map
+		keeps it. The onMapSingleClick command fires the same callback but
+		discards the return value, which is why init.sqf registers the event
+		handler and not the command.
 
-	Parameters:
+	Parameters (the event handler's order - ALT before SHIFT):
 		0: ARRAY  - units selected on the map
 		1: ARRAY  - world position that was clicked
-		2: BOOL   - shift held
-		3: BOOL   - alt held
+		2: BOOL   - alt held
+		3: BOOL   - shift held
 
 	Returns:
 		BOOL - true to stop the engine's own handling of the click. True while
 		       commanding; otherwise nothing, which the engine reads as false.
 */
 
-params ["_selectedUnits", "_pos", "_shift", "_alt"];
+params ["_selectedUnits", "_pos", "_alt", "_shift"];
 
 // The map has two modes. While the player is commanding a battle on the
 // ground, clicks belong to TACT_fnc_onCommandClick, which is driven off the
