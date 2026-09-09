@@ -236,12 +236,13 @@ TACT_commandGroupRingUnits = 0.85;  // Selection ring radius for a collapsed gro
 // figures move together: a dot is 0.30 across, so its radius is 0.15, the
 // clear sits 0.10 past that and the hit radius 0.25.
 //
-// The dot is the engine's own filled dot marker. Its art scale is the same
-// kind of knob as STRAT_drawGroupArtScale - the box the texture is stretched
-// into, not the semantic size the clear and hit figures are chosen against.
-// It was 5 for a while, read as the glyph not filling its texture; the dot was
-// a quarter size for the same reason every non-silhouette icon was, and the
-// calibration fix took the 5 with it.
+// The dot is the engine's own filled dot marker - the mil_dot CfgMarkers
+// texture, read off the class the way the NATO boxes are, with no marker
+// placed. Its art scale is the same kind of knob as STRAT_drawGroupArtScale:
+// the box the texture is stretched into, not the semantic size the clear and
+// hit figures are chosen against. It is 5 because the glyph fills about a
+// fifth of its texture - played at 1 with the drawIcon calibration measured,
+// so with nothing else left to blame, the dot came out a fifth of its box.
 //
 // A leg's width is in PIXELS, not icon units: drawLine draws one pixel wide
 // and nothing else, so a wider leg is that many one-pixel lines side by side,
@@ -250,7 +251,7 @@ TACT_commandRouteOriginUnits   = TACT_commandGroupIconUnits * 0.75;  // First le
 TACT_commandWaypointDotUnits   = 0.30;  // Dot size
 TACT_commandWaypointClearUnits = 0.25;  // A leg stops this far short of a dot's centre
 TACT_commandWaypointHitUnits   = 0.40;  // Delete's grab radius around a dot
-TACT_commandWaypointArtScale   = 1.00;  // Apparent-size knob for the dot artwork
+TACT_commandWaypointArtScale   = 5.00;  // Apparent-size knob for the dot artwork
 TACT_commandWaypointIcon       = "mil_dot";
 TACT_commandRouteLinePixels    = 5;     // Width of a leg, in one-pixel lines
 
