@@ -102,6 +102,7 @@ private _fnc_item = {
 		["points", []],
 		["fromEdge", 0],
 		["toEdge", 0],
+		["lineWidth", 1],
 		["direction", 0],
 		["artScale", 1],
 		["texture", STRAT_drawBlankTexture],
@@ -219,6 +220,7 @@ private _playerGroups = call TACT_fnc_playerGroups;
 			["points", _route apply {_x select 1}],
 			["fromEdge", TACT_commandRouteOriginUnits],
 			["toEdge", TACT_commandWaypointClearUnits],
+			["lineWidth", TACT_commandRouteLinePixels],
 			["colour", TACT_commandRouteColour]
 		]] call _fnc_item;
 

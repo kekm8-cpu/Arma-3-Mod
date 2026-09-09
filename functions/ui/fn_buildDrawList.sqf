@@ -46,6 +46,8 @@
 		                    origin off the anchor
 		toEdge    NUMBER  - icon units a polyline's legs stop short of the
 		                    points they join ("polyline" shape)
+		lineWidth NUMBER  - width of a polyline's legs in screen pixels; 1 is
+		                    a single drawLine ("polyline" shape)
 		texture   STRING  - texture path ("icon" shape)
 		artScale  NUMBER  - multiplies the drawn box to compensate for artwork
 		                    that does not fill its own texture; 1 for artwork
@@ -96,6 +98,7 @@ private _fnc_item = {
 		["points", []],
 		["fromEdge", 0],
 		["toEdge", 0],
+		["lineWidth", 1],
 		["direction", 0],
 		["artScale", 1],
 		["texture", STRAT_drawBlankTexture],

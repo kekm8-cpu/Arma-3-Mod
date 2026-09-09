@@ -753,8 +753,13 @@ A group's route is the one thing on either map made of more than one anchor:
 a `polyline` item for the legs and one dot item per waypoint, all under the
 group's id. The legs stop short at both ends — `fromEdge` off the icon,
 `toEdge` off every dot — in icon units, so the gaps hold on screen at every
-zoom like the dots do. The route carries no arrowhead: it reads its direction
-from the icon it starts at, and the dots are the stops. The dots are the
+zoom like the dots do. A leg's width is the one figure on the map in
+**pixels**: `drawLine` draws one pixel wide and takes no width, so
+`lineWidth` is how many one-pixel lines the renderer lays side by side, a
+pixel apart, centred on the leg — and a pixel is known in metres by dividing
+the measured screen span by `getResolution`'s width. The route carries no
+arrowhead: it reads its direction from the icon it starts at, and the dots
+are the stops. The dots are the
 engine's own filled dot marker, `TACT_commandWaypointIcon`, in
 `TACT_commandRouteColour`, which is black so a route is an order on the map
 and not another faction.
