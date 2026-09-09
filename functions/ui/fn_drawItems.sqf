@@ -12,10 +12,11 @@
 		cannot drift off the icon they belong to at any zoom.
 
 		Every item is SIZED by turning that same figure into a fraction of the
-		screen, because drawIcon's width, height and text size are SCREEN space
-		rather than world metres. Both spaces are driven by the one icon-unit
-		figure, so an icon at 0.85 units and a hit radius at 0.60 stay in
-		proportion under every scaling mode.
+		screen and then into PIXELS, because drawIcon's width, height and text
+		size are screen space rather than world metres - and screen space to
+		the engine is pixels, not fractions. Both spaces are driven by the one
+		icon-unit figure, so an icon at 0.85 units and a hit radius at 0.60
+		stay in proportion under every scaling mode and on every monitor.
 
 		Which is why NO SCALING MODE APPEARS HERE. The modes differ only in what
 		STRAT_fnc_mapUnitMetres returns; this divides by the measured span and
@@ -58,12 +59,24 @@ if (_metresPerScreen <= 0) exitWith {};
 // STRAT_fnc_mapUnitMetres's business.
 private _screenPerUnit = _metresPerUnit / _metresPerScreen;
 
+// The screen's width in pixels: what turns a fraction of the screen into the
+// number drawIcon wants, and a metre into the pixels drawLine draws. Read
+// once, so the two conversions below cannot disagree about the monitor.
+private _screenPixels = (getResolution select 0) max 1;
+
+// One icon unit in PIXELS, right now. drawIcon's size arguments are pixels -
+// a fraction of the screen handed to them draws the same handful of pixels
+// on every monitor, which is a different apparent size on each - so the
+// fraction is multiplied out by the width in pixels before it goes anywhere
+// near the engine. The one constant left on top is engine calibration.
+private _pixelsPerUnit = _screenPerUnit * _screenPixels;
+
 // One world metre per screen pixel, right now. drawLine draws one pixel wide
 // and takes no width, so a wider line is several of them a pixel apart, and a
 // pixel has to be known in metres to place them. The screen is measured
-// across its width, in pixels, because that is the span _metresPerScreen was
-// measured over.
-private _metresPerPixel = _metresPerScreen / ((getResolution select 0) max 1);
+// across its width because that is the span _metresPerScreen was measured
+// over.
+private _metresPerPixel = _metresPerScreen / _screenPixels;
 
 // Draws a line of a given width in pixels between two world positions: the
 // one-pixel drawLine, repeated side by side across the width and centred on
@@ -152,11 +165,13 @@ private _fnc_head = {
 			// is what keeps the ring and the click area calibrated against it.
 			private _art = _item get "artScale";
 
-			// SIZE is icon units -> screen fraction -> drawIcon argument, while
-			// POSITION went through _metresPerUnit above. The two arguments
-			// live in two different spaces and this is the one place that knows
-			// it: multiplying the size by _metresPerUnit is what once made
-			// icons GROW as the player zoomed out.
+			// SIZE is icon units -> screen fraction -> pixels -> drawIcon
+			// argument, while POSITION went through _metresPerUnit above. The
+			// two arguments live in two different spaces and this is the one
+			// place that knows it: multiplying the size by _metresPerUnit is
+			// what once made icons GROW as the player zoomed out, and handing
+			// it a screen fraction is what once made them a fifth of their size
+			// on a 4K monitor.
 			//
 			// Rotation is the item's own, and 0 for everything that is not an
 			// individual - a NATO box reads upright and an aggregate has no
@@ -170,12 +185,12 @@ private _fnc_head = {
 				_item get "texture",
 				_colour,
 				_pos,
-				_w * _art * _screenPerUnit * STRAT_drawIconArgScale,
-				_h * _art * _screenPerUnit * STRAT_drawIconArgScale,
+				_w * _art * _pixelsPerUnit * STRAT_drawIconArgScale,
+				_h * _art * _pixelsPerUnit * STRAT_drawIconArgScale,
 				_item get "direction",
 				_item get "text",
 				1,                                          // 1 = drop shadow
-				(_item get "textSize") * _screenPerUnit * STRAT_drawTextArgScale,
+				(_item get "textSize") * _pixelsPerUnit * STRAT_drawTextArgScale,
 				"PuristaMedium",
 				"center"
 			];

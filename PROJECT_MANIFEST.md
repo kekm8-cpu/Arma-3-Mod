@@ -818,18 +818,29 @@ These are distances on the ground and they scale with the terrain, because
 that is what they are. `STRAT_fnc_mapUnitMetres` is the single conversion and
 both the renderer and the hit-test read it.
 
-**Size is screen space.** `drawIcon`'s width, height and text size are *not*
-world metres — an earlier revision of this section asserted they were, and the
-drill disproved it. With icon size multiplied by the metres-per-icon-unit
-figure, zooming out made every icon and label *grow*, until a rifleman covered
-two hundred metres of map; zooming in shrank them to nothing. That is the
-signature of handing a screen-space argument a metres-per-screen figure: the
-factor meant to cancel the zoom compounds it. Icon units reach `drawIcon`
-through `STRAT_drawIconArgScale` and `STRAT_drawTextArgScale` instead, and two
-constants are needed rather than one because width/height and text size are
-separate arguments with separate base scales — trying to serve both from one
-factor is why labels came out several times the size of the icons they
-belonged to.
+**Size is screen space, and screen space is pixels.** `drawIcon`'s width,
+height and text size are *not* world metres — an earlier revision of this
+section asserted they were, and the drill disproved it. With icon size
+multiplied by the metres-per-icon-unit figure, zooming out made every icon and
+label *grow*, until a rifleman covered two hundred metres of map; zooming in
+shrank them to nothing. That is the signature of handing a screen-space
+argument a metres-per-screen figure: the factor meant to cancel the zoom
+compounds it.
+
+Nor are they a fraction of the screen — the revision after that one assumed
+they were, and a 4K monitor disproved it. A fraction handed to `drawIcon` with
+a hand-fitted constant on it draws the same handful of pixels on every screen,
+which is a different apparent size on each: icons came out a fifth of their
+intended size at 4K while the rings, legs and hit areas, drawn in world space,
+came out right, and every icon-sized figure was being multiplied up by hand
+to compensate. So `STRAT_fnc_drawItems` multiplies the fraction out by the
+screen's width in pixels from `getResolution` before it reaches the engine,
+and `STRAT_drawIconArgScale` and `STRAT_drawTextArgScale` sit on top at 1 as
+pure calibration. The tell, if it ever comes back, is the mismatch: things
+sized by `drawIcon` wrong by one factor, things sized by `drawEllipse` and
+`drawLine` right. The one figure that is deliberately in pixels is a route
+leg's width, because `drawLine` is one pixel wide and a leg is a count of
+them.
 
 **How icons behave with zoom is one switch**, `STRAT_drawIconScaleMode`, read
 only by `STRAT_fnc_mapUnitMetres`. Three modes exist, their failures are
@@ -839,7 +850,7 @@ the reasoning as much as the code:
 
 | | law | fails by |
 |---|---|---|
-| **0** screen-fixed | one icon unit is `STRAT_drawIconScreenSize` of screen width | **collision** — men 10 m apart converge to 13 px at boundary-wide zoom while icons stay 51 px, so a squad stacks into one pile you cannot aim at |
+| **0** screen-fixed | one icon unit is `STRAT_drawIconScreenSize` of screen width | **collision** — men 10 m apart converge to 0.7% of the screen at boundary-wide zoom while icons stay at 2.5%, so a squad stacks into one pile you cannot aim at |
 | **1** world-fixed | one icon unit is `STRAT_drawIconWorldMetres` | **vanishing** — zoom out far and an icon is a pixel |
 | **2** clamped **(default)** | 0 until the map shows more than `STRAT_drawIconClampScreenMetres` across, 1 past it | neither, within the range the crossover is set for |
 
@@ -871,8 +882,8 @@ order arrow points — stay in world metres and go on scaling in every mode.
 
 The invariant survives all of this intact, because both spaces are driven by the
 one icon-unit figure. A hit radius of 0.60 units and an icon of 0.85 units stay
-in that proportion at every zoom under every mode, because neither one knows
-which mode is running. What differs is only the arithmetic that reaches the
+in that proportion at every zoom under every mode and on every monitor,
+because neither one knows which mode is running or what the screen is. What differs is only the arithmetic that reaches the
 engine — every element of an army is still drawn by one pass off one set of
 figures, so they cannot drift apart. Detail can also be varied by zoom,
 strongholds and front lines when zoomed out against per-army adornment when
