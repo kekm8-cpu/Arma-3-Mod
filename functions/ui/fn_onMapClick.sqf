@@ -17,17 +17,21 @@
 		move anything - it is queued to the army's "pendingOrder" and takes
 		effect when the block is committed.
 
-		THE RETURN VALUE IS DOCUMENTED AS AN ENGINE SWITCH. This runs from the
-		MapSingleClick mission event handler, which is documented to treat true
-		as "override the default", the default being the player's PERSONAL
-		WAYPOINT on SHIFT+click. In play it did not: the marker went down with
-		true returned from here, as the onMapSingleClick command and as the
-		event handler both. True is still returned while commanding because it
-		is what the documentation asks for and it costs nothing; what actually
-		stops the marker is STRAT_fnc_attachMapLayer eating the SHIFT key on
-		the map display, so the engine never sees a SHIFT+click at all.
+		THE RETURN VALUE IS AN ENGINE SWITCH. This runs from the onMapSingleClick
+		COMMAND, whose return value the engine reads: true overrides the
+		click's default action, and the default action is the player's
+		PERSONAL WAYPOINT on SHIFT+click. So this is the one place that gesture
+		is taken away, and only while commanding, where SHIFT+click appends a
+		group waypoint and the engine's marker landed under every one of them.
+		The campaign map keeps it.
 
-	Parameters (the event handler's order - ALT before SHIFT):
+		It has to be the command. The MapSingleClick mission event handler
+		fires the same callback but cannot override the click, and the command
+		is bound to the player's unit and discarded by selectPlayer - which is
+		why STRAT_fnc_attachMapLayer re-issues it on every map open rather
+		than init.sqf issuing it once. Manifest section 13.2 has the finding.
+
+	Parameters (built by the binding from the command's special variables):
 		0: ARRAY  - units selected on the map
 		1: ARRAY  - world position that was clicked
 		2: BOOL   - alt held
@@ -46,9 +50,8 @@ params ["_selectedUnits", "_pos", "_alt", "_shift"];
 // only reports SHIFT and ALT. Standing down silently is the point - a hint
 // here would fire on every tactical click.
 //
-// TRUE, not nothing: the documented override for the click's default action.
-// It did not stop the personal waypoint in play - the eaten SHIFT key does -
-// but it is what the engine asks for and is left in place.
+// TRUE, not nothing: this is what stops the engine dropping its personal
+// waypoint under every SHIFT+click while the map is the command surface.
 if (!isNil "TACT_commandActive" && {TACT_commandActive}) exitWith { true };
 
 // Commitment is absolute: no order revision once the block is resolving.

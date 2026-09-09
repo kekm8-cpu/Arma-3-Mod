@@ -30,11 +30,16 @@
 		  KeyDown         on the map's DISPLAY rather than the control, because
 		                  keys are delivered to displays; routes the key to
 		                  TACT_fnc_onCommandKey while commanding and to nobody
-		                  otherwise - and EATS SHIFT ITSELF while commanding,
-		                  see below
-		  KeyUp           the other half of eating SHIFT: where the mission
-		                  learns the key was let go, since the engine is no
-		                  longer told it was pressed
+		                  otherwise
+
+		And one thing that is not a handler on the map at all: the
+		onMapSingleClick COMMAND is re-issued here on every map open. See
+		manifest section 13.2. Its return value is the engine's only switch
+		for the personal waypoint on SHIFT+click, and the command is bound to
+		the player's unit, so selectPlayer - drop-in, drop-out, a drill
+		ending - silently throws it away. Issued once at boot it was gone by
+		the time the map was a command surface, and every documented override
+		looked broken. Re-issued on every open, it is never stale.
 
 		Keys are handled here rather than in init.sqf's handler on the main
 		display for the same reason the mouse is: they belong to the map, they
@@ -52,33 +57,19 @@
 		place on the ground; right passes the screen position straight through,
 		because a menu opens at the cursor.
 
-		THREE STOCK MAP GESTURES ARE TAKEN AWAY HERE WHILE COMMANDING, because
-		they are built out of the clicks this layer needs: CTRL+drag draws a
+		THREE STOCK MAP GESTURES ARE TAKEN AWAY WHILE COMMANDING, because they
+		are built out of the clicks this layer needs: CTRL+drag draws a
 		freehand line and CTRL builds a selection; a double click drops a
-		marker and is also two selections of the same unit; and SHIFT+click
-		places the player's personal waypoint where SHIFT+click appends a
-		group waypoint.
-
-		THE PERSONAL WAYPOINT IS STOPPED BY EATING THE SHIFT KEY, which is
-		cruder than the other two and is the only thing that worked. It
-		survived a consumed press, a consumed release, and true returned from
-		the map click callback both as the onMapSingleClick command and as the
-		MapSingleClick mission event handler - the documented override for the
-		click's default action, which in play it is not. So while commanding,
-		SHIFT's KeyDown on the map display is consumed and the engine never
-		learns the key is down: a click with SHIFT held is, to the engine, a
-		plain click. The mission tracks the key itself in
-		TACT_commandShiftHeld, from the same KeyDown and its KeyUp, and the
-		release handler reads that alongside the SHIFT the control reports, so
-		the append still works whichever of the two the engine still tells us
-		about. The flag is cleared when the map closes, in case the key was
-		let go with the map already gone.
-
-		The cost: SHIFT does nothing else on the map while commanding. It
-		still does everything on the campaign map. Each gesture is consumed by
-		the handler that sees it first, on the narrowest condition covering
-		the clash, and nowhere else does this layer consume anything but the
-		two route keys above.
+		marker and is also two selections of the same unit; SHIFT+click places
+		the player's personal waypoint and SHIFT+click appends a group
+		waypoint. The first two are consumed by the control handlers below,
+		each by the handler that sees it first, on the narrowest condition
+		covering the clash. The third is out of reach of the control handlers
+		- it survived a consumed press, a consumed release, and the SHIFT key
+		itself being eaten - and is stopped by STRAT_fnc_onMapClick returning
+		true from the onMapSingleClick command, which is why that command is
+		re-issued here. Nowhere else does this layer consume anything but the
+		two route keys.
 
 		The stock squad bar is checked every frame rather than switched once, so
 		command mode beginning or ending underneath an open map is handled by
@@ -145,8 +136,7 @@ STRAT_mapLayerRunning = true;
 				(findDisplay 12) displayRemoveEventHandler [_type, _existing];
 			};
 		} forEach [
-			["KeyDown", "STRAT_mapKeyEH"],
-			["KeyUp", "STRAT_mapKeyUpEH"]
+			["KeyDown", "STRAT_mapKeyEH"]
 		];
 
 		private _drawId = _map ctrlAddEventHandler ["Draw", {
@@ -205,13 +195,8 @@ STRAT_mapLayerRunning = true;
 					// a place on the ground, so left converts to world; a menu
 					// opens at the cursor, so right hands on the screen
 					// coordinates ctrlSetPosition already takes.
-					// SHIFT from either source: the control's own report, or
-					// the mission's record of a key the engine was never told
-					// about.
-					private _shiftHeld = _shift || {!isNil "TACT_commandShiftHeld" && {TACT_commandShiftHeld}};
-
 					switch (_button) do {
-						case 0: { [_world, _ctrl, _shiftHeld] call TACT_fnc_onCommandClick };
+						case 0: { [_world, _ctrl, _shift] call TACT_fnc_onCommandClick };
 						case 1: { [[_x, _y]] call TACT_fnc_openContextMenu };
 					};
 				};
@@ -253,40 +238,33 @@ STRAT_mapLayerRunning = true;
 
 		// On the display, because that is where keys arrive. Routed only while
 		// commanding, so the campaign map's keys are untouched, and consumed
-		// only when TACT_fnc_onCommandKey says it acted - except SHIFT, which
-		// is consumed outright while commanding so the engine cannot build its
-		// personal-waypoint gesture out of it. See the header. Both SHIFTs:
-		// DIK 42 is the left, 54 the right.
+		// only when TACT_fnc_onCommandKey says it acted.
 		private _keyId = (findDisplay 12) displayAddEventHandler ["KeyDown", {
 			params ["_display", "_key"];
 
 			private _commanding = !isNil "TACT_commandActive" && {TACT_commandActive};
 
-			if (!_commanding) exitWith { false };
-
-			if (_key in [42, 54]) exitWith {
-				TACT_commandShiftHeld = true;
-				true
-			};
-
-			[_key, _display displayCtrl 51] call TACT_fnc_onCommandKey
+			if (_commanding) then {
+				[_key, _display displayCtrl 51] call TACT_fnc_onCommandKey
+			} else {
+				false
+			}
 		}];
 		_map setVariable ["STRAT_mapKeyEH", _keyId];
 
-		// The release of SHIFT, whether or not its press was eaten: the flag
-		// goes down on any release, so a SHIFT pressed before commanding began
-		// cannot leave it stuck up. Not consumed - nothing is built out of a
-		// key going up.
-		private _keyUpId = (findDisplay 12) displayAddEventHandler ["KeyUp", {
-			params ["_display", "_key"];
-
-			if (_key in [42, 54]) then {
-				TACT_commandShiftHeld = false;
-			};
-
-			false
-		}];
-		_map setVariable ["STRAT_mapKeyUpEH", _keyUpId];
+		// THE ENGINE'S OWN MAP CLICK, re-bound on every open. The command, not
+		// the MapSingleClick mission event handler: the event handler cannot
+		// override the click, and the whole point is the override - true from
+		// the callback is what stops the personal waypoint going down under
+		// every SHIFT+click while commanding. The command is bound to the
+		// player's UNIT, and selectPlayer discards it, so a binding made at
+		// boot is gone by the first drop-in. Manifest section 13.2.
+		//
+		// The arguments are built from the command's own special variables
+		// rather than trusted from _this, in the order the callback documents.
+		onMapSingleClick {
+			[_units, _pos, _alt, _shift] call STRAT_fnc_onMapClick
+		};
 
 		diag_log format ["STRAT Draw: map layer attached (draw %1, press %2, release %3, double %4, move %5, key %6).", _drawId, _pressId, _releaseId, _doubleId, _moveId, _keyId];
 
@@ -309,7 +287,6 @@ STRAT_mapLayerRunning = true;
 		// survive that - its controls live on the map's display.
 		call TACT_fnc_closeContextMenu;
 		[false] call TACT_fnc_setCommandHud;
-		TACT_commandShiftHeld = false;
 	};
 };
 

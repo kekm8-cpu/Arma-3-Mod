@@ -191,12 +191,6 @@ TACT_commandGroupSelection = [];  // Selected GROUPS, each drawn collapsed to on
 TACT_commandMenuOpen     = false; // True while the context menu exists
 TACT_commandMenuControls = [];    // The controls to delete when it closes
 
-// Whether SHIFT is down on the map while commanding, kept by the mission
-// because the engine is not told: STRAT_fnc_attachMapLayer eats the key so the
-// engine cannot place its personal waypoint on SHIFT+click, and reads this back
-// so SHIFT+click still appends a group waypoint.
-TACT_commandShiftHeld = false;
-
 // Groups the player has split off with "New Group", swept by
 // TACT_fnc_concludeBattle at teardown. They are created deleteWhenEmpty, so
 // this is the backstop, not the mechanism. The counter never resets within a
@@ -827,13 +821,10 @@ STRAT_selectedArmy = nil;
 // Wiring the functions to engine hooks to capture mouse input and drive the
 // simulated overworld loops.
 
-// The MISSION EVENT HANDLER rather than the onMapSingleClick command, because
-// its return value is documented as reaching the engine and the command's is
-// not. In play, true from either failed to stop the personal waypoint on
-// SHIFT+click; STRAT_fnc_attachMapLayer eats the SHIFT key for that instead.
-// The handler stays on the event, and STRAT_fnc_onMapClick still returns true
-// while commanding, because both are what the documentation asks for.
-addMissionEventHandler ["MapSingleClick", { _this call STRAT_fnc_onMapClick }];
+// The map click is NOT bound here. onMapSingleClick is bound to the player's
+// unit and selectPlayer discards it, so a binding made at boot is gone by the
+// first drop-in; STRAT_fnc_attachMapLayer re-issues it on every map open
+// instead. Manifest section 13.2.
 
 // ------------------------------------------------------------------------- //
 // CAMPAIGN DRAW LAYER ATTACHMENT                                             //

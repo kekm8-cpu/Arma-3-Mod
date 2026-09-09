@@ -1173,6 +1173,46 @@ happening underneath interface work.
 
 ---
 
+### 13.2 `onMapSingleClick` is discarded by `selectPlayer`, and only it can stop the personal waypoint
+
+**What we assumed.** That a map click callback bound once at boot stays bound
+for the mission, and that the `MapSingleClick` mission event handler is the
+modern equivalent of the `onMapSingleClick` command with the same powers.
+
+**What actually happens.** Two things, and they compound. The engine places the
+player's *personal waypoint* on SHIFT+click on the map, and the only script
+switch for it is the return value of the `onMapSingleClick` command's code:
+true overrides the click. The mission event handler of the same name fires the
+same callback but, by its own documentation, cannot override the click. And the
+command is bound to the player's **unit**: `selectPlayer` — drop-in, drop-out, a
+drill ending — throws the binding away without a word. So a binding made in
+`init.sqf` was gone by the time the map was a command surface, and there is no
+script command to remove a personal waypoint once it has gone down.
+
+**How it presented.** A white marker under every group waypoint appended with
+SHIFT+click, surviving in turn: the SHIFT press consumed on the map control,
+the release consumed too, true returned from the callback bound at boot, the
+callback moved to the mission event handler, and the SHIFT key itself eaten on
+the map display so the engine never saw it go down. Every one of those is a
+documented or plausible intercept and every one looked broken. The boot-time
+binding had been correct; it was not there any more. Found by the community's
+`onMapSingleClick {_shift}` idiom and a forum report that it "stops working
+after respawn".
+
+**The workaround** — `STRAT_fnc_attachMapLayer`, at every map open, alongside
+the control handlers it already re-attaches: the command is re-issued, with
+its arguments built from the command's own special variables, and
+`STRAT_fnc_onMapClick` returns true while commanding. Re-issuing on open rather
+than after each `selectPlayer` means no path that changes the player's unit has
+to remember to do it. `init.sqf` deliberately binds nothing.
+
+**If it regresses**, the symptom is the white marker again, and the first thing
+to check is whether something bound the click elsewhere — a second
+`onMapSingleClick` replaces this one — or registered the mission event handler
+instead, which would also fire the campaign click handler twice.
+
+---
+
 ## 14. Implementation Status
 
 **Working**
