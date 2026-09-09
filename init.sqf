@@ -226,9 +226,10 @@ TACT_commandGroupRingUnits = 2.00;  // Selection ring radius for a collapsed gro
 // legs that stop short at both ends. All icon units, so the dots hold their
 // size on screen and the gaps hold with them at every zoom.
 //
-// The first leg starts off the group icon's centre by the origin figure -
-// past the box's corner at 0.71 and inside the ring at 0.85, so the leg clears
-// the icon without reaching the ring. Every leg ends short of a dot's centre
+// The first leg starts off the group icon's centre by the origin figure,
+// which FOLLOWS THE ICON'S SIZE: three quarters of it puts the start just past
+// the box's corner, at 0.71 of the size, whatever the size is tuned to, so the
+// leg clears the icon without a second figure to move. Every leg ends short of a dot's centre
 // by the clear figure, which is the dot's own radius plus air, and the next
 // leg starts the same distance past it. A dot's hit radius is the Delete key's
 // grab area, just outside the dot so a cursor at its edge counts. The three
@@ -242,7 +243,7 @@ TACT_commandGroupRingUnits = 2.00;  // Selection ring radius for a collapsed gro
 // A leg's width is in PIXELS, not icon units: drawLine draws one pixel wide
 // and nothing else, so a wider leg is that many one-pixel lines side by side,
 // and the count is what the figure is.
-TACT_commandRouteOriginUnits   = 0.75;  // First leg starts this far off the group icon's centre
+TACT_commandRouteOriginUnits   = TACT_commandGroupIconUnits * 0.75;  // First leg starts this far off the group icon's centre
 TACT_commandWaypointDotUnits   = 1.10;  // Dot size
 TACT_commandWaypointClearUnits = 0.65;  // A leg stops this far short of a dot's centre
 TACT_commandWaypointHitUnits   = 0.70;  // Delete's grab radius around a dot
