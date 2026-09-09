@@ -234,26 +234,21 @@ private _fnc_head = {
 		// one can carry its own hit area. One item for the legs, because a
 		// route is one adornment of one entity however many legs it has.
 		//
-		// EVERY LEG STOPS SHORT AT BOTH ENDS. The first starts `fromEdge` off
-		// the anchor, so it does not run under the icon it belongs to; every
-		// leg ends `toEdge` short of the point it runs to, and every leg after
-		// the first starts `toEdge` past the point it runs from, so the line
-		// reaches a dot without touching it. Both figures are icon units and
-		// so hold on screen at every zoom, like the dot they clear.
-		//
-		// A leg with nothing left after both ends are trimmed is not drawn at
-		// all: two waypoints on top of one another are two dots, not a
-		// smear between them, and the legs either side still draw.
+		// THE LEGS MEET THE DOTS. Each runs point to point, under the dot at
+		// either end, so a route reads as one connected line with its stops on
+		// it. The first leg alone starts `fromEdge` off the anchor, in icon
+		// units, so it does not run under the icon it belongs to; a first
+		// waypoint closer than that draws no first leg, and the rest still
+		// draw.
 		//
 		// Width is in pixels and goes through _fnc_line, which is the one
 		// place that knows drawLine cannot be told a width.
 		case "polyline": {
 			private _points = _item get "points";
-			private _clear  = (_item get "toEdge") * _metresPerUnit;
 			private _width  = _item get "lineWidth";
 
 			private _cursor = [_pos select 0, _pos select 1, 0];
-			private _startClear = (_item get "fromEdge") * _metresPerUnit;
+			private _edge   = (_item get "fromEdge") * _metresPerUnit;
 
 			{
 				private _next = [_x select 0, _x select 1, 0];
@@ -262,21 +257,17 @@ private _fnc_head = {
 				private _dy = (_next select 1) - (_cursor select 1);
 				private _length = sqrt ((_dx * _dx) + (_dy * _dy));
 
-				if (_length > _startClear + _clear) then {
+				if (_length > _edge) then {
 					private _bearing = _dx atan2 _dy;
 
 					[
 						_map,
 						[
-							(_cursor select 0) + (_startClear * sin _bearing),
-							(_cursor select 1) + (_startClear * cos _bearing),
+							(_cursor select 0) + (_edge * sin _bearing),
+							(_cursor select 1) + (_edge * cos _bearing),
 							0
 						],
-						[
-							(_next select 0) - (_clear * sin _bearing),
-							(_next select 1) - (_clear * cos _bearing),
-							0
-						],
+						_next,
 						_colour,
 						_width,
 						_metresPerPixel
@@ -284,7 +275,7 @@ private _fnc_head = {
 				};
 
 				_cursor = _next;
-				_startClear = _clear;
+				_edge = 0;
 			} forEach _points;
 		};
 	};

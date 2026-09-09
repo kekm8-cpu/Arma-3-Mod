@@ -222,34 +222,32 @@ TACT_commandGroupIconUnits = 1.00;
 TACT_commandGroupHitUnits  = 0.70;  // Click radius around a collapsed group
 TACT_commandGroupRingUnits = 0.85;  // Selection ring radius for a collapsed group
 
-// A GROUP'S ROUTE: its remaining engine waypoints, drawn as dots joined by
-// legs that stop short at both ends. All icon units, so the dots hold their
-// size on screen and the gaps hold with them at every zoom.
+// A GROUP'S ROUTE: its remaining engine waypoints, drawn as dots on one
+// connected line. All icon units, so the dots hold their size on screen at
+// every zoom.
 //
 // The first leg starts off the group icon's centre by the origin figure,
 // which FOLLOWS THE ICON'S SIZE: three quarters of it puts the start just past
 // the box's corner, at 0.71 of the size, whatever the size is tuned to, so the
-// leg clears the icon without a second figure to move. Every leg ends short of a dot's centre
-// by the clear figure, which is the dot's own radius plus air, and the next
-// leg starts the same distance past it. A dot's hit radius is the Delete key's
-// grab area, just outside the dot so a cursor at its edge counts. The three
-// figures move together: a dot is 0.30 across, so its radius is 0.15, the
-// clear sits 0.10 past that and the hit radius 0.25.
+// leg clears the icon without a second figure to move. The legs run straight
+// into the dots - a route once stopped short of each dot, and connected read
+// better. A dot's hit radius is the Delete key's grab area, just outside the
+// dot so a cursor at its edge counts: a dot is 0.30 across, so its radius is
+// 0.15 and the hit radius sits 0.25 past that.
 //
 // The dot is the engine's own filled dot marker - the mil_dot CfgMarkers
 // texture, read off the class the way the NATO boxes are, with no marker
 // placed. Its art scale is the same kind of knob as STRAT_drawGroupArtScale:
-// the box the texture is stretched into, not the semantic size the clear and
-// hit figures are chosen against. It is 5 because the glyph fills about a
-// fifth of its texture - played at 1 with the drawIcon calibration measured,
-// so with nothing else left to blame, the dot came out a fifth of its box.
+// the box the texture is stretched into, not the semantic size the hit figure
+// is chosen against. It is 5 because the glyph fills about a fifth of its
+// texture - played at 1 with the drawIcon calibration measured, so with
+// nothing else left to blame, the dot came out a fifth of its box.
 //
 // A leg's width is in PIXELS, not icon units: drawLine draws one pixel wide
 // and nothing else, so a wider leg is that many one-pixel lines side by side,
 // and the count is what the figure is.
 TACT_commandRouteOriginUnits   = TACT_commandGroupIconUnits * 0.75;  // First leg starts this far off the group icon's centre
 TACT_commandWaypointDotUnits   = 0.30;  // Dot size
-TACT_commandWaypointClearUnits = 0.25;  // A leg stops this far short of a dot's centre
 TACT_commandWaypointHitUnits   = 0.40;  // Delete's grab radius around a dot
 TACT_commandWaypointArtScale   = 5.00;  // Apparent-size knob for the dot artwork
 TACT_commandWaypointIcon       = "mil_dot";

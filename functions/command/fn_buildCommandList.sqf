@@ -101,7 +101,6 @@ private _fnc_item = {
 		["toWorld", []],
 		["points", []],
 		["fromEdge", 0],
-		["toEdge", 0],
 		["lineWidth", 1],
 		["direction", 0],
 		["artScale", 1],
@@ -199,9 +198,9 @@ private _playerGroups = call TACT_fnc_playerGroups;
 // ------------------------------------------------------------------------ //
 // GROUP ROUTES                                                              //
 // ------------------------------------------------------------------------ //
-// Before the icons, so the legs draw under them. The first leg starts off the
-// group icon's edge and every leg stops short of the dot at each end, in icon
-// units, so the gaps hold on screen at every zoom like everything else does.
+// Before the icons, so the legs draw under them and under the dots: a route is
+// one connected line with its stops on it. The first leg starts off the group
+// icon's edge, in icon units, so it holds clear of the icon at every zoom.
 //
 // The dot is the engine's own filled dot marker, in the route's colour. A dot
 // carries the group and the engine's index for the waypoint, which is all the
@@ -219,7 +218,6 @@ private _playerGroups = call TACT_fnc_playerGroups;
 			["shape", "polyline"],
 			["points", _route apply {_x select 1}],
 			["fromEdge", TACT_commandRouteOriginUnits],
-			["toEdge", TACT_commandWaypointClearUnits],
 			["lineWidth", TACT_commandRouteLinePixels],
 			["colour", TACT_commandRouteColour]
 		]] call _fnc_item;

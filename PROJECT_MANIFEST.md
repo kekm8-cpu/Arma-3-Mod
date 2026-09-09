@@ -751,9 +751,11 @@ order arrow are the same lines drawn by the same law.
 
 A group's route is the one thing on either map made of more than one anchor:
 a `polyline` item for the legs and one dot item per waypoint, all under the
-group's id. The legs stop short at both ends — `fromEdge` off the icon,
-`toEdge` off every dot — in icon units, so the gaps hold on screen at every
-zoom like the dots do. A leg's width is the one figure on the map in
+group's id. The legs run point to point under the dots, so a route reads as
+one connected line with its stops on it; only the first starts `fromEdge` off
+the icon, in icon units, so it holds clear of the icon at every zoom. The
+legs once stopped short of each dot as well, and connected read better. A
+leg's width is the one figure on the map in
 **pixels**: `drawLine` draws one pixel wide and takes no width, so
 `lineWidth` is how many one-pixel lines the renderer lays side by side, a
 pixel apart, centred on the leg — and a pixel is known in metres by dividing
@@ -1588,10 +1590,10 @@ the enforced one cannot drift apart.
   rotating it is exactly how the engine's own map shows heading, and it cost one
   argument.
 - `"polyline"` in `STRAT_fnc_drawItems` is a group's route and is emitted by
-  `TACT_fnc_buildCommandList` alone. It draws legs only, trimmed at both ends,
-  with no head and no pips: the points are the emitter's own dot items, so each
-  can carry a hit area, and the shape it replaced — legs with hollow pips and
-  an arrowhead — went with the first thing to reach it.
+  `TACT_fnc_buildCommandList` alone. It draws legs only, point to point, with
+  no head and no pips: the points are the emitter's own dot items drawn over
+  the legs, so each can carry a hit area, and the shape it replaced — legs with
+  hollow pips and an arrowhead — went with the first thing to reach it.
 - `fn_calculateRoadPath` snaps the start point to the *nearest* road but the end
   point to an arbitrary one; the jink-correction block assumes `_startInput` is
   an array and will error if an object was passed.

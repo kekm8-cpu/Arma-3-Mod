@@ -44,8 +44,6 @@
 		points    ARRAY   - ordered world positions ("polyline" shape)
 		fromEdge  NUMBER  - icon units to push an arrow's or a polyline's
 		                    origin off the anchor
-		toEdge    NUMBER  - icon units a polyline's legs stop short of the
-		                    points they join ("polyline" shape)
 		lineWidth NUMBER  - width of a polyline's legs in screen pixels; 1 is
 		                    a single drawLine ("polyline" shape)
 		texture   STRING  - texture path ("icon" shape)
@@ -97,7 +95,6 @@ private _fnc_item = {
 		["toWorld", []],
 		["points", []],
 		["fromEdge", 0],
-		["toEdge", 0],
 		["lineWidth", 1],
 		["direction", 0],
 		["artScale", 1],
